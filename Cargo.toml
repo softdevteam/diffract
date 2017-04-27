@@ -1,0 +1,15 @@
+[package]
+name = "rstreediff"
+version = "0.1.0"
+authors = ["Sarah Mount <sarah.mount@kcl.ac.uk>"]
+include = ["src/**/*", "grammars/*", "Cargo.toml"]
+
+[[bin]]
+doc = false
+name = "rstreediff"
+
+[dependencies]
+getopts = "0.2.14"
+lrtable = { git = "http://github.com/softdevteam/lrtable" }
+lrlex = { git = "http://github.com/softdevteam/lrlex" }
+lrpar = { git = "http://github.com/softdevteam/lrpar" }
