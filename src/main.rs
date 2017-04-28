@@ -35,27 +35,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(try_from)]
-
-use std::convert::TryFrom;
-use std::collections::HashMap;
 use std::{env, process};
-use std::fs::File;
-use std::io::{Read, stderr, Write};
+use std::io::{stderr, Write};
 use std::path::Path;
+
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 extern crate getopts;
 use getopts::Options;
 
-extern crate lrlex;
-use lrlex::{build_lex, Lexeme};
-
-extern crate lrtable;
-use lrtable::{Minimiser, yacc_to_statetable};
-
-extern crate lrpar;
-use lrpar::parse;
-
+extern crate treediff;
+use treediff::ast;
 
 fn usage(prog: String, msg: &str) {
     let path = Path::new(prog.as_str());
@@ -66,93 +58,133 @@ fn usage(prog: String, msg: &str) {
     if msg.len() > 0 {
         writeln!(&mut stderr(), "{}", msg).ok();
     }
-    writeln!(&mut stderr(), "Usage: {} <input file>", leaf).ok();
+    writeln!(&mut stderr(), "Usage: {} <input file> <input file>", leaf).ok();
     process::exit(1);
 }
 
-fn read_file(path: &str) -> String {
-    let mut f = match File::open(path) {
-        Ok(r) => r,
-        Err(e) => {
-            writeln!(&mut stderr(), "Can't open file {}: {}", path, e).ok();
-            process::exit(1);
-        }
-    };
-    let mut s = String::new();
-    f.read_to_string(&mut s).unwrap();
-    s
-}
-
 fn main() {
+    env_logger::init().unwrap();
+
     let args: Vec<String> = env::args().collect();
     let prog = args[0].clone();
     let matches = match Options::new().optflag("h", "help", "").parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => {
             usage(prog, f.to_string().as_str());
-            return;
+            process::exit(1);
         }
     };
 
-    if matches.opt_present("h") || matches.free.len() != 1 {
+    if matches.opt_present("h") || matches.free.len() != 2 {
         usage(prog, "");
-        return;
+        process::exit(0);
     }
+
+    // This function duplicates some checks that are performed by the
+    // treediff::ast::parse_file in order to give better error messages.
 
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
-    let file_path = Path::new(&matches.free[0]);
-    let extension = match file_path.extension() {
+    // TODO: create a HashMap of file extensions -> lex/yacc files.
+    let extension1 = match Path::new(&matches.free[0]).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
             writeln!(&mut stderr(),
                      "Cannot determine file type of {}.",
                      &matches.free[0])
                     .ok();
-            return;
-        }
-    };
-    let lex_l_path = format!("grammars/{}.l", extension);
-    let yacc_y_path = format!("grammars/{}.y", extension);
-    if !Path::new(&lex_l_path).exists() || !Path::new(&yacc_y_path).exists() {
-        writeln!(&mut stderr(), "Cannot parse .{} files.", extension).ok();
-        return;
-    }
-
-    // Create lexer.
-    let mut lexer = match build_lex::<u16>(&read_file(&lex_l_path)) {
-        Ok(ast) => ast,
-        Err(s) => {
-            writeln!(&mut stderr(), "{}: {}", &lex_l_path, &s).ok();
             process::exit(1);
         }
     };
+    let lex_l_path1 = format!("grammars/{}.l", extension1);
+    let yacc_y_path1 = format!("grammars/{}.y", extension1);
+    info!("Using lexer: {} and parser: {} for input (base): {}",
+          &lex_l_path1,
+          &yacc_y_path1,
+          &matches.free[0]);
+    if !Path::new(&lex_l_path1).exists() || !Path::new(&yacc_y_path1).exists() {
+        writeln!(&mut stderr(), "Cannot parse .{} files.", extension1).ok();
+        process::exit(1);;
+    }
 
-    // Create parser.
-    let (grm, stable) = match yacc_to_statetable(&read_file(&yacc_y_path), Minimiser::Pager) {
-        Ok(x) => x,
-        Err(s) => {
-            writeln!(&mut stderr(), "{}: {}", &yacc_y_path, &s).ok();
+    let extension2 = match Path::new(&matches.free[1]).extension() {
+        Some(ext) => ext.to_str().unwrap(),
+        None => {
+            writeln!(&mut stderr(),
+                     "Cannot determine file type of {}.",
+                     &matches.free[1])
+                    .ok();
             process::exit(1);
         }
     };
-
-    // Sync up the IDs of terminals in the lexer and parser.
-    let mut rule_ids = HashMap::<&str, u16>::new();
-    for term_idx in grm.iter_term_idxs() {
-        rule_ids.insert(grm.term_name(term_idx).unwrap(),
-                        u16::try_from(usize::from(term_idx)).unwrap());
+    let lex_l_path2 = format!("grammars/{}.l", extension2);
+    let yacc_y_path2 = format!("grammars/{}.y", extension2);
+    info!("Using lexer: {} and parser: {} for input (diff): {}",
+          &lex_l_path2,
+          &yacc_y_path2,
+          &matches.free[1]);
+    if !Path::new(&lex_l_path2).exists() || !Path::new(&yacc_y_path2).exists() {
+        writeln!(&mut stderr(), "Cannot parse .{} files.", extension2).ok();
+        process::exit(1);
     }
-    lexer.set_rule_ids(&rule_ids);
 
-    let input = read_file(&matches.free[0]);
-
-    let mut lexemes = lexer.lex(&input).unwrap();
-    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.end_term)).unwrap(),
-                             input.len(),
-                             0));
-    let pt = parse::<u16>(&grm, &stable, &lexemes).unwrap();
-
-    // Print parse tree.
-    println!("{}", pt.pp(&grm, &input));
+    // Parse both input files.
+    let pt_base = match ast::parse_file(&matches.free[0]) {
+        Ok(pt) => pt,
+        Err(treediff::ast::ParseError::FileNotFound) => {
+            writeln!(&mut stderr(),
+                     "File not found. Check grammar and input files.")
+                    .ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenLexer) => {
+            writeln!(&mut stderr(), "Could not build lexer {}.", lex_l_path1).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenParser) => {
+            writeln!(&mut stderr(), "Could not build parser {}.", yacc_y_path1).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::LexicalError) => {
+            writeln!(&mut stderr(), "Lexical error in {}.", &matches.free[0]).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::SyntaxError) => {
+            writeln!(&mut stderr(), "Syntax error in {}.", &matches.free[0]).ok();
+            process::exit(1);
+        }
+        Err(_) => {
+            writeln!(&mut stderr(), "Error parsing {}.", &matches.free[0]).ok();
+            process::exit(1);
+        }
+    };
+    let pt_diff = match ast::parse_file(&matches.free[1]) {
+        Ok(pt) => pt,
+        Err(treediff::ast::ParseError::FileNotFound) => {
+            writeln!(&mut stderr(),
+                     "File not found. Check grammar and input files.")
+                    .ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenLexer) => {
+            writeln!(&mut stderr(), "Could not build lexer {}.", lex_l_path2).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenParser) => {
+            writeln!(&mut stderr(), "Could not build parser {}.", yacc_y_path2).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::LexicalError) => {
+            writeln!(&mut stderr(), "Lexical error in {}.", &matches.free[1]).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::SyntaxError) => {
+            writeln!(&mut stderr(), "Syntax error in {}.", &matches.free[1]).ok();
+            process::exit(1);
+        }
+        Err(_) => {
+            writeln!(&mut stderr(), "Error parsing {}.", &matches.free[1]).ok();
+            process::exit(1);
+        }
+    };
 }
