@@ -37,15 +37,22 @@
 
 #![feature(try_from)]
 
+extern crate env_logger;
+extern crate getopts;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
-
-extern crate getopts;
 extern crate lrlex;
 extern crate lrtable;
 extern crate lrpar;
 
+/// AST defines the abstract syntax tree types that the differ works on.
+///
+/// Routines are provided to create and iterate over ASTs, and to parse a file
+/// into an AST.
 pub mod ast;
-pub use ast::parse_file;
+
+// Re-exported enums and structs.
 pub use ast::ParseError;
+
+// Re-exported functions.
+pub use ast::parse_file;

@@ -39,7 +39,6 @@ use std::{env, process};
 use std::io::{stderr, Write};
 use std::path::Path;
 
-#[macro_use]
 extern crate log;
 extern crate env_logger;
 
@@ -98,10 +97,6 @@ fn main() {
     };
     let lex_l_path1 = format!("grammars/{}.l", extension1);
     let yacc_y_path1 = format!("grammars/{}.y", extension1);
-    info!("Using lexer: {} and parser: {} for input (base): {}",
-          &lex_l_path1,
-          &yacc_y_path1,
-          &matches.free[0]);
     if !Path::new(&lex_l_path1).exists() || !Path::new(&yacc_y_path1).exists() {
         writeln!(&mut stderr(), "Cannot parse .{} files.", extension1).ok();
         process::exit(1);;
@@ -119,10 +114,6 @@ fn main() {
     };
     let lex_l_path2 = format!("grammars/{}.l", extension2);
     let yacc_y_path2 = format!("grammars/{}.y", extension2);
-    info!("Using lexer: {} and parser: {} for input (diff): {}",
-          &lex_l_path2,
-          &yacc_y_path2,
-          &matches.free[1]);
     if !Path::new(&lex_l_path2).exists() || !Path::new(&yacc_y_path2).exists() {
         writeln!(&mut stderr(), "Cannot parse .{} files.", extension2).ok();
         process::exit(1);
