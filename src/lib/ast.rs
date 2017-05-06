@@ -39,19 +39,21 @@
 
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 use std::fs::File;
 use std::io;
 use std::io::Read;
+use std::ops::{Index, IndexMut};
 use std::path::Path;
 
 use lrlex::{build_lex, Lexeme};
 use lrpar::parser;
 use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
 
-/// Errors raised when parsing a source file.
 #[derive(Debug)]
+/// Errors raised when parsing a source file.
 pub enum ParseError {
-    /// Io error returned from std library routine.
+    /// Io error returned from standard library routine.
     Io(io::Error),
     /// File not found.
     FileNotFound,
@@ -67,7 +69,267 @@ pub enum ParseError {
     SyntaxError,
 }
 
-// Read file and return its contents.
+#[derive(Debug)]
+/// Errors raised by arenas..
+pub enum ArenaError {
+    /// Arena is unexpectedly empty.
+    EmtpyArena,
+    /// Node ID could not be found in this arena.
+    NodeIdNotFound,
+}
+
+/// A node identifier for nodes within a particular `Arena`.
+type NodeId = usize;
+
+/// An arena in which to place `NodeID`-indexed AST nodes.
+///
+/// `T` and `U` are types given to internal values stored within each node.
+/// These values contain information that the `lrpar` crate will provide, and
+/// represent the type (e.g. `expr`, `factor`, `term`) of each node and any
+/// information (e.g. literals) stored within the node. In most uses, `T` and
+/// `U` will both be `String` types.
+pub struct Arena<T, U> {
+    nodes: Vec<Node<T, U>>,
+}
+
+impl<T, U> Index<NodeId> for Arena<T, U> {
+    type Output = Node<T, U>;
+
+    fn index(&self, node: NodeId) -> &Node<T, U> {
+        &self.nodes[node]
+    }
+}
+
+impl<T, U> IndexMut<NodeId> for Arena<T, U> {
+    fn index_mut(&mut self, node: NodeId) -> &mut Node<T, U> {
+        &mut self.nodes[node]
+    }
+}
+
+impl<T, U> Arena<T, U> {
+    /// Create an empty `Arena`.
+    pub fn new() -> Arena<T, U> {
+        Arena { nodes: Vec::new() }
+    }
+
+    /// Create a new node from its data.
+    pub fn new_node(&mut self, data: T, ty: U, indent: u32) -> NodeId {
+        let next_index = self.nodes.len();
+        let node = Node::new(data, ty, indent);
+        self.nodes.push(node);
+        next_index
+    }
+
+    /// Return `true` if the arena is empty, `false` otherwise.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
+    /// Make one node the child of another.
+    pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> Result<(), ArenaError> {
+        if child >= self.nodes.len() {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        if parent >= self.nodes.len() {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        self[child].parent = Some(parent);
+        match self[parent].first_child {
+            None => self[parent].first_child = Some(child),
+            Some(_) => (),
+        };
+        match self[parent].last_child {
+            None => self[parent].last_child = Some(child),
+            Some(id) => {
+                self[parent].last_child = Some(child);
+                self[id].next_sibling = Some(child);
+                self[child].previous_sibling = Some(id);
+            }
+        };
+        Ok(())
+    }
+}
+
+// Should have same output as lrpar::parser::Node<TokId>::pretty_print().
+impl<T, U> fmt::Display for Arena<T, U>
+    where T: fmt::Display,
+          U: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.nodes.is_empty() {
+            return write!(f, "");
+        }
+        let mut formatted = String::new();
+        let mut stack: Vec<NodeId> = vec![0];
+        while !stack.is_empty() {
+            let id = stack.pop().unwrap();
+            let node = &self.nodes[id];
+            if node.is_leaf() {
+                // Terminal node.
+                formatted.push_str(&format!("{}\n", node));
+            } else {
+                // Non-terminal node.
+                formatted.push_str(&format!("{}\n", node));
+                let first_child = node.first_child.unwrap();
+                let mut current_child = node.last_child.unwrap();
+                loop {
+                    stack.push(current_child);
+                    if current_child == first_child {
+                        break;
+                    }
+                    match self.nodes[current_child].previous_sibling {
+                        None => break,
+                        Some(id) => current_child = id,
+                    };
+                }
+            }
+        }
+        write!(f, "{}", formatted)
+    }
+}
+
+// #[derive(Clone, Debug)]
+/// An AST node within an `Arena`.
+pub struct Node<T, U> {
+    parent: Option<NodeId>,
+    previous_sibling: Option<NodeId>,
+    next_sibling: Option<NodeId>,
+    first_child: Option<NodeId>,
+    last_child: Option<NodeId>,
+    /// The actual data which will be stored within the tree.
+    pub data: T,
+    /// Type of this AST node, derived from grammar e.g. `expr`, `factor`, `term`.
+    pub ty: U,
+    /// Level of indentation, useful for pretty printing, formatting, etc.
+    pub indent: u32,
+}
+
+impl<T, U> Node<T, U> {
+    /// Create a new node, with data, but without a parent or children.
+    pub fn new(data: T, ty: U, indent: u32) -> Node<T, U> {
+        Node {
+            parent: None,
+            previous_sibling: None,
+            next_sibling: None,
+            first_child: None,
+            last_child: None,
+            data: data,
+            ty: ty,
+            indent: indent,
+        }
+    }
+
+    /// `true` if this node has no children.
+    pub fn is_leaf(&self) -> bool {
+        match self.first_child {
+            Some(_) => false,
+            None => true,
+        }
+    }
+
+    /// `true` if this node has no parent.
+    pub fn is_root(&self) -> bool {
+        match self.parent {
+            Some(_) => false,
+            None => true,
+        }
+    }
+
+    /// Return the ID of the parent node, if there is one.
+    pub fn parent(&self) -> Option<NodeId> {
+        self.parent
+    }
+
+    /// Return the ID of the first child of this node, if there is one.
+    pub fn first_child(&self) -> Option<NodeId> {
+        self.first_child
+    }
+
+    /// Return the ID of the last child of this node, if there is one.
+    pub fn last_child(&self) -> Option<NodeId> {
+        self.last_child
+    }
+
+    /// Return the ID of the previous sibling of this node, if there is one.
+    pub fn previous_sibling(&self) -> Option<NodeId> {
+        self.previous_sibling
+    }
+
+    /// Return the ID of the previous sibling of this node, if there is one.
+    pub fn next_sibling(&self) -> Option<NodeId> {
+        self.next_sibling
+    }
+}
+
+impl<T, U> fmt::Display for Node<T, U>
+    where T: fmt::Display,
+          U: fmt::Display
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut s = String::new();
+        for _ in 0..self.indent {
+            s.push_str(" ");
+        }
+        write!(f, "{}", s).unwrap(); // Indentation.
+        let data_s = format!(" {}", self.data);
+        if data_s.len() == 1 {
+            return write!(f, "{}", self.ty);
+        }
+        write!(f, "{}", self.ty).unwrap();
+        write!(f, "{}", data_s)
+    }
+}
+
+// Turn a grammar, parser and input string into an AST arena.
+fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String, String> {
+    let mut arena = Arena::new();
+    let mut st = vec![(0, pt)]; // Stack of (indent level, node) pairs
+    // Stack of Option(NodeId)s which are parents of nodes on the `st` stack.
+    // The stack should never be empty, a `None` should be at the bottom of the stack.
+    let mut parent = vec![None];
+    let mut child_node: NodeId;
+    while !st.is_empty() {
+        let (indent, e) = st.pop().unwrap();
+        match e {
+            &parser::Node::Terminal { lexeme } => {
+                let token_id: usize = lexeme.tok_id().try_into().ok().unwrap();
+                let term_name = grm.term_name(TIdx::from(token_id)).unwrap();
+                let lexeme_string = &input[lexeme.start()..lexeme.start() + lexeme.len()];
+                child_node =
+                    arena.new_node(lexeme_string.to_string(), term_name.to_string(), indent);
+                match parent.pop().unwrap() {
+                    None => parent.push(None),
+                    Some(id) => {
+                        arena.make_child_of(child_node, id).ok();
+                    }
+                };
+            }
+            &parser::Node::Nonterminal {
+                 nonterm_idx,
+                 ref nodes,
+             } => {
+                // A non-terminal has no value of its own, but has a node type.
+                child_node = arena.new_node("".to_string(),
+                                            grm.nonterm_name(nonterm_idx).unwrap().to_string(),
+                                            indent);
+                match parent.pop().unwrap() {
+                    None => parent.push(None),
+                    Some(id) => {
+                        arena.make_child_of(child_node, id).ok();
+                    }
+                };
+                // Push children of current non-terminal onto stacks.
+                for x in nodes.iter().rev() {
+                    st.push((indent + 1, x));
+                    parent.push(Some(child_node));
+                }
+            }
+        }
+    }
+    arena
+}
+
+// Read file and return its contents or `ParseError`.
 fn read_file(path: &str) -> Result<String, ParseError> {
     let mut f = match File::open(path) {
         Ok(r) => r,
@@ -78,41 +340,8 @@ fn read_file(path: &str) -> Result<String, ParseError> {
     Ok(s)
 }
 
-// Pretty print AST (place-holder for later code).
-fn pretty_print(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> String {
-    let mut st = vec![(0, pt)]; // Stack of (indent level, node) pairs
-    let mut s = String::new();
-    while !st.is_empty() {
-        let (indent, e) = st.pop().unwrap();
-        for _ in 0..indent {
-            s.push_str(" ");
-        }
-        match e {
-            &parser::Node::Terminal { lexeme } => {
-                let tid: usize = lexeme.tok_id().try_into().ok().unwrap();
-                let tn = grm.term_name(TIdx::from(tid)).unwrap();
-                let lt = &input[lexeme.start()..lexeme.start() + lexeme.len()];
-                s.push_str(&format!("{} {}\n", tn, lt));
-            }
-            &parser::Node::Nonterminal {
-                 nonterm_idx,
-                 ref nodes,
-             } => {
-                s.push_str(&format!("{}\n", grm.nonterm_name(nonterm_idx).unwrap()));
-                for x in nodes.iter().rev() {
-                    st.push((indent + 1, x));
-                }
-            }
-        }
-    }
-    s
-}
-
-/// Parse an individual input file, and return an lrpar::parser::Node or
-/// [ParseError](enum.ParseError.html).
-///
-/// In the near future this function will return a custom tree type (or error).
-pub fn parse_file(input_path: &str) -> Result<parser::Node<u16>, ParseError> {
+/// Parse an individual input file, and return an `Arena` or `ParseError`.
+pub fn parse_file(input_path: &str) -> Result<Arena<String, String>, ParseError> {
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
@@ -178,6 +407,106 @@ pub fn parse_file(input_path: &str) -> Result<parser::Node<u16>, ParseError> {
         Ok(tree) => tree,
         Err(_) => return Err(ParseError::SyntaxError),
     };
-    println!("{}", pretty_print(&pt, &grm, &input));
-    Ok(pt)
+    Ok(parse_into_ast(&pt, &grm, &input))
+}
+
+#[cfg(test)]
+#[test]
+fn new_ast_node() {
+    let arena = &mut Arena::new();
+    assert!(arena.is_empty());
+    let n0 = arena.new_node("100", "INT", 8);
+    assert!(!arena.is_empty());
+    let n1 = arena.new_node("foobar", "STR", 12);
+    assert!(!arena.is_empty());
+    // Check node ids, data, types and indent levels.
+    assert_eq!(0, n0);
+    assert_eq!("100", arena[n0].data);
+    assert_eq!("INT", arena[n0].ty);
+    assert_eq!(8, arena[n0].indent);
+    assert_eq!(1, n1);
+    assert_eq!("foobar", arena[n1].data);
+    assert_eq!("STR", arena[n1].ty);
+    assert_eq!(12, arena[n1].indent);
+}
+
+#[test]
+fn make_child_of_1() {
+    let arena = &mut Arena::new();
+    assert!(arena.is_empty());
+    let root = arena.new_node("+", "Expr", 0);
+    let n1 = arena.new_node("1", "INT", 4);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("*", "Expr", 4);
+    arena.make_child_of(n2, root).unwrap();
+    let n3 = arena.new_node("3", "INT", 8);
+    arena.make_child_of(n3, n2).unwrap();
+    let n4 = arena.new_node("4", "INT", 8);
+    arena.make_child_of(n4, n2).unwrap();
+    assert!(!arena.is_empty());
+    // Check roots and leaves.
+    assert!(arena[root].is_root());
+    assert!(!arena[n1].is_root());
+    assert!(!arena[n2].is_root());
+    assert!(!arena[n3].is_root());
+    assert!(!arena[n4].is_root());
+    assert!(!arena[root].is_leaf());
+    assert!(arena[n1].is_leaf());
+    assert!(!arena[n2].is_leaf());
+    assert!(arena[n3].is_leaf());
+    assert!(arena[n4].is_leaf());
+}
+
+#[test]
+fn make_child_of_2() {
+    let arena = &mut Arena::new();
+    assert!(arena.is_empty());
+    let root = arena.new_node("+", "Expr", 4);
+    assert!(!arena.is_empty());
+    let n1 = arena.new_node("1", "INT", 0);
+    assert!(!arena.is_empty());
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("2", "INT", 0);
+    assert!(!arena.is_empty());
+    arena.make_child_of(n2, root).unwrap();
+    // Check parents correctly set.
+    assert_eq!(None, arena[root].parent);
+    assert_eq!(root, arena[n1].parent.unwrap());
+    assert_eq!(root, arena[n2].parent.unwrap());
+    // Check children correctly set.
+    assert_eq!(n1, arena[root].first_child.unwrap());
+    assert_eq!(n2, arena[root].last_child.unwrap());
+    assert_eq!(None, arena[n1].first_child);
+    assert_eq!(None, arena[n1].last_child);
+    assert_eq!(None, arena[n2].first_child);
+    assert_eq!(None, arena[n2].last_child);
+    // Check siblings correctly set.
+    assert_eq!(n1, arena[n2].previous_sibling.unwrap());
+    assert_eq!(None, arena[n2].next_sibling);
+    assert_eq!(None, arena[n1].previous_sibling);
+    assert_eq!(n2, arena[n1].next_sibling.unwrap());
+    assert_eq!(None, arena[root].previous_sibling);
+    assert_eq!(None, arena[root].next_sibling);
+}
+
+#[test]
+fn node_fmt() {
+    let node = Node::new("private", "MODIFIER", 4);
+    let expected = "    MODIFIER private";
+    assert_eq!(expected, format!("{:}", node));
+}
+
+#[test]
+fn arena_fmt() {
+    let arena = &mut Arena::new();
+    let root = arena.new_node("+", "Expr", 4);
+    let n1 = arena.new_node("1", "INT", 0);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("2", "INT", 0);
+    arena.make_child_of(n2, root).unwrap();
+    let expected = "    Expr +
+INT 1
+INT 2
+";
+    assert_eq!(expected, format!("{:}", arena));
 }

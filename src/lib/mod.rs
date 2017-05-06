@@ -53,6 +53,8 @@ pub mod ast;
 
 // Re-exported enums and structs.
 pub use ast::ParseError;
+pub use ast::Arena;
+pub use ast::ArenaError;
 
 // Re-exported functions.
 pub use ast::parse_file;

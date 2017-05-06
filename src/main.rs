@@ -36,9 +36,10 @@
 // SOFTWARE.
 
 use std::{env, process};
-use std::io::{stderr, Write};
+use std::io::{stdout, stderr, Write};
 use std::path::Path;
 
+#[macro_use]
 extern crate log;
 extern crate env_logger;
 
@@ -48,17 +49,59 @@ use getopts::Options;
 extern crate treediff;
 use treediff::ast;
 
-fn usage(prog: String, msg: &str) {
+fn usage(prog: String, msg: &str, error: bool, options: Options) {
     let path = Path::new(prog.as_str());
-    let leaf = match path.file_name() {
+    let program = match path.file_name() {
         Some(m) => m.to_str().unwrap(),
         None => "rstreediff",
     };
+    let brief = format!("Usage: {} [OPTIONS] <base file> <diff file>", program);
+    let mut output = String::new();
     if msg.len() > 0 {
-        writeln!(&mut stderr(), "{}", msg).ok();
+        output.push_str(msg);
+        output.push_str("\n");
     }
-    writeln!(&mut stderr(), "Usage: {} <input file> <input file>", leaf).ok();
-    process::exit(1);
+    output.push_str(options.usage(&brief).as_str());
+    if error {
+        writeln!(stderr(), "{}", output).ok();
+    } else {
+        writeln!(stdout(), "{}", output).ok();
+    }
+}
+
+fn parse_file(filename: &str,
+              lexer_path: &str,
+              yacc_path: &str)
+              -> treediff::ast::Arena<String, String> {
+    match ast::parse_file(filename) {
+        Ok(arena) => arena,
+        Err(treediff::ast::ParseError::FileNotFound) => {
+            writeln!(&mut stderr(),
+                     "File not found. Check grammar and input files.")
+                    .ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenLexer) => {
+            writeln!(&mut stderr(), "Could not build lexer {}.", lexer_path).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::BrokenParser) => {
+            writeln!(&mut stderr(), "Could not build parser {}.", yacc_path).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::LexicalError) => {
+            writeln!(&mut stderr(), "Lexical error in {}.", filename).ok();
+            process::exit(1);
+        }
+        Err(treediff::ast::ParseError::SyntaxError) => {
+            writeln!(&mut stderr(), "Syntax error in {}.", filename).ok();
+            process::exit(1);
+        }
+        Err(_) => {
+            writeln!(&mut stderr(), "Error parsing {}.", filename).ok();
+            process::exit(1);
+        }
+    }
 }
 
 fn main() {
@@ -66,17 +109,26 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     let prog = args[0].clone();
-    let matches = match Options::new().optflag("h", "help", "").parse(&args[1..]) {
+    let mut options = Options::new();
+    options.optflag("a", "ast", "print AST of input files to STDOUT");
+    options.optflag("h", "help", "print this help menu");
+    let matches = match options.parse(&args[1..]) {
         Ok(m) => m,
         Err(f) => {
-            usage(prog, f.to_string().as_str());
+            usage(prog, f.to_string().as_str(), true, options);
             process::exit(1);
         }
     };
-
-    if matches.opt_present("h") || matches.free.len() != 2 {
-        usage(prog, "");
+    debug!("All arguments: {:?}", args);
+    debug!("Free text arguments: {:?}", matches.free);
+    if matches.opt_present("h") {
+        usage(prog, "", false, options);
         process::exit(0);
+    }
+    let dump_ast = matches.opt_present("a");
+    if matches.free.len() != 2 {
+        usage(prog, "Please provide two input files.", true, options);
+        process::exit(1);
     }
 
     // This function duplicates some checks that are performed by the
@@ -120,62 +172,12 @@ fn main() {
     }
 
     // Parse both input files.
-    let pt_base = match ast::parse_file(&matches.free[0]) {
-        Ok(pt) => pt,
-        Err(treediff::ast::ParseError::FileNotFound) => {
-            writeln!(&mut stderr(),
-                     "File not found. Check grammar and input files.")
-                    .ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::BrokenLexer) => {
-            writeln!(&mut stderr(), "Could not build lexer {}.", lex_l_path1).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::BrokenParser) => {
-            writeln!(&mut stderr(), "Could not build parser {}.", yacc_y_path1).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::LexicalError) => {
-            writeln!(&mut stderr(), "Lexical error in {}.", &matches.free[0]).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::SyntaxError) => {
-            writeln!(&mut stderr(), "Syntax error in {}.", &matches.free[0]).ok();
-            process::exit(1);
-        }
-        Err(_) => {
-            writeln!(&mut stderr(), "Error parsing {}.", &matches.free[0]).ok();
-            process::exit(1);
-        }
-    };
-    let pt_diff = match ast::parse_file(&matches.free[1]) {
-        Ok(pt) => pt,
-        Err(treediff::ast::ParseError::FileNotFound) => {
-            writeln!(&mut stderr(),
-                     "File not found. Check grammar and input files.")
-                    .ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::BrokenLexer) => {
-            writeln!(&mut stderr(), "Could not build lexer {}.", lex_l_path2).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::BrokenParser) => {
-            writeln!(&mut stderr(), "Could not build parser {}.", yacc_y_path2).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::LexicalError) => {
-            writeln!(&mut stderr(), "Lexical error in {}.", &matches.free[1]).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::SyntaxError) => {
-            writeln!(&mut stderr(), "Syntax error in {}.", &matches.free[1]).ok();
-            process::exit(1);
-        }
-        Err(_) => {
-            writeln!(&mut stderr(), "Error parsing {}.", &matches.free[1]).ok();
-            process::exit(1);
-        }
-    };
+    let ast_base = parse_file(&matches.free[0], &lex_l_path1, &yacc_y_path1);
+    let ast_diff = parse_file(&matches.free[1], &lex_l_path2, &yacc_y_path2);
+
+    // Dump ASTs to STDOUT, if requested.
+    if dump_ast {
+        println!("{}", ast_base);
+        println!("{}", ast_diff);
+    }
 }
