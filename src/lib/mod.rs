@@ -37,6 +37,7 @@
 
 #![feature(try_from)]
 
+extern crate dot;
 extern crate env_logger;
 extern crate getopts;
 #[macro_use]

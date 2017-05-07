@@ -36,6 +36,7 @@
 // SOFTWARE.
 
 use std::{env, process};
+use std::fs::File;
 use std::io::{stdout, stderr, Write};
 use std::path::Path;
 
@@ -67,6 +68,26 @@ fn usage(prog: String, msg: &str, error: bool, options: Options) {
     } else {
         writeln!(stdout(), "{}", output).ok();
     }
+}
+
+fn write_dotfile_to_disk(filepath: &str, arena: treediff::Arena<String, String>) {
+    let mut dotfile = match File::create(&filepath) {
+        Ok(f) => f,
+        Err(_) => {
+            writeln!(&mut stderr(), "Could not create file {}.", &filepath).ok();
+            process::exit(1);
+        }
+    };
+    match arena.render_dotgraph(&mut dotfile) {
+        Ok(_) => (),
+        Err(_) => {
+            writeln!(&mut stderr(),
+                     "Could not write data to file file {}.",
+                     &filepath)
+                    .ok();
+            process::exit(1);
+        }
+    };
 }
 
 fn parse_file(filename: &str,
@@ -111,6 +132,10 @@ fn main() {
     let prog = args[0].clone();
     let mut options = Options::new();
     options.optflag("a", "ast", "print AST of input files to STDOUT");
+    options.optmulti("d",
+                     "dot",
+                     "write out GraphViz representations of the input files",
+                     "FILENAME");
     options.optflag("h", "help", "print this help menu");
     let matches = match options.parse(&args[1..]) {
         Ok(m) => m,
@@ -126,6 +151,7 @@ fn main() {
         process::exit(0);
     }
     let dump_ast = matches.opt_present("a");
+    let graphviz = matches.opt_strs("d");
     if matches.free.len() != 2 {
         usage(prog, "Please provide two input files.", true, options);
         process::exit(1);
@@ -179,5 +205,14 @@ fn main() {
     if dump_ast {
         println!("{}", ast_base);
         println!("{}", ast_diff);
+    }
+
+    // Generate graphviz file(s), if requested.
+    if graphviz.len() > 0 {
+        info!("User wishes to create graphviz files {:?}.", graphviz);
+        write_dotfile_to_disk(&graphviz[0], ast_base);
+    }
+    if graphviz.len() > 1 {
+        write_dotfile_to_disk(&graphviz[1], ast_diff);
     }
 }

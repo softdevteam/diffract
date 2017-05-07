@@ -37,15 +37,17 @@
 
 #![warn(missing_docs)]
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
 use std::io;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
+use dot;
 use lrlex::{build_lex, Lexeme};
 use lrpar::parser;
 use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
@@ -80,6 +82,9 @@ pub enum ArenaError {
 
 /// A node identifier for nodes within a particular `Arena`.
 type NodeId = usize;
+
+/// A type to represent edges between nodes within an `Arena`.
+type EdgeId = (usize, usize);
 
 /// An arena in which to place `NodeID`-indexed AST nodes.
 ///
@@ -147,6 +152,73 @@ impl<T, U> Arena<T, U> {
             }
         };
         Ok(())
+    }
+
+    // Return a vector of edges between nodes in this arena.
+    // Each edge pair `(n1, n2)` denotes an edge between nodes `n1` and `n2`,
+    // both numbers being `NodeId` indices within this arena.
+    fn get_edges(&self) -> Vec<EdgeId> {
+        let mut edges: Vec<EdgeId> = vec![];
+        for index in 0..self.nodes.len() {
+            let node = &self.nodes[index];
+            match node.parent {
+                None => (),
+                Some(par) => edges.push((par, index)),
+            }
+        }
+        edges
+    }
+}
+
+impl Arena<String, String> {
+    /// Create a graphviz representation of this arena and write to buffer.
+    pub fn render_dotgraph<W: Write>(&self, buffer: &mut W) -> Result<(), io::Error> {
+        dot::render(self, buffer)
+    }
+}
+
+impl<'a> dot::Labeller<'a, NodeId, EdgeId> for Arena<String, String> {
+    fn graph_id(&self) -> dot::Id {
+        dot::Id::new("AST").unwrap()
+    }
+
+    fn node_id(&self, id: &NodeId) -> dot::Id {
+        // Node ids must be unique dot identifiers, be non-empty strings made up
+        // of alphanumeric or underscore characters, not beginning with a digit
+        // (i.e. the regular expression [a-zA-Z_][a-zA-Z_0-9]*).
+        dot::Id::new(format!("N{}", id)).unwrap()
+    }
+
+    fn node_label(&self, id: &NodeId) -> dot::LabelText {
+        let mut label = String::new();
+        label.push_str(self.nodes[*id].ty.as_str());
+        label.push_str(&" ");
+        label.push_str(&self.nodes[*id].data.as_str());
+        dot::LabelText::LabelStr(label.into())
+    }
+}
+
+impl<'a, T, U> dot::GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
+    fn nodes(&self) -> dot::Nodes<'a, NodeId> {
+        let mut nodeids: Vec<NodeId> = vec![];
+        for index in 0..self.nodes.len() {
+            nodeids.push(index);
+        }
+        Cow::Owned(nodeids)
+    }
+
+    fn edges(&'a self) -> dot::Edges<'a, EdgeId> {
+        Cow::Owned(self.get_edges())
+    }
+
+    fn source(&self, e: &EdgeId) -> NodeId {
+        let &(s, _) = e;
+        s
+    }
+
+    fn target(&self, e: &EdgeId) -> NodeId {
+        let &(_, t) = e;
+        t
     }
 }
 
@@ -509,4 +581,36 @@ INT 1
 INT 2
 ";
     assert_eq!(expected, format!("{:}", arena));
+}
+
+#[test]
+fn get_edges_1() {
+    let arena: Arena<String, String> = Arena::new();
+    assert!(arena.is_empty());
+    let edges: Vec<EdgeId> = vec![];
+    assert_eq!(edges, arena.get_edges());
+}
+
+#[test]
+fn get_edges_2() {
+    let arena = &mut Arena::new();
+    arena.new_node("1", "INT", 0);
+    let edges: Vec<EdgeId> = vec![];
+    assert_eq!(edges, arena.get_edges());
+}
+
+#[test]
+fn get_edges_3() {
+    let arena = &mut Arena::new();
+    let root = arena.new_node("+", "Expr", 0);
+    let n1 = arena.new_node("1", "INT", 4);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("*", "Expr", 4);
+    arena.make_child_of(n2, root).unwrap();
+    let n3 = arena.new_node("3", "INT", 8);
+    arena.make_child_of(n3, n2).unwrap();
+    let n4 = arena.new_node("4", "INT", 8);
+    arena.make_child_of(n4, n2).unwrap();
+    let edges: Vec<EdgeId> = vec![(0, 1), (0, 2), (2, 3), (2, 4)];
+    assert_eq!(edges, arena.get_edges());
 }
