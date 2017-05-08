@@ -7,4 +7,6 @@ before_script:
 script:
 - cargo fmt -- --write-mode=diff
 - cargo build
+- cargo doc --no-deps --lib
+- cargo doc --no-deps --bins
 - cargo test

@@ -3,13 +3,24 @@ name = "rstreediff"
 version = "0.1.0"
 authors = ["Sarah Mount <sarah.mount@kcl.ac.uk>"]
 include = ["src/**/*", "grammars/*", "Cargo.toml"]
+repository = "https://github.com/softdevteam/rstreediff"
+homepage = "https://github.com/softdevteam/rstreediff.git"
+license = "UPL"
+description = "Generate source code diffs based on ASTs."
 
 [[bin]]
 doc = false
 name = "rstreediff"
 
+[lib]
+name = "treediff"
+path = "src/lib/mod.rs"
+
 [dependencies]
+dot = "0.1.2"
+env_logger = "0.4.2"
 getopts = "0.2.14"
-lrtable = { git = "http://github.com/softdevteam/lrtable" }
+log = "0.3.7"
 lrlex = { git = "http://github.com/softdevteam/lrlex" }
 lrpar = { git = "http://github.com/softdevteam/lrpar" }
+lrtable = { git = "http://github.com/softdevteam/lrtable" }
