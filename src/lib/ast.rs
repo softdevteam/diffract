@@ -142,6 +142,9 @@ impl<T, U> Arena<T, U> {
     }
 
     /// Return the size of this arena (i.e. how many nodes are held within it).
+    ///
+    /// Note that if some nodes have been detached (or never appended to other
+    /// nodes as children), then some nodes may be unreachable.
     pub fn size(&self) -> usize {
         self.nodes.len()
     }
@@ -324,7 +327,78 @@ impl NodeId {
     pub fn new(index: usize) -> NodeId {
         NodeId { index: index }
     }
+
+    /// Detach this node, leaving its children unaffected.
+    ///
+    /// Detaching a node makes it inaccessible to other nodes. The node is not
+    /// actually removed from the arena, because `NodeId`s should be immutable.
+    /// This means that if you detach the root of the tree, any iterator will
+    /// still be able to reach the root (but not any of the other nodes).
+    pub fn detach<T, U>(&self, arena: &mut Arena<T, U>) {
+        let (parent, previous_sibling, next_sibling) = {
+            let node = &mut arena[*self];
+            (node.parent.take(), node.previous_sibling.take(), node.next_sibling.take())
+        };
+
+        if let Some(next_sibling) = next_sibling {
+            arena[next_sibling].previous_sibling = previous_sibling;
+        } else if let Some(parent) = parent {
+            arena[parent].last_child = previous_sibling;
+        }
+
+        if let Some(previous_sibling) = previous_sibling {
+            arena[previous_sibling].next_sibling = next_sibling;
+        } else if let Some(parent) = parent {
+            arena[parent].first_child = next_sibling;
+        }
+    }
+
+    /// Detach this node and its children.
+    ///
+    /// Detaching a node makes it inaccessible to other nodes. The node is not
+    /// actually removed from the arena, because `NodeId`s should be immutable.
+    /// This means that if you detach the root of the tree, any iterator will
+    /// still be able to reach the root (but not any of the other nodes).
+    pub fn detach_with_children<T, U>(&self, arena: &mut Arena<T, U>) {
+        self.detach(arena);
+        let ids: Vec<NodeId> = self.children(arena).collect();
+        for id in ids {
+            id.detach_with_children(arena);
+        }
+    }
+
+    /// Return an iterator of references to this node’s children.
+    pub fn children<T, U>(self, arena: &Arena<T, U>) -> Children<T, U> {
+        Children {
+            arena: arena,
+            node: arena[self].first_child,
+        }
+    }
 }
+
+macro_rules! impl_node_iterator {
+    ($name: ident, $next: expr) => {
+        impl<'a, T, U> Iterator for $name<'a, T, U> {
+            type Item = NodeId;
+            fn next(&mut self) -> Option<NodeId> {
+                match self.node.take() {
+                    Some(node) => {
+                        self.node = $next(&self.arena[node]);
+                        Some(node)
+                    }
+                    None => None
+                }
+            }
+        }
+    }
+}
+
+/// An iterator of references to the children of a given node.
+pub struct Children<'a, T: 'a, U: 'a> {
+    arena: &'a Arena<T, U>,
+    node: Option<NodeId>,
+}
+impl_node_iterator!(Children, |node: &Node<T, U>| node.next_sibling);
 
 // Turn a grammar, parser and input string into an AST arena.
 fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String, String> {
@@ -604,4 +678,83 @@ fn get_edges_3() {
                                   (NodeId::new(2), NodeId::new(3)),
                                   (NodeId::new(2), NodeId::new(4))];
     assert_eq!(edges, arena.get_edges());
+}
+
+
+#[test]
+fn detach_1() {
+    let arena = &mut Arena::new();
+    let root = arena.new_node("+", "Expr", 0);
+    let n1 = arena.new_node("1", "INT", 4);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("*", "Expr", 4);
+    arena.make_child_of(n2, root).unwrap();
+    let n3 = arena.new_node("3", "INT", 8);
+    arena.make_child_of(n3, n2).unwrap();
+    let n4 = arena.new_node("4", "INT", 8);
+    arena.make_child_of(n4, n2).unwrap();
+    let first_format = "Expr +
+    INT 1
+    Expr *
+        INT 3
+        INT 4
+";
+    assert_eq!(first_format, format!("{:}", arena));
+    root.detach_with_children(arena);
+    let second_format = "Expr +\n";
+    assert_eq!(second_format, format!("{:}", arena));
+}
+
+#[test]
+fn detach_2() {
+    let arena = &mut Arena::new();
+    let root = arena.new_node("+", "Expr", 0);
+    let n1 = arena.new_node("1", "INT", 4);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("*", "Expr", 4);
+    arena.make_child_of(n2, root).unwrap();
+    let n3 = arena.new_node("3", "INT", 8);
+    arena.make_child_of(n3, n2).unwrap();
+    let n4 = arena.new_node("4", "INT", 8);
+    arena.make_child_of(n4, n2).unwrap();
+    let first_format = "Expr +
+    INT 1
+    Expr *
+        INT 3
+        INT 4
+";
+    assert_eq!(first_format, format!("{:}", arena));
+    n2.detach_with_children(arena);
+    let second_format = "Expr +
+    INT 1
+";
+    assert_eq!(second_format, format!("{:}", arena));
+}
+
+#[test]
+fn children_iterator() {
+    let arena = &mut Arena::new();
+    let root = arena.new_node("+", "Expr", 0);
+    let n1 = arena.new_node("1", "INT", 4);
+    arena.make_child_of(n1, root).unwrap();
+    let n2 = arena.new_node("*", "Expr", 4);
+    arena.make_child_of(n2, root).unwrap();
+    let n3 = arena.new_node("3", "INT", 8);
+    arena.make_child_of(n3, n2).unwrap();
+    let n4 = arena.new_node("4", "INT", 8);
+    arena.make_child_of(n4, n2).unwrap();
+    // Children of root.
+    let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
+    let root_child_ids: Vec<NodeId> = root.children(&arena).collect();
+    assert_eq!(expected1.len(), root_child_ids.len());
+    for index in 0..expected1.len() {
+        assert_eq!(expected1[index], root_child_ids[index]);
+    }
+    // Children of n2.
+    let expected2: Vec<NodeId> = vec![NodeId { index: 3 }, NodeId { index: 4 }];
+    let n2_child_ids: Vec<NodeId> = n2.children(&arena).collect();
+    assert_eq!(expected2.len(), n2_child_ids.len());
+    for index in 0..expected2.len() {
+        assert_eq!(expected2[index], n2_child_ids[index]);
+    }
 }
