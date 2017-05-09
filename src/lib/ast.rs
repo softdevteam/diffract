@@ -37,17 +37,15 @@
 
 #![warn(missing_docs)]
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
 use std::io;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
-use dot;
 use lrlex::{build_lex, Lexeme};
 use lrpar::parser;
 use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
@@ -72,7 +70,7 @@ pub enum ParseError {
 }
 
 #[derive(Debug)]
-/// Errors raised by arenas..
+/// Errors raised by arenas.
 pub enum ArenaError {
     /// Arena is unexpectedly empty.
     EmtpyArena,
@@ -80,11 +78,23 @@ pub enum ArenaError {
     NodeIdNotFound,
 }
 
-/// A node identifier for nodes within a particular `Arena`.
-type NodeId = usize;
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
+/// A node identifier used for indexing nodes within a particular `Arena`.
+///
+/// A `NodeId` should be immutable, in the sense that no action on a node or
+/// arena should change a given `NodeId`.
+pub struct NodeId {
+    index: usize,
+}
+
+impl fmt::Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.index)
+    }
+}
 
 /// A type to represent edges between nodes within an `Arena`.
-type EdgeId = (usize, usize);
+pub type EdgeId = (NodeId, NodeId);
 
 /// An arena in which to place `NodeID`-indexed AST nodes.
 ///
@@ -101,13 +111,13 @@ impl<T, U> Index<NodeId> for Arena<T, U> {
     type Output = Node<T, U>;
 
     fn index(&self, node: NodeId) -> &Node<T, U> {
-        &self.nodes[node]
+        &self.nodes[node.index]
     }
 }
 
 impl<T, U> IndexMut<NodeId> for Arena<T, U> {
     fn index_mut(&mut self, node: NodeId) -> &mut Node<T, U> {
-        &mut self.nodes[node]
+        &mut self.nodes[node.index]
     }
 }
 
@@ -120,9 +130,10 @@ impl<T, U> Arena<T, U> {
     /// Create a new node from its data.
     pub fn new_node(&mut self, data: T, ty: U, indent: u32) -> NodeId {
         let next_index = self.nodes.len();
-        let node = Node::new(data, ty, indent);
+        let mut node = Node::new(data, ty, indent);
+        node.index = Some(NodeId { index: next_index });
         self.nodes.push(node);
-        next_index
+        NodeId { index: next_index }
     }
 
     /// Return `true` if the arena is empty, `false` otherwise.
@@ -130,12 +141,17 @@ impl<T, U> Arena<T, U> {
         self.nodes.is_empty()
     }
 
+    /// Return the size of this arena (i.e. how many nodes are held within it).
+    pub fn size(&self) -> usize {
+        self.nodes.len()
+    }
+
     /// Make one node the child of another.
     pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> Result<(), ArenaError> {
-        if child >= self.nodes.len() {
+        if child.index >= self.nodes.len() {
             return Err(ArenaError::NodeIdNotFound);
         }
-        if parent >= self.nodes.len() {
+        if parent.index >= self.nodes.len() {
             return Err(ArenaError::NodeIdNotFound);
         }
         self[child].parent = Some(parent);
@@ -154,88 +170,33 @@ impl<T, U> Arena<T, U> {
         Ok(())
     }
 
-    // Return a vector of edges between nodes in this arena.
-    // Each edge pair `(n1, n2)` denotes an edge between nodes `n1` and `n2`,
-    // both numbers being `NodeId` indices within this arena.
-    fn get_edges(&self) -> Vec<EdgeId> {
+    /// Return a vector of edges between nodes in this arena.
+    /// Each edge pair `(n1, n2)` denotes an edge between nodes `n1` and `n2`,
+    /// both numbers being `NodeId` indices within this arena.
+    pub fn get_edges(&self) -> Vec<EdgeId> {
         let mut edges: Vec<EdgeId> = vec![];
         for index in 0..self.nodes.len() {
             let node = &self.nodes[index];
             match node.parent {
                 None => (),
-                Some(par) => edges.push((par, index)),
+                Some(par) => edges.push((par, NodeId { index })),
             }
         }
         edges
     }
 }
 
-impl Arena<String, String> {
-    /// Create a graphviz representation of this arena and write to buffer.
-    pub fn render_dotgraph<W: Write>(&self, buffer: &mut W) -> Result<(), io::Error> {
-        dot::render(self, buffer)
-    }
-}
-
-impl<'a> dot::Labeller<'a, NodeId, EdgeId> for Arena<String, String> {
-    fn graph_id(&self) -> dot::Id {
-        dot::Id::new("AST").unwrap()
-    }
-
-    fn node_id(&self, id: &NodeId) -> dot::Id {
-        // Node ids must be unique dot identifiers, be non-empty strings made up
-        // of alphanumeric or underscore characters, not beginning with a digit
-        // (i.e. the regular expression [a-zA-Z_][a-zA-Z_0-9]*).
-        dot::Id::new(format!("N{}", id)).unwrap()
-    }
-
-    fn node_label(&self, id: &NodeId) -> dot::LabelText {
-        let mut label = String::new();
-        label.push_str(self.nodes[*id].ty.as_str());
-        label.push_str(&" ");
-        label.push_str(&self.nodes[*id].data.as_str());
-        dot::LabelText::LabelStr(label.into())
-    }
-}
-
-impl<'a, T, U> dot::GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
-    fn nodes(&self) -> dot::Nodes<'a, NodeId> {
-        let mut nodeids: Vec<NodeId> = vec![];
-        for index in 0..self.nodes.len() {
-            nodeids.push(index);
-        }
-        Cow::Owned(nodeids)
-    }
-
-    fn edges(&'a self) -> dot::Edges<'a, EdgeId> {
-        Cow::Owned(self.get_edges())
-    }
-
-    fn source(&self, e: &EdgeId) -> NodeId {
-        let &(s, _) = e;
-        s
-    }
-
-    fn target(&self, e: &EdgeId) -> NodeId {
-        let &(_, t) = e;
-        t
-    }
-}
-
 // Should have same output as lrpar::parser::Node<TokId>::pretty_print().
-impl<T, U> fmt::Display for Arena<T, U>
-    where T: fmt::Display,
-          U: fmt::Display
-{
+impl<T: fmt::Display, U: fmt::Display> fmt::Display for Arena<T, U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.nodes.is_empty() {
             return write!(f, "");
         }
         let mut formatted = String::new();
-        let mut stack: Vec<NodeId> = vec![0];
+        let mut stack: Vec<NodeId> = vec![NodeId { index: 0 }];
         while !stack.is_empty() {
             let id = stack.pop().unwrap();
-            let node = &self.nodes[id];
+            let node = &self.nodes[id.index];
             if node.is_leaf() {
                 // Terminal node.
                 formatted.push_str(&format!("{}\n", node));
@@ -249,7 +210,7 @@ impl<T, U> fmt::Display for Arena<T, U>
                     if current_child == first_child {
                         break;
                     }
-                    match self.nodes[current_child].previous_sibling {
+                    match self.nodes[current_child.index].previous_sibling {
                         None => break,
                         Some(id) => current_child = id,
                     };
@@ -260,7 +221,7 @@ impl<T, U> fmt::Display for Arena<T, U>
     }
 }
 
-// #[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// An AST node within an `Arena`.
 pub struct Node<T, U> {
     parent: Option<NodeId>,
@@ -268,6 +229,9 @@ pub struct Node<T, U> {
     next_sibling: Option<NodeId>,
     first_child: Option<NodeId>,
     last_child: Option<NodeId>,
+    /// Index of this node in the arena.
+    /// Note that nodes with a non-`None` index are unique.
+    index: Option<NodeId>,
     /// The actual data which will be stored within the tree.
     pub data: T,
     /// Type of this AST node, derived from grammar e.g. `expr`, `factor`, `term`.
@@ -288,6 +252,7 @@ impl<T, U> Node<T, U> {
             data: data,
             ty: ty,
             indent: indent,
+            index: None,
         }
     }
 
@@ -331,12 +296,14 @@ impl<T, U> Node<T, U> {
     pub fn next_sibling(&self) -> Option<NodeId> {
         self.next_sibling
     }
+
+    /// Return the ID of this node.
+    pub fn index(&self) -> Option<NodeId> {
+        self.index
+    }
 }
 
-impl<T, U> fmt::Display for Node<T, U>
-    where T: fmt::Display,
-          U: fmt::Display
-{
+impl<T: fmt::Display, U: fmt::Display> fmt::Display for Node<T, U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::new();
         for _ in 0..self.indent {
@@ -349,6 +316,13 @@ impl<T, U> fmt::Display for Node<T, U>
         }
         write!(f, "{}", self.ty).unwrap();
         write!(f, "{}", data_s)
+    }
+}
+
+impl NodeId {
+    /// Create a new NodeId with a given index.
+    pub fn new(index: usize) -> NodeId {
+        NodeId { index: index }
     }
 }
 
@@ -488,15 +462,19 @@ fn new_ast_node() {
     let arena = &mut Arena::new();
     assert!(arena.is_empty());
     let n0 = arena.new_node("100", "INT", 8);
+    assert!(arena[n0].index != None);
+    assert_eq!(n0, arena[n0].index.unwrap());
     assert!(!arena.is_empty());
     let n1 = arena.new_node("foobar", "STR", 12);
+    assert!(arena[n1].index != None);
+    assert_eq!(n1, arena[n1].index.unwrap());
     assert!(!arena.is_empty());
     // Check node ids, data, types and indent levels.
-    assert_eq!(0, n0);
+    assert_eq!(0, n0.index);
     assert_eq!("100", arena[n0].data);
     assert_eq!("INT", arena[n0].ty);
     assert_eq!(8, arena[n0].indent);
-    assert_eq!(1, n1);
+    assert_eq!(1, n1.index);
     assert_eq!("foobar", arena[n1].data);
     assert_eq!("STR", arena[n1].ty);
     assert_eq!(12, arena[n1].indent);
@@ -516,6 +494,12 @@ fn make_child_of_1() {
     let n4 = arena.new_node("4", "INT", 8);
     arena.make_child_of(n4, n2).unwrap();
     assert!(!arena.is_empty());
+    // Check indices.
+    assert_eq!(root, arena[root].index.unwrap());
+    assert_eq!(n1, arena[n1].index.unwrap());
+    assert_eq!(n2, arena[n2].index.unwrap());
+    assert_eq!(n3, arena[n3].index.unwrap());
+    assert_eq!(n4, arena[n4].index.unwrap());
     // Check roots and leaves.
     assert!(arena[root].is_root());
     assert!(!arena[n1].is_root());
@@ -541,6 +525,10 @@ fn make_child_of_2() {
     let n2 = arena.new_node("2", "INT", 0);
     assert!(!arena.is_empty());
     arena.make_child_of(n2, root).unwrap();
+    // Check indices.
+    assert_eq!(root, arena[root].index.unwrap());
+    assert_eq!(n1, arena[n1].index.unwrap());
+    assert_eq!(n2, arena[n2].index.unwrap());
     // Check parents correctly set.
     assert_eq!(None, arena[root].parent);
     assert_eq!(root, arena[n1].parent.unwrap());
@@ -611,6 +599,9 @@ fn get_edges_3() {
     arena.make_child_of(n3, n2).unwrap();
     let n4 = arena.new_node("4", "INT", 8);
     arena.make_child_of(n4, n2).unwrap();
-    let edges: Vec<EdgeId> = vec![(0, 1), (0, 2), (2, 3), (2, 4)];
+    let edges: Vec<EdgeId> = vec![(NodeId::new(0), NodeId::new(1)),
+                                  (NodeId::new(0), NodeId::new(2)),
+                                  (NodeId::new(2), NodeId::new(3)),
+                                  (NodeId::new(2), NodeId::new(4))];
     assert_eq!(edges, arena.get_edges());
 }

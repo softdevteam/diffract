@@ -51,10 +51,18 @@ extern crate lrpar;
 /// into an AST.
 pub mod ast;
 
+/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
+pub mod emitters;
+
 // Re-exported enums and structs.
 pub use ast::ParseError;
 pub use ast::Arena;
 pub use ast::ArenaError;
+pub use ast::EdgeId;
+pub use ast::Node;
+pub use ast::NodeId;
+pub use emitters::EmitterError;
 
 // Re-exported functions.
 pub use ast::parse_file;
+pub use emitters::write_dotfile_to_disk;
