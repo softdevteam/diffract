@@ -531,230 +531,250 @@ pub fn parse_file(input_path: &str) -> Result<Arena<String, String>, ParseError>
 }
 
 #[cfg(test)]
-#[test]
-fn new_ast_node() {
-    let arena = &mut Arena::new();
-    assert!(arena.is_empty());
-    let n0 = arena.new_node("100", "INT", 8);
-    assert!(arena[n0].index != None);
-    assert_eq!(n0, arena[n0].index.unwrap());
-    assert!(!arena.is_empty());
-    let n1 = arena.new_node("foobar", "STR", 12);
-    assert!(arena[n1].index != None);
-    assert_eq!(n1, arena[n1].index.unwrap());
-    assert!(!arena.is_empty());
-    // Check node ids, data, types and indent levels.
-    assert_eq!(0, n0.index);
-    assert_eq!("100", arena[n0].data);
-    assert_eq!("INT", arena[n0].ty);
-    assert_eq!(8, arena[n0].indent);
-    assert_eq!(1, n1.index);
-    assert_eq!("foobar", arena[n1].data);
-    assert_eq!("STR", arena[n1].ty);
-    assert_eq!(12, arena[n1].indent);
-}
+mod tests {
+    use super::*;
 
-#[test]
-fn make_child_of_1() {
-    let arena = &mut Arena::new();
-    assert!(arena.is_empty());
-    let root = arena.new_node("+", "Expr", 0);
-    let n1 = arena.new_node("1", "INT", 4);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("*", "Expr", 4);
-    arena.make_child_of(n2, root).unwrap();
-    let n3 = arena.new_node("3", "INT", 8);
-    arena.make_child_of(n3, n2).unwrap();
-    let n4 = arena.new_node("4", "INT", 8);
-    arena.make_child_of(n4, n2).unwrap();
-    assert!(!arena.is_empty());
-    // Check indices.
-    assert_eq!(root, arena[root].index.unwrap());
-    assert_eq!(n1, arena[n1].index.unwrap());
-    assert_eq!(n2, arena[n2].index.unwrap());
-    assert_eq!(n3, arena[n3].index.unwrap());
-    assert_eq!(n4, arena[n4].index.unwrap());
-    // Check roots and leaves.
-    assert!(arena[root].is_root());
-    assert!(!arena[n1].is_root());
-    assert!(!arena[n2].is_root());
-    assert!(!arena[n3].is_root());
-    assert!(!arena[n4].is_root());
-    assert!(!arena[root].is_leaf());
-    assert!(arena[n1].is_leaf());
-    assert!(!arena[n2].is_leaf());
-    assert!(arena[n3].is_leaf());
-    assert!(arena[n4].is_leaf());
-}
+    #[test]
+    fn new_ast_node() {
+        let arena = &mut Arena::new();
+        assert!(arena.is_empty());
+        let n0 = arena.new_node("100", "INT", 8);
+        assert!(arena[n0].index != None);
+        assert_eq!(n0, arena[n0].index.unwrap());
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node("foobar", "STR", 12);
+        assert!(arena[n1].index != None);
+        assert_eq!(n1, arena[n1].index.unwrap());
+        assert!(!arena.is_empty());
+        // Check node ids, data, types and indent levels.
+        assert_eq!(0, n0.index);
+        assert_eq!("100", arena[n0].data);
+        assert_eq!("INT", arena[n0].ty);
+        assert_eq!(8, arena[n0].indent);
+        assert_eq!(1, n1.index);
+        assert_eq!("foobar", arena[n1].data);
+        assert_eq!("STR", arena[n1].ty);
+        assert_eq!(12, arena[n1].indent);
+    }
 
-#[test]
-fn make_child_of_2() {
-    let arena = &mut Arena::new();
-    assert!(arena.is_empty());
-    let root = arena.new_node("+", "Expr", 4);
-    assert!(!arena.is_empty());
-    let n1 = arena.new_node("1", "INT", 0);
-    assert!(!arena.is_empty());
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("2", "INT", 0);
-    assert!(!arena.is_empty());
-    arena.make_child_of(n2, root).unwrap();
-    // Check indices.
-    assert_eq!(root, arena[root].index.unwrap());
-    assert_eq!(n1, arena[n1].index.unwrap());
-    assert_eq!(n2, arena[n2].index.unwrap());
-    // Check parents correctly set.
-    assert_eq!(None, arena[root].parent);
-    assert_eq!(root, arena[n1].parent.unwrap());
-    assert_eq!(root, arena[n2].parent.unwrap());
-    // Check children correctly set.
-    assert_eq!(n1, arena[root].first_child.unwrap());
-    assert_eq!(n2, arena[root].last_child.unwrap());
-    assert_eq!(None, arena[n1].first_child);
-    assert_eq!(None, arena[n1].last_child);
-    assert_eq!(None, arena[n2].first_child);
-    assert_eq!(None, arena[n2].last_child);
-    // Check siblings correctly set.
-    assert_eq!(n1, arena[n2].previous_sibling.unwrap());
-    assert_eq!(None, arena[n2].next_sibling);
-    assert_eq!(None, arena[n1].previous_sibling);
-    assert_eq!(n2, arena[n1].next_sibling.unwrap());
-    assert_eq!(None, arena[root].previous_sibling);
-    assert_eq!(None, arena[root].next_sibling);
-}
+    #[test]
+    fn make_child_of_1() {
+        let arena = &mut Arena::new();
+        assert!(arena.is_empty());
+        let root = arena.new_node("+", "Expr", 0);
+        let n1 = arena.new_node("1", "INT", 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("*", "Expr", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node("3", "INT", 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node("4", "INT", 8);
+        arena.make_child_of(n4, n2).unwrap();
+        assert!(!arena.is_empty());
+        // Check indices.
+        assert_eq!(root, arena[root].index.unwrap());
+        assert_eq!(n1, arena[n1].index.unwrap());
+        assert_eq!(n2, arena[n2].index.unwrap());
+        assert_eq!(n3, arena[n3].index.unwrap());
+        assert_eq!(n4, arena[n4].index.unwrap());
+        // Check roots and leaves.
+        assert!(arena[root].is_root());
+        assert!(!arena[n1].is_root());
+        assert!(!arena[n2].is_root());
+        assert!(!arena[n3].is_root());
+        assert!(!arena[n4].is_root());
+        assert!(!arena[root].is_leaf());
+        assert!(arena[n1].is_leaf());
+        assert!(!arena[n2].is_leaf());
+        assert!(arena[n3].is_leaf());
+        assert!(arena[n4].is_leaf());
+    }
 
-#[test]
-fn node_fmt() {
-    let node = Node::new("private", "MODIFIER", 4);
-    let expected = "    MODIFIER private";
-    assert_eq!(expected, format!("{:}", node));
-}
+    #[test]
+    fn make_child_of_2() {
+        let arena = &mut Arena::new();
+        assert!(arena.is_empty());
+        let root = arena.new_node("+", "Expr", 4);
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node("1", "INT", 0);
+        assert!(!arena.is_empty());
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("2", "INT", 0);
+        assert!(!arena.is_empty());
+        arena.make_child_of(n2, root).unwrap();
+        // Check indices.
+        assert_eq!(root, arena[root].index.unwrap());
+        assert_eq!(n1, arena[n1].index.unwrap());
+        assert_eq!(n2, arena[n2].index.unwrap());
+        // Check parents correctly set.
+        assert_eq!(None, arena[root].parent);
+        assert_eq!(root, arena[n1].parent.unwrap());
+        assert_eq!(root, arena[n2].parent.unwrap());
+        // Check children correctly set.
+        assert_eq!(n1, arena[root].first_child.unwrap());
+        assert_eq!(n2, arena[root].last_child.unwrap());
+        assert_eq!(None, arena[n1].first_child);
+        assert_eq!(None, arena[n1].last_child);
+        assert_eq!(None, arena[n2].first_child);
+        assert_eq!(None, arena[n2].last_child);
+        // Check siblings correctly set.
+        assert_eq!(n1, arena[n2].previous_sibling.unwrap());
+        assert_eq!(None, arena[n2].next_sibling);
+        assert_eq!(None, arena[n1].previous_sibling);
+        assert_eq!(n2, arena[n1].next_sibling.unwrap());
+        assert_eq!(None, arena[root].previous_sibling);
+        assert_eq!(None, arena[root].next_sibling);
+    }
 
-#[test]
-fn arena_fmt() {
-    let arena = &mut Arena::new();
-    let root = arena.new_node("+", "Expr", 4);
-    let n1 = arena.new_node("1", "INT", 0);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("2", "INT", 0);
-    arena.make_child_of(n2, root).unwrap();
-    let expected = "    Expr +
+    #[test]
+    fn node_fmt() {
+        let node = Node::new("private", "MODIFIER", 4);
+        let expected = "    MODIFIER private";
+        assert_eq!(expected, format!("{:}", node));
+    }
+
+    #[test]
+    fn arena_fmt() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 4);
+        let n1 = arena.new_node("1", "INT", 0);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("2", "INT", 0);
+        arena.make_child_of(n2, root).unwrap();
+        let expected = "    Expr +
 INT 1
 INT 2
 ";
-    assert_eq!(expected, format!("{:}", arena));
-}
-
-#[test]
-fn get_edges_1() {
-    let arena: Arena<String, String> = Arena::new();
-    assert!(arena.is_empty());
-    let edges: Vec<EdgeId> = vec![];
-    assert_eq!(edges, arena.get_edges());
-}
-
-#[test]
-fn get_edges_2() {
-    let arena = &mut Arena::new();
-    arena.new_node("1", "INT", 0);
-    let edges: Vec<EdgeId> = vec![];
-    assert_eq!(edges, arena.get_edges());
-}
-
-#[test]
-fn get_edges_3() {
-    let arena = &mut Arena::new();
-    let root = arena.new_node("+", "Expr", 0);
-    let n1 = arena.new_node("1", "INT", 4);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("*", "Expr", 4);
-    arena.make_child_of(n2, root).unwrap();
-    let n3 = arena.new_node("3", "INT", 8);
-    arena.make_child_of(n3, n2).unwrap();
-    let n4 = arena.new_node("4", "INT", 8);
-    arena.make_child_of(n4, n2).unwrap();
-    let edges: Vec<EdgeId> = vec![(NodeId::new(0), NodeId::new(1)),
-                                  (NodeId::new(0), NodeId::new(2)),
-                                  (NodeId::new(2), NodeId::new(3)),
-                                  (NodeId::new(2), NodeId::new(4))];
-    assert_eq!(edges, arena.get_edges());
-}
-
-
-#[test]
-fn detach_1() {
-    let arena = &mut Arena::new();
-    let root = arena.new_node("+", "Expr", 0);
-    let n1 = arena.new_node("1", "INT", 4);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("*", "Expr", 4);
-    arena.make_child_of(n2, root).unwrap();
-    let n3 = arena.new_node("3", "INT", 8);
-    arena.make_child_of(n3, n2).unwrap();
-    let n4 = arena.new_node("4", "INT", 8);
-    arena.make_child_of(n4, n2).unwrap();
-    let first_format = "Expr +
-    INT 1
-    Expr *
-        INT 3
-        INT 4
-";
-    assert_eq!(first_format, format!("{:}", arena));
-    root.detach_with_children(arena);
-    let second_format = "Expr +\n";
-    assert_eq!(second_format, format!("{:}", arena));
-}
-
-#[test]
-fn detach_2() {
-    let arena = &mut Arena::new();
-    let root = arena.new_node("+", "Expr", 0);
-    let n1 = arena.new_node("1", "INT", 4);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("*", "Expr", 4);
-    arena.make_child_of(n2, root).unwrap();
-    let n3 = arena.new_node("3", "INT", 8);
-    arena.make_child_of(n3, n2).unwrap();
-    let n4 = arena.new_node("4", "INT", 8);
-    arena.make_child_of(n4, n2).unwrap();
-    let first_format = "Expr +
-    INT 1
-    Expr *
-        INT 3
-        INT 4
-";
-    assert_eq!(first_format, format!("{:}", arena));
-    n2.detach_with_children(arena);
-    let second_format = "Expr +
-    INT 1
-";
-    assert_eq!(second_format, format!("{:}", arena));
-}
-
-#[test]
-fn children_iterator() {
-    let arena = &mut Arena::new();
-    let root = arena.new_node("+", "Expr", 0);
-    let n1 = arena.new_node("1", "INT", 4);
-    arena.make_child_of(n1, root).unwrap();
-    let n2 = arena.new_node("*", "Expr", 4);
-    arena.make_child_of(n2, root).unwrap();
-    let n3 = arena.new_node("3", "INT", 8);
-    arena.make_child_of(n3, n2).unwrap();
-    let n4 = arena.new_node("4", "INT", 8);
-    arena.make_child_of(n4, n2).unwrap();
-    // Children of root.
-    let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
-    let root_child_ids: Vec<NodeId> = root.children(&arena).collect();
-    assert_eq!(expected1.len(), root_child_ids.len());
-    for index in 0..expected1.len() {
-        assert_eq!(expected1[index], root_child_ids[index]);
+        assert_eq!(expected, format!("{:}", arena));
     }
-    // Children of n2.
-    let expected2: Vec<NodeId> = vec![NodeId { index: 3 }, NodeId { index: 4 }];
-    let n2_child_ids: Vec<NodeId> = n2.children(&arena).collect();
-    assert_eq!(expected2.len(), n2_child_ids.len());
-    for index in 0..expected2.len() {
-        assert_eq!(expected2[index], n2_child_ids[index]);
+
+    #[test]
+    fn get_edges_1() {
+        let arena: Arena<String, String> = Arena::new();
+        assert!(arena.is_empty());
+        let edges: Vec<EdgeId> = vec![];
+        assert_eq!(edges, arena.get_edges());
+    }
+
+    #[test]
+    fn get_edges_2() {
+        let arena = &mut Arena::new();
+        arena.new_node("1", "INT", 0);
+        let edges: Vec<EdgeId> = vec![];
+        assert_eq!(edges, arena.get_edges());
+    }
+
+    #[test]
+    fn get_edges_3() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        let n1 = arena.new_node("1", "INT", 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("*", "Expr", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node("3", "INT", 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node("4", "INT", 8);
+        arena.make_child_of(n4, n2).unwrap();
+        let edges: Vec<EdgeId> = vec![(NodeId::new(0), NodeId::new(1)),
+                                      (NodeId::new(0), NodeId::new(2)),
+                                      (NodeId::new(2), NodeId::new(3)),
+                                      (NodeId::new(2), NodeId::new(4))];
+        assert_eq!(edges, arena.get_edges());
+    }
+
+
+    #[test]
+    fn detach_1() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        let n1 = arena.new_node("1", "INT", 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("*", "Expr", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node("3", "INT", 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node("4", "INT", 8);
+        arena.make_child_of(n4, n2).unwrap();
+        let first_format = "Expr +
+    INT 1
+    Expr *
+        INT 3
+        INT 4
+";
+        assert_eq!(first_format, format!("{:}", arena));
+        root.detach_with_children(arena);
+        let second_format = "Expr +\n";
+        assert_eq!(second_format, format!("{:}", arena));
+    }
+
+    #[test]
+    fn detach_2() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        let n1 = arena.new_node("1", "INT", 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("*", "Expr", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node("3", "INT", 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node("4", "INT", 8);
+        arena.make_child_of(n4, n2).unwrap();
+        let first_format = "Expr +
+    INT 1
+    Expr *
+        INT 3
+        INT 4
+";
+        assert_eq!(first_format, format!("{:}", arena));
+        n2.detach_with_children(arena);
+        let second_format = "Expr +
+    INT 1
+";
+        assert_eq!(second_format, format!("{:}", arena));
+    }
+
+    #[test]
+    fn children_iterator() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        let n1 = arena.new_node("1", "INT", 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("*", "Expr", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node("3", "INT", 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node("4", "INT", 8);
+        arena.make_child_of(n4, n2).unwrap();
+        // Children of root.
+        let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
+        let root_child_ids: Vec<NodeId> = root.children(&arena).collect();
+        assert_eq!(expected1.len(), root_child_ids.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], root_child_ids[index]);
+        }
+        // Children of n2.
+        let expected2: Vec<NodeId> = vec![NodeId { index: 3 }, NodeId { index: 4 }];
+        let n2_child_ids: Vec<NodeId> = n2.children(&arena).collect();
+        assert_eq!(expected2.len(), n2_child_ids.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], n2_child_ids[index]);
+        }
+    }
+
+    #[test]
+    fn size() {
+        let arena = &mut Arena::new();
+        assert_eq!(0, arena.size());
+        let _ = arena.new_node("+", "Expr", 0);
+        assert_eq!(1, arena.size());
+        let _ = arena.new_node("1", "INT", 4);
+        assert_eq!(2, arena.size());
+        let _ = arena.new_node("*", "Expr", 4);
+        assert_eq!(3, arena.size());
+        let _ = arena.new_node("3", "INT", 8);
+        assert_eq!(4, arena.size());
+        let _ = arena.new_node("4", "INT", 8);
+        assert_eq!(5, arena.size());
     }
 }
