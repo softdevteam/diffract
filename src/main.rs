@@ -35,39 +35,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{env, process};
-use std::fs::File;
-use std::io::{stdout, stderr, Write};
-use std::path::Path;
-
+extern crate docopt;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
+extern crate rustc_serialize;
 
-extern crate getopts;
-use getopts::Options;
+use std::{env, process};
+use std::fs::File;
+use std::io::{stderr, Write};
+use std::path::Path;
+
+use docopt::Docopt;
 
 extern crate treediff;
 use treediff::ast;
 
-fn usage(prog: String, msg: &str, error: bool, options: Options) {
-    let path = Path::new(prog.as_str());
-    let program = match path.file_name() {
-        Some(m) => m.to_str().unwrap(),
-        None => "rstreediff",
-    };
-    let brief = format!("Usage: {} [OPTIONS] <base file> <diff file>", program);
-    let mut output = String::new();
-    if msg.len() > 0 {
-        output.push_str(msg);
-        output.push_str("\n");
-    }
-    output.push_str(options.usage(&brief).as_str());
-    if error {
-        writeln!(stderr(), "{}", output).ok();
-    } else {
-        writeln!(stdout(), "{}", output).ok();
-    }
+const USAGE: &'static str = "
+Usage: rstreediff [options] <base-file> <diff-file>
+       rstreediff [options] <base-file> <diff-file> -d <file> ...
+       rstreediff (--help | --version)
+
+Diff two input files.
+
+Options:
+    -a, --ast         print AST of input files to STDOUT
+    -d, --dot <file>  write out GraphViz representations of the input file(s)
+    -h, --help        print this help menu and exit
+    -v, --version     print version information and exit
+";
+
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+#[derive(RustcDecodable, Debug)]
+struct Args {
+    arg_base_file: String,
+    arg_diff_file: String,
+    flag_ast: bool,
+    flag_dot: Vec<String>,
+    flag_help: bool,
+    flag_version: bool,
 }
 
 fn write_dotfile_to_disk(filepath: &str, arena: treediff::Arena<String, String>) {
@@ -128,47 +135,35 @@ fn parse_file(filename: &str,
 fn main() {
     env_logger::init().unwrap();
 
-    let args: Vec<String> = env::args().collect();
-    let prog = args[0].clone();
-    let mut options = Options::new();
-    options.optflag("a", "ast", "print AST of input files to STDOUT");
-    options.optmulti("d",
-                     "dot",
-                     "write out GraphViz representations of the input files",
-                     "FILENAME");
-    options.optflag("h", "help", "print this help menu");
-    let matches = match options.parse(&args[1..]) {
-        Ok(m) => m,
-        Err(f) => {
-            usage(prog, f.to_string().as_str(), true, options);
-            process::exit(1);
-        }
-    };
-    debug!("All arguments: {:?}", args);
-    debug!("Free text arguments: {:?}", matches.free);
-    if matches.opt_present("h") {
-        usage(prog, "", false, options);
+    let argv: Vec<_> = env::args().collect();
+    debug!("argv from stdout: {:?}", argv);
+
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.argv(argv).decode())
+        .unwrap_or_else(|e| e.exit());
+    debug!("args from docopt: {:?}", args);
+
+    if args.flag_help {
+        println!("{}", USAGE);
         process::exit(0);
     }
-    let dump_ast = matches.opt_present("a");
-    let graphviz = matches.opt_strs("d");
-    if matches.free.len() != 2 {
-        usage(prog, "Please provide two input files.", true, options);
-        process::exit(1);
+    if args.flag_version {
+        println!("{}", VERSION);
+        process::exit(0);
     }
 
-    // This function duplicates some checks that are performed by the
+    // This code duplicates some checks that are performed by the
     // treediff::ast::parse_file in order to give better error messages.
 
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
-    let extension1 = match Path::new(&matches.free[0]).extension() {
+    let extension1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
             writeln!(&mut stderr(),
                      "Cannot determine file type of {}.",
-                     &matches.free[0])
+                     args.arg_base_file)
                     .ok();
             process::exit(1);
         }
@@ -180,12 +175,12 @@ fn main() {
         process::exit(1);;
     }
 
-    let extension2 = match Path::new(&matches.free[1]).extension() {
+    let extension2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
             writeln!(&mut stderr(),
                      "Cannot determine file type of {}.",
-                     &matches.free[1])
+                     &args.arg_diff_file)
                     .ok();
             process::exit(1);
         }
@@ -198,21 +193,21 @@ fn main() {
     }
 
     // Parse both input files.
-    let ast_base = parse_file(&matches.free[0], &lex_l_path1, &yacc_y_path1);
-    let ast_diff = parse_file(&matches.free[1], &lex_l_path2, &yacc_y_path2);
+    let ast_base = parse_file(&args.arg_base_file, &lex_l_path1, &yacc_y_path1);
+    let ast_diff = parse_file(&args.arg_diff_file, &lex_l_path2, &yacc_y_path2);
 
     // Dump ASTs to STDOUT, if requested.
-    if dump_ast {
+    if args.flag_ast {
         println!("{}", ast_base);
         println!("{}", ast_diff);
     }
 
     // Generate graphviz file(s), if requested.
-    if graphviz.len() > 0 {
-        info!("User wishes to create graphviz files {:?}.", graphviz);
-        write_dotfile_to_disk(&graphviz[0], ast_base);
+    if !args.flag_dot.is_empty() {
+        info!("User wishes to create graphviz files {:?}.", args.flag_dot);
+        write_dotfile_to_disk(&args.flag_dot[0], ast_base);
     }
-    if graphviz.len() > 1 {
-        write_dotfile_to_disk(&graphviz[1], ast_diff);
+    if args.flag_dot.len() > 1 {
+        write_dotfile_to_disk(&args.flag_dot[1], ast_diff);
     }
 }
