@@ -39,7 +39,6 @@
 
 extern crate dot;
 extern crate env_logger;
-extern crate getopts;
 #[macro_use]
 extern crate log;
 extern crate lrlex;
