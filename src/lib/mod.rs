@@ -45,6 +45,9 @@ extern crate lrlex;
 extern crate lrtable;
 extern crate lrpar;
 
+/// Actions are operations that transform abstract syntax trees.
+pub mod action;
+
 /// AST defines the abstract syntax tree types that the differ works on.
 ///
 /// Routines are provided to create and iterate over ASTs, and to parse a file
@@ -54,14 +57,14 @@ pub mod ast;
 /// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
 pub mod emitters;
 
-// Re-exported enums and structs.
-pub use ast::ParseError;
-pub use ast::Arena;
-pub use ast::ArenaError;
-pub use ast::EdgeId;
-pub use ast::Node;
-pub use ast::NodeId;
+// Re-exported enums, structs and types.
+pub use action::{Delete, Insert, Move, Update};
+pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
+pub use ast::{EdgeId, Node, NodeId};
 pub use emitters::EmitterError;
+
+// Re-exported traits.
+pub use action::ApplyAction;
 
 // Re-exported functions.
 pub use ast::parse_file;

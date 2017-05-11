@@ -76,7 +76,14 @@ pub enum ArenaError {
     EmtpyArena,
     /// Node ID could not be found in this arena.
     NodeIdNotFound,
+    /// Node was expected to have more than `N` children.
+    NodeHasTooFewChildren(u16),
+    /// Two node ids were unexpectedly identical.
+    NodeIdsAreIdentical,
 }
+
+/// Result type returned by AST operations.
+pub type ArenaResult = Result<(), ArenaError>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
 /// A node identifier used for indexing nodes within a particular `Arena`.
@@ -150,12 +157,12 @@ impl<T: Clone, U: Clone> Arena<T, U> {
     }
 
     /// Return `true` if index is in arena, `false` otherwise.
-    pub fn is_in_arena(&self, index: NodeId) -> bool {
+    pub fn contains(&self, index: NodeId) -> bool {
         index.index < self.nodes.len()
     }
 
     /// Make one node the next (i.e. last) child of another.
-    pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> Result<(), ArenaError> {
+    pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> ArenaResult {
         if child.index >= self.nodes.len() {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -343,8 +350,8 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> Result<(), ArenaError> {
-        if !arena.is_in_arena(*self) {
+    pub fn detach<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+        if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
         let (parent, previous_sibling, next_sibling) = {
@@ -371,13 +378,60 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T: Clone, U: Clone>(&self,
-                                                    arena: &mut Arena<T, U>)
-                                                    -> Result<(), ArenaError> {
+    pub fn detach_with_children<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
         self.detach(arena)?;
         let ids: Vec<NodeId> = self.children(arena).collect();
         for id in ids {
             id.detach_with_children(arena)?;
+        }
+        Ok(())
+    }
+
+    /// Make one node the nth child of another.
+    ///
+    /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
+    /// child of `parent`.
+    pub fn make_nth_child_of<T: Clone, U: Clone>(&mut self,
+                                                 parent: NodeId,
+                                                 nth: u16,
+                                                 arena: &mut Arena<T, U>)
+                                                 -> ArenaResult {
+        if !arena.contains(*self) {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        if !arena.contains(parent) {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        if nth == 0 && arena[parent].first_child == None {
+            // Make self the *first* child of parent.
+            return arena.make_child_of(*self, parent);
+        }
+        let children: Vec<NodeId> = parent.children(arena).collect();
+        let n_children = children.len() as u16;
+        if nth == children.len() as u16 {
+            // Make self the *last* child of parent.
+            return arena.make_child_of(*self, parent);
+        } else if n_children < nth {
+            return Err(ArenaError::NodeHasTooFewChildren(n_children));
+        }
+        self.detach(arena)?; // Leave current children attached.
+        arena[*self].parent = Some(parent);
+        if nth == 0 {
+            // first child cannot be None here.
+            arena[parent].first_child = Some(*self);
+        }
+        if nth > 0 {
+            let new_prev_sibling = children[nth as usize - 1];
+            arena[*self].previous_sibling = Some(new_prev_sibling);
+            arena[new_prev_sibling].next_sibling = Some(*self);
+        }
+        if nth < n_children {
+            let new_next_sibling = children[nth as usize];
+            arena[*self].next_sibling = Some(new_next_sibling);
+            arena[new_next_sibling].previous_sibling = Some(*self);
+        }
+        if nth == n_children {
+            arena[parent].last_child = Some(*self);
         }
         Ok(())
     }
@@ -642,6 +696,84 @@ mod tests {
     }
 
     #[test]
+    fn make_nth_child_of_1() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node("1", "INT", 4);
+        assert!(!arena.is_empty());
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("2", "INT", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let format1 = "Expr +
+    INT 1
+    INT 2
+";
+        assert_eq!(format1, format!("{:}", arena));
+        let mut n3 = arena.new_node("100", "INT", 8);
+        // Make first child.
+        n3.make_nth_child_of(n2, 0, arena).unwrap();
+        let format2 = "Expr +
+    INT 1
+    INT 2
+        INT 100
+";
+        assert_eq!(format2, format!("{:}", arena));
+    }
+
+    #[test]
+    fn make_nth_child_of_2() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node("1", "INT", 4);
+        assert!(!arena.is_empty());
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("2", "INT", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let format1 = "Expr +
+    INT 1
+    INT 2
+";
+        assert_eq!(format1, format!("{:}", arena));
+        let mut n3 = arena.new_node("100", "INT", 4);
+        // Make last child.
+        n3.make_nth_child_of(root, 2, arena).unwrap();
+        let format2 = "Expr +
+    INT 1
+    INT 2
+    INT 100
+";
+        assert_eq!(format2, format!("{:}", arena));
+    }
+
+    #[test]
+    fn make_nth_child_of_3() {
+        let arena = &mut Arena::new();
+        let root = arena.new_node("+", "Expr", 0);
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node("1", "INT", 4);
+        assert!(!arena.is_empty());
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node("2", "INT", 4);
+        arena.make_child_of(n2, root).unwrap();
+        let format1 = "Expr +
+    INT 1
+    INT 2
+";
+        assert_eq!(format1, format!("{:}", arena));
+        let mut n3 = arena.new_node("100", "INT", 4);
+        // Make second child.
+        n3.make_nth_child_of(root, 1, arena).unwrap();
+        let format2 = "Expr +
+    INT 1
+    INT 100
+    INT 2
+";
+        assert_eq!(format2, format!("{:}", arena));
+    }
+
+    #[test]
     fn node_fmt() {
         let node = Node::new("private", "MODIFIER", 4);
         let expected = "    MODIFIER private";
@@ -778,11 +910,11 @@ INT 2
     }
 
     #[test]
-    fn is_in_arena() {
+    fn contains() {
         let arena = &mut Arena::new();
         let n1 = arena.new_node("1", "INT", 4);
-        assert!(arena.is_in_arena(n1));
-        assert!(!arena.is_in_arena(NodeId { index: 1 }));
+        assert!(arena.contains(n1));
+        assert!(!arena.contains(NodeId { index: 1 }));
     }
 
     #[test]
