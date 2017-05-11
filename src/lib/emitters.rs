@@ -83,7 +83,7 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String, String> {
     }
 }
 
-impl<'a, T, U> GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
+impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
     fn nodes(&self) -> Nodes<'a, NodeId> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }

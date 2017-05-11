@@ -103,11 +103,11 @@ pub type EdgeId = (NodeId, NodeId);
 /// represent the type (e.g. `expr`, `factor`, `term`) of each node and any
 /// information (e.g. literals) stored within the node. In most uses, `T` and
 /// `U` will both be `String` types.
-pub struct Arena<T, U> {
+pub struct Arena<T: Clone, U: Clone> {
     nodes: Vec<Node<T, U>>,
 }
 
-impl<T, U> Index<NodeId> for Arena<T, U> {
+impl<T: Clone, U: Clone> Index<NodeId> for Arena<T, U> {
     type Output = Node<T, U>;
 
     fn index(&self, node: NodeId) -> &Node<T, U> {
@@ -115,13 +115,13 @@ impl<T, U> Index<NodeId> for Arena<T, U> {
     }
 }
 
-impl<T, U> IndexMut<NodeId> for Arena<T, U> {
+impl<T: Clone, U: Clone> IndexMut<NodeId> for Arena<T, U> {
     fn index_mut(&mut self, node: NodeId) -> &mut Node<T, U> {
         &mut self.nodes[node.index]
     }
 }
 
-impl<T, U> Arena<T, U> {
+impl<T: Clone, U: Clone> Arena<T, U> {
     /// Create an empty `Arena`.
     pub fn new() -> Arena<T, U> {
         Arena { nodes: Vec::new() }
@@ -149,7 +149,12 @@ impl<T, U> Arena<T, U> {
         self.nodes.len()
     }
 
-    /// Make one node the child of another.
+    /// Return `true` if index is in arena, `false` otherwise.
+    pub fn is_in_arena(&self, index: NodeId) -> bool {
+        index.index < self.nodes.len()
+    }
+
+    /// Make one node the next (i.e. last) child of another.
     pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> Result<(), ArenaError> {
         if child.index >= self.nodes.len() {
             return Err(ArenaError::NodeIdNotFound);
@@ -157,6 +162,7 @@ impl<T, U> Arena<T, U> {
         if parent.index >= self.nodes.len() {
             return Err(ArenaError::NodeIdNotFound);
         }
+        child.detach(self)?;
         self[child].parent = Some(parent);
         match self[parent].first_child {
             None => self[parent].first_child = Some(child),
@@ -190,7 +196,7 @@ impl<T, U> Arena<T, U> {
 }
 
 // Should have same output as lrpar::parser::Node<TokId>::pretty_print().
-impl<T: fmt::Display, U: fmt::Display> fmt::Display for Arena<T, U> {
+impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Arena<T, U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.nodes.is_empty() {
             return write!(f, "");
@@ -226,7 +232,7 @@ impl<T: fmt::Display, U: fmt::Display> fmt::Display for Arena<T, U> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// An AST node within an `Arena`.
-pub struct Node<T, U> {
+pub struct Node<T: Clone, U: Clone> {
     parent: Option<NodeId>,
     previous_sibling: Option<NodeId>,
     next_sibling: Option<NodeId>,
@@ -243,7 +249,7 @@ pub struct Node<T, U> {
     pub indent: u32,
 }
 
-impl<T, U> Node<T, U> {
+impl<T: Clone, U: Clone> Node<T, U> {
     /// Create a new node, with data, but without a parent or children.
     pub fn new(data: T, ty: U, indent: u32) -> Node<T, U> {
         Node {
@@ -268,6 +274,9 @@ impl<T, U> Node<T, U> {
     }
 
     /// `true` if this node has no parent.
+    ///
+    /// If a node has been added to the arena without being given a parent, or
+    /// a node has been detached from its parent, this method will return `true`.
     pub fn is_root(&self) -> bool {
         match self.parent {
             Some(_) => false,
@@ -306,7 +315,7 @@ impl<T, U> Node<T, U> {
     }
 }
 
-impl<T: fmt::Display, U: fmt::Display> fmt::Display for Node<T, U> {
+impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Node<T, U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut s = String::new();
         for _ in 0..self.indent {
@@ -334,12 +343,14 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach<T, U>(&self, arena: &mut Arena<T, U>) {
+    pub fn detach<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> Result<(), ArenaError> {
+        if !arena.is_in_arena(*self) {
+            return Err(ArenaError::NodeIdNotFound);
+        }
         let (parent, previous_sibling, next_sibling) = {
             let node = &mut arena[*self];
             (node.parent.take(), node.previous_sibling.take(), node.next_sibling.take())
         };
-
         if let Some(next_sibling) = next_sibling {
             arena[next_sibling].previous_sibling = previous_sibling;
         } else if let Some(parent) = parent {
@@ -351,6 +362,7 @@ impl NodeId {
         } else if let Some(parent) = parent {
             arena[parent].first_child = next_sibling;
         }
+        Ok(())
     }
 
     /// Detach this node and its children.
@@ -359,16 +371,19 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T, U>(&self, arena: &mut Arena<T, U>) {
-        self.detach(arena);
+    pub fn detach_with_children<T: Clone, U: Clone>(&self,
+                                                    arena: &mut Arena<T, U>)
+                                                    -> Result<(), ArenaError> {
+        self.detach(arena)?;
         let ids: Vec<NodeId> = self.children(arena).collect();
         for id in ids {
-            id.detach_with_children(arena);
+            id.detach_with_children(arena)?;
         }
+        Ok(())
     }
 
     /// Return an iterator of references to this node’s children.
-    pub fn children<T, U>(self, arena: &Arena<T, U>) -> Children<T, U> {
+    pub fn children<T: Clone, U: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
         Children {
             arena: arena,
             node: arena[self].first_child,
@@ -378,7 +393,7 @@ impl NodeId {
 
 macro_rules! impl_node_iterator {
     ($name: ident, $next: expr) => {
-        impl<'a, T, U> Iterator for $name<'a, T, U> {
+        impl<'a, T: Clone, U: Clone> Iterator for $name<'a, T, U> {
             type Item = NodeId;
             fn next(&mut self) -> Option<NodeId> {
                 match self.node.take() {
@@ -394,7 +409,7 @@ macro_rules! impl_node_iterator {
 }
 
 /// An iterator of references to the children of a given node.
-pub struct Children<'a, T: 'a, U: 'a> {
+pub struct Children<'a, T: Clone + 'a, U: Clone + 'a> {
     arena: &'a Arena<T, U>,
     node: Option<NodeId>,
 }
@@ -703,7 +718,7 @@ INT 2
         INT 4
 ";
         assert_eq!(first_format, format!("{:}", arena));
-        root.detach_with_children(arena);
+        root.detach_with_children(arena).unwrap();
         let second_format = "Expr +\n";
         assert_eq!(second_format, format!("{:}", arena));
     }
@@ -727,7 +742,7 @@ INT 2
         INT 4
 ";
         assert_eq!(first_format, format!("{:}", arena));
-        n2.detach_with_children(arena);
+        n2.detach_with_children(arena).unwrap();
         let second_format = "Expr +
     INT 1
 ";
@@ -760,6 +775,14 @@ INT 2
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);
         }
+    }
+
+    #[test]
+    fn is_in_arena() {
+        let arena = &mut Arena::new();
+        let n1 = arena.new_node("1", "INT", 4);
+        assert!(arena.is_in_arena(n1));
+        assert!(!arena.is_in_arena(NodeId { index: 1 }));
     }
 
     #[test]
