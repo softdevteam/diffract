@@ -42,7 +42,6 @@ extern crate env_logger;
 extern crate rustc_serialize;
 
 use std::{env, process};
-use std::fs::File;
 use std::io::{stderr, Write};
 use std::path::Path;
 
@@ -50,6 +49,7 @@ use docopt::Docopt;
 
 extern crate treediff;
 use treediff::ast;
+use treediff::emitters;
 
 const USAGE: &'static str = "
 Usage: rstreediff [options] <base-file> <diff-file>
@@ -77,59 +77,37 @@ struct Args {
     flag_version: bool,
 }
 
-fn write_dotfile_to_disk(filepath: &str, arena: treediff::Arena<String, String>) {
-    let mut dotfile = match File::create(&filepath) {
-        Ok(f) => f,
-        Err(_) => {
-            writeln!(&mut stderr(), "Could not create file {}.", &filepath).ok();
-            process::exit(1);
-        }
-    };
-    match arena.render_dotgraph(&mut dotfile) {
-        Ok(_) => (),
-        Err(_) => {
-            writeln!(&mut stderr(),
-                     "Could not write data to file file {}.",
-                     &filepath)
-                    .ok();
-            process::exit(1);
-        }
-    };
+fn write_dotfile_to_disk(filepath: &str, arena: &ast::Arena<String, String>) {
+    if let Err(err) = emitters::write_dotfile_to_disk(filepath, arena) {
+        use emitters::EmitterError::*;
+        let action = match err {
+            CouldNotCreateFile => "create",
+            CouldNotWriteToFile => "write to",
+        };
+        writeln!(&mut stderr(), "Could not {} file {}.", action, filepath).ok();
+        process::exit(1);
+    }
 }
 
-fn parse_file(filename: &str,
-              lexer_path: &str,
-              yacc_path: &str)
-              -> treediff::ast::Arena<String, String> {
-    match ast::parse_file(filename) {
-        Ok(arena) => arena,
-        Err(treediff::ast::ParseError::FileNotFound) => {
-            writeln!(&mut stderr(),
-                     "File not found. Check grammar and input files.")
-                    .ok();
-            process::exit(1);
+fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String, String> {
+    let error_to_str = |err| {
+        use ast::ParseError::*;
+        match err {
+            FileNotFound => "File not found. Check grammar and input files.".into(),
+            BrokenLexer => format!("Could not build lexer {}.", lexer_path),
+            BrokenParser => format!("Could not build parser {}.", yacc_path),
+            LexicalError => format!("Lexical error in {}.", filename),
+            SyntaxError => format!("Syntax error in {}.", filename),
+            _ => format!("Error parsing {}.", filename),
         }
-        Err(treediff::ast::ParseError::BrokenLexer) => {
-            writeln!(&mut stderr(), "Could not build lexer {}.", lexer_path).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::BrokenParser) => {
-            writeln!(&mut stderr(), "Could not build parser {}.", yacc_path).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::LexicalError) => {
-            writeln!(&mut stderr(), "Lexical error in {}.", filename).ok();
-            process::exit(1);
-        }
-        Err(treediff::ast::ParseError::SyntaxError) => {
-            writeln!(&mut stderr(), "Syntax error in {}.", filename).ok();
-            process::exit(1);
-        }
-        Err(_) => {
-            writeln!(&mut stderr(), "Error parsing {}.", filename).ok();
-            process::exit(1);
-        }
-    }
+    };
+    ast::parse_file(filename)
+        .map_err(error_to_str)
+        .map_err(|msg| {
+                     writeln!(&mut stderr(), "{}", msg).ok();
+                     process::exit(1);
+                 })
+        .unwrap()
 }
 
 fn main() {
@@ -152,7 +130,7 @@ fn main() {
         process::exit(0);
     }
 
-    // This code duplicates some checks that are performed by the
+    // This function duplicates some checks that are performed by the
     // treediff::ast::parse_file in order to give better error messages.
 
     // Determine lexer and yacc files by extension. For example if the input
@@ -205,9 +183,9 @@ fn main() {
     // Generate graphviz file(s), if requested.
     if !args.flag_dot.is_empty() {
         info!("User wishes to create graphviz files {:?}.", args.flag_dot);
-        write_dotfile_to_disk(&args.flag_dot[0], ast_base);
+        write_dotfile_to_disk(&args.flag_dot[0], &ast_base);
     }
     if args.flag_dot.len() > 1 {
-        write_dotfile_to_disk(&args.flag_dot[1], ast_diff);
+        write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 }
