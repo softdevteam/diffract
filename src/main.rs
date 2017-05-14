@@ -77,6 +77,11 @@ struct Args {
     flag_version: bool,
 }
 
+fn exit_with_message(message: &str) -> ! {
+    writeln!(&mut stderr(), "{}", message).ok();
+    process::exit(1);
+}
+
 fn write_dotfile_to_disk(filepath: &str, arena: &ast::Arena<String, String>) {
     if let Err(err) = emitters::write_dotfile_to_disk(filepath, arena) {
         use emitters::EmitterError::*;
@@ -84,8 +89,7 @@ fn write_dotfile_to_disk(filepath: &str, arena: &ast::Arena<String, String>) {
             CouldNotCreateFile => "create",
             CouldNotWriteToFile => "write to",
         };
-        writeln!(&mut stderr(), "Could not {} file {}.", action, filepath).ok();
-        process::exit(1);
+        exit_with_message(&format!("Could not {} file {}.", action, filepath));
     }
 }
 
@@ -103,10 +107,7 @@ fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<S
     };
     ast::parse_file(filename)
         .map_err(error_to_str)
-        .map_err(|msg| {
-                     writeln!(&mut stderr(), "{}", msg).ok();
-                     process::exit(1);
-                 })
+        .map_err(|ref msg| exit_with_message(msg))
         .unwrap()
 }
 
@@ -139,35 +140,25 @@ fn main() {
     let extension1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            writeln!(&mut stderr(),
-                     "Cannot determine file type of {}.",
-                     args.arg_base_file)
-                    .ok();
-            process::exit(1);
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file));
         }
     };
     let lex_l_path1 = format!("grammars/{}.l", extension1);
     let yacc_y_path1 = format!("grammars/{}.y", extension1);
     if !Path::new(&lex_l_path1).exists() || !Path::new(&yacc_y_path1).exists() {
-        writeln!(&mut stderr(), "Cannot parse .{} files.", extension1).ok();
-        process::exit(1);;
+        exit_with_message(&format!("Cannot parse .{} files.", extension1));
     }
 
     let extension2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            writeln!(&mut stderr(),
-                     "Cannot determine file type of {}.",
-                     &args.arg_diff_file)
-                    .ok();
-            process::exit(1);
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file));
         }
     };
     let lex_l_path2 = format!("grammars/{}.l", extension2);
     let yacc_y_path2 = format!("grammars/{}.y", extension2);
     if !Path::new(&lex_l_path2).exists() || !Path::new(&yacc_y_path2).exists() {
-        writeln!(&mut stderr(), "Cannot parse .{} files.", extension2).ok();
-        process::exit(1);
+        exit_with_message(&format!("Cannot parse .{} files.", extension2));
     }
 
     // Parse both input files.
