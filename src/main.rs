@@ -59,19 +59,34 @@ Usage: rstreediff [options] <base-file> <diff-file>
 Diff two input files.
 
 Options:
-    -a, --ast         print AST of input files to STDOUT
-    -d, --dot <file>  write out GraphViz representations of the input file(s)
-    -h, --help        print this help menu and exit
-    -v, --version     print version information and exit
+    -a, --ast         print AST of input files to STDOUT.
+    --debug LEVEL     debug level used by logger. Valid (case sensitive) values
+                      are: Debug, Error, Info, Trace, Warn.
+    -d, --dot <file>  write out GraphViz representations of the input file(s).
+    -h, --help        print this help menu and exit.
+    -s, --sim THRESH  set the similarity threshold used for matching ASTs. Two
+                      trees are mapped if they are mappable and have a dice
+                      coefficient greater than THRESH (default: 0.3).
+    -v, --version     print version information and exit.
 ";
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+#[derive(RustcDecodable, Debug)]
+enum DebugLevel {
+    Debug,
+    Error,
+    Info,
+    Trace,
+    Warn,
+}
 
 #[derive(RustcDecodable, Debug)]
 struct Args {
     arg_base_file: String,
     arg_diff_file: String,
     flag_ast: bool,
+    flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
     flag_help: bool,
     flag_version: bool,
@@ -112,15 +127,15 @@ fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<S
 }
 
 fn main() {
-    env_logger::init().unwrap();
-
     let argv: Vec<_> = env::args().collect();
-    debug!("argv from stdout: {:?}", argv);
-
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.argv(argv).decode())
         .unwrap_or_else(|e| e.exit());
-    debug!("args from docopt: {:?}", args);
+
+    if let Some(l) = args.flag_debug {
+        env::set_var("RUST_LOG", &format!("{:?}", l).to_lowercase());
+    }
+    env_logger::init().unwrap();
 
     if args.flag_help {
         println!("{}", USAGE);
