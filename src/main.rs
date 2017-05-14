@@ -12,7 +12,7 @@
 // the Larger Works (as defined below), to deal in both
 //
 // (a) the Software, and
-// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file //
+// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file
 // if one is included with the Software (each a “Larger Work” to which the Software
 // is contributed by such licensors),
 //
