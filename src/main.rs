@@ -50,6 +50,7 @@ use docopt::Docopt;
 extern crate treediff;
 use treediff::ast;
 use treediff::emitters;
+use treediff::matchers;
 
 const USAGE: &'static str = "
 Usage: rstreediff [options] <base-file> <diff-file>
@@ -64,9 +65,7 @@ Options:
                       are: Debug, Error, Info, Trace, Warn.
     -d, --dot <file>  write out GraphViz representations of the input file(s).
     -h, --help        print this help menu and exit.
-    -s, --sim THRESH  set the similarity threshold used for matching ASTs. Two
-                      trees are mapped if they are mappable and have a dice
-                      coefficient greater than THRESH (default: 0.3).
+    -m, --map <file>  write out GraphViz representation of the mapping store.
     -v, --version     print version information and exit.
 ";
 
@@ -89,6 +88,7 @@ struct Args {
     flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
     flag_help: bool,
+    flag_map: Option<String>,
     flag_version: bool,
 }
 
@@ -97,8 +97,8 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
-fn write_dotfile_to_disk(filepath: &str, arena: &ast::Arena<String, String>) {
-    if let Err(err) = emitters::write_dotfile_to_disk(filepath, arena) {
+fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
+    if let Err(err) = emitters::write_dotfile_to_disk(filepath, object) {
         use emitters::EmitterError::*;
         let action = match err {
             CouldNotCreateFile => "create",
@@ -193,5 +193,12 @@ fn main() {
     }
     if args.flag_dot.len() > 1 {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
+    }
+
+    let mapping = matchers::match_trees(ast_base, ast_diff);
+    if args.flag_map.is_some() {
+        let map_file = args.flag_map.unwrap();
+        info!("User wishes to create graphviz files {:?}.", map_file);
+        write_dotfile_to_disk(&map_file, &mapping);
     }
 }

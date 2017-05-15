@@ -344,6 +344,11 @@ impl NodeId {
         NodeId { index: index }
     }
 
+    /// Return the index of this Node Id.
+    pub fn id(&self) -> usize {
+        self.index
+    }
+
     /// Detach this node, leaving its children unaffected.
     ///
     /// Detaching a node makes it inaccessible to other nodes. The node is not

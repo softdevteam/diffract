@@ -69,6 +69,7 @@ pub use matchers::{Mapping, MappingStore};
 
 // Re-exported traits.
 pub use action::ApplyAction;
+pub use emitters::RenderDotfile;
 
 // Re-exported functions.
 pub use ast::parse_file;

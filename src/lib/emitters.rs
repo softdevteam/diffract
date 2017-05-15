@@ -41,9 +41,10 @@ use std::borrow::Cow::Owned;
 use std::fs::File;
 use std::io::{Error, Write};
 
-use dot::{Id, Edges, GraphWalk, Labeller, LabelText, Nodes, render};
+use dot::{Id, Edges, GraphWalk, Labeller, LabelText, Nodes, render, Style};
 
 use ast::{Arena, EdgeId, NodeId};
+use matchers::{Mapping, MappingStore};
 
 /// Errors produced in emitting new data.
 pub enum EmitterError {
@@ -53,15 +54,20 @@ pub enum EmitterError {
     CouldNotWriteToFile,
 }
 
-/// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk(filepath: &str,
-                             arena: &Arena<String, String>)
-                             -> Result<(), EmitterError> {
+/// Create a graphviz representation of this type and write to buffer.
+pub trait RenderDotfile {
+    /// Render a dotfile to `buffer`.
+    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error>;
+}
 
-    let mut dotfile = File::create(&filepath)
+/// Write out a graphviz file (in dot format) to `filepath`.
+pub fn write_dotfile_to_disk<'a, T: RenderDotfile>(filepath: &str,
+                                                   graph: &T)
+                                                   -> Result<(), EmitterError> {
+    let mut stream = File::create(&filepath)
         .map_err(|_| EmitterError::CouldNotCreateFile)?;
-    arena
-        .render_dotgraph(&mut dotfile)
+    graph
+        .render_dotfile(&mut stream)
         .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 
@@ -101,9 +107,89 @@ impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
     }
 }
 
-impl Arena<String, String> {
-    /// Create a graphviz representation of this arena and write to buffer.
-    pub fn render_dotgraph<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
+impl RenderDotfile for Arena<String, String> {
+    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
+        render(self, buffer)
+    }
+}
+
+impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String, String> {
+    fn graph_id(&self) -> Id {
+        Id::new("MappingStore").unwrap()
+    }
+
+    fn node_id(&self, id: &NodeId) -> Id {
+        // Node ids must be unique dot identifiers, be non-empty strings made up
+        // of alphanumeric or underscore characters, not beginning with a digit
+        // (i.e. the regular expression [a-zA-Z_][a-zA-Z_0-9]*).
+        if id.id() < self.from.size() {
+            return Id::new(format!("N{}", id)).unwrap(); // Source nodes.
+        }
+        Id::new(format!("M{}", id)).unwrap() // Destination nodes.
+    }
+
+    fn node_label(&self, id: &NodeId) -> LabelText {
+        let size = self.from.size() as usize;
+        let label = if id.id() < self.from.size() {
+            format!("{} {}", self.from[*id].ty, self.from[*id].data)
+        } else {
+            let index = NodeId::new(id.id() - size);
+            format!("{} {}", self.to[index].ty, self.to[index].data)
+        };
+        LabelText::LabelStr(label.into())
+    }
+
+    fn edge_style(&self, edge: &EdgeId) -> Style {
+        let size = self.from.size() as usize;
+        if edge.0.id() < size && edge.1.id() >= size {
+            if self.contains(Mapping::new(edge.0.id(), edge.1.id() - size)) {
+                return Style::Dashed;
+            }
+        }
+        Style::Solid
+    }
+}
+
+/// Here, the two arenas and list of mappings in `self` become a single graph.
+///
+/// `Nodeid`s in the source arena are left as-is. `Nodeid`s from the destination
+/// arena have the size of the source arena added to them. Likewise each mapping
+/// of the form `(s_id, d_id)` becomes `(s_id, d_id + s_size)`.
+impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for MappingStore<T, U> {
+    fn nodes(&self) -> Nodes<'a, NodeId> {
+        let mut nodes: Vec<NodeId> = (0..self.from.size()).map(NodeId::new).collect();
+        for index in 0..self.to.size() {
+            nodes.push(NodeId::new(self.from.size() + index));
+        }
+        Owned(nodes)
+    }
+
+    fn edges(&'a self) -> Edges<'a, EdgeId> {
+        let mut edges: Vec<EdgeId> = self.from.get_edges();
+        let size = self.from.size() as usize;
+        edges.extend(self.to
+                         .get_edges()
+                         .iter()
+                         .map(|x| {
+                                  (NodeId::new(x.0.id() + size), NodeId::new(x.1.id() + size))
+                              }));
+        edges.extend(self.mappings
+                         .iter()
+                         .map(|x| (x.from, NodeId::new(x.to.id() + size))));
+        Owned(edges)
+    }
+
+    fn source(&self, e: &EdgeId) -> NodeId {
+        e.0
+    }
+
+    fn target(&self, e: &EdgeId) -> NodeId {
+        e.1
+    }
+}
+
+impl RenderDotfile for MappingStore<String, String> {
+    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         render(self, buffer)
     }
 }
