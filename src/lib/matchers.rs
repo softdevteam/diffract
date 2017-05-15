@@ -35,41 +35,71 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(try_from)]
+#![warn(missing_docs)]
 
-extern crate dot;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrtable;
-extern crate lrpar;
+use ast::{Arena, NodeId};
 
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
+#[derive(Debug, Clone, Eq, PartialEq)]
+/// Mapping between nodes in distinct arenas.
+pub struct Mapping {
+    /// Source node.
+    pub from: NodeId,
+    /// Destination node.
+    pub to: NodeId,
+}
 
-/// AST defines the abstract syntax tree types that the differ works on.
-///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+impl Mapping {
+    /// Create a new mapping from one index to another.
+    /// It is assumed that the `from` and `to` nodes are in different arenas.
+    pub fn new(from: usize, to: usize) -> Mapping {
+        Mapping {
+            from: NodeId::new(from),
+            to: NodeId::new(to),
+        }
+    }
+}
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+/// A store of mappings between nodes in different arenas.
+/// Direction is important.
+pub struct MappingStore<T: Clone, U: Clone> {
+    /// Mappings for the stored arenas.
+    pub mappings: Vec<Mapping>,
+    /// Source arena (treat as immutable).
+    pub from: Arena<T, U>,
+    /// Destination arena (treat as immutable).
+    pub to: Arena<T, U>,
+}
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+impl<T: Clone, U: Clone> MappingStore<T, U> {
+    /// Create a new mapping store.
+    fn new(base: Arena<T, U>, diff: Arena<T, U>) -> MappingStore<T, U> {
+        MappingStore {
+            mappings: vec![],
+            from: base,
+            to: diff,
+        }
+    }
 
-// Re-exported enums, structs and types.
-pub use action::{Delete, Insert, Move, Update};
-pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
-pub use ast::{EdgeId, Node, NodeId};
-pub use emitters::EmitterError;
-pub use matchers::{Mapping, MappingStore};
+    /// Push a new mapping into the store.
+    pub fn push(&mut self, from: usize, to: usize) {
+        self.mappings.push(Mapping::new(from, to));
+    }
 
-// Re-exported traits.
-pub use action::ApplyAction;
+    /// True if `mapping` is contained within this store.
+    pub fn contains(&self, mapping: Mapping) -> bool {
+        self.mappings.contains(&mapping)
+    }
+}
 
-// Re-exported functions.
-pub use ast::parse_file;
-pub use emitters::write_dotfile_to_disk;
+/// Match locations in distinct ASTs.
+pub fn match_trees<'a, T: Clone, U: Clone>(base: Arena<T, U>,
+                                           diff: Arena<T, U>)
+                                           -> MappingStore<T, U> {
+    let mut store = MappingStore::new(base, diff);
+    if store.from.size() == 0 || store.to.size() == 0 {
+        return store;
+    }
+    // TODO: Implement classic GumTree matcher algorithm.
+    store.push(0, 0);
+    store
+}
