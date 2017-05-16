@@ -108,7 +108,7 @@ fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, o
     }
 }
 
-fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String, String> {
+fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String> {
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {

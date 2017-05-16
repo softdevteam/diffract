@@ -71,7 +71,7 @@ pub fn write_dotfile_to_disk<'a, T: RenderDotfile>(filepath: &str,
         .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 
-impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String, String> {
+impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String> {
     fn graph_id(&self) -> Id {
         Id::new("AST").unwrap()
     }
@@ -84,12 +84,12 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String, String> {
     }
 
     fn node_label(&self, id: &NodeId) -> LabelText {
-        let label = format!("{} {}", self[*id].ty, self[*id].data);
+        let label = format!("{} {}", self[*id].label, self[*id].value);
         LabelText::LabelStr(label.into())
     }
 }
 
-impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
+impl<'a, T: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T> {
     fn nodes(&self) -> Nodes<'a, NodeId> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }
@@ -107,13 +107,13 @@ impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T, U> {
     }
 }
 
-impl RenderDotfile for Arena<String, String> {
+impl RenderDotfile for Arena<String> {
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         render(self, buffer)
     }
 }
 
-impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String, String> {
+impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String> {
     fn graph_id(&self) -> Id {
         Id::new("MappingStore").unwrap()
     }
@@ -131,14 +131,15 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String, String> {
     fn node_label(&self, id: &NodeId) -> LabelText {
         let size = self.from.size() as usize;
         let label = if id.id() < self.from.size() {
-            format!("{} {}", self.from[*id].ty, self.from[*id].data)
+            format!("{} {}", self.from[*id].label, self.from[*id].value)
         } else {
             let index = NodeId::new(id.id() - size);
-            format!("{} {}", self.to[index].ty, self.to[index].data)
+            format!("{} {}", self.to[index].label, self.to[index].value)
         };
         LabelText::LabelStr(label.into())
     }
 
+    /// Edges between nodes within an AST are solid, mappings are dashed.
     fn edge_style(&self, edge: &EdgeId) -> Style {
         let size = self.from.size() as usize;
         if edge.0.id() < size && edge.1.id() >= size {
@@ -155,7 +156,7 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String, String> {
 /// `Nodeid`s in the source arena are left as-is. `Nodeid`s from the destination
 /// arena have the size of the source arena added to them. Likewise each mapping
 /// of the form `(s_id, d_id)` becomes `(s_id, d_id + s_size)`.
-impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for MappingStore<T, U> {
+impl<'a, T: Clone> GraphWalk<'a, NodeId, EdgeId> for MappingStore<T> {
     fn nodes(&self) -> Nodes<'a, NodeId> {
         let mut nodes: Vec<NodeId> = (0..self.from.size()).map(NodeId::new).collect();
         for index in 0..self.to.size() {
@@ -188,7 +189,7 @@ impl<'a, T: Clone, U: Clone> GraphWalk<'a, NodeId, EdgeId> for MappingStore<T, U
     }
 }
 
-impl RenderDotfile for MappingStore<String, String> {
+impl RenderDotfile for MappingStore<String> {
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         render(self, buffer)
     }

@@ -61,18 +61,18 @@ impl Mapping {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
-pub struct MappingStore<T: Clone, U: Clone> {
+pub struct MappingStore<T: Clone> {
     /// Mappings for the stored arenas.
     pub mappings: Vec<Mapping>,
     /// Source arena (treat as immutable).
-    pub from: Arena<T, U>,
+    pub from: Arena<T>,
     /// Destination arena (treat as immutable).
-    pub to: Arena<T, U>,
+    pub to: Arena<T>,
 }
 
-impl<T: Clone, U: Clone> MappingStore<T, U> {
+impl<T: Clone> MappingStore<T> {
     /// Create a new mapping store.
-    fn new(base: Arena<T, U>, diff: Arena<T, U>) -> MappingStore<T, U> {
+    fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
             mappings: vec![],
             from: base,
@@ -92,9 +92,7 @@ impl<T: Clone, U: Clone> MappingStore<T, U> {
 }
 
 /// Match locations in distinct ASTs.
-pub fn match_trees<'a, T: Clone, U: Clone>(base: Arena<T, U>,
-                                           diff: Arena<T, U>)
-                                           -> MappingStore<T, U> {
+pub fn match_trees<'a, T: Clone>(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
     let mut store = MappingStore::new(base, diff);
     if store.from.size() == 0 || store.to.size() == 0 {
         return store;

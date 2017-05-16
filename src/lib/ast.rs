@@ -53,7 +53,7 @@ use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
 #[derive(Debug)]
 /// Errors raised when parsing a source file.
 pub enum ParseError {
-    /// Io error returned from standard library routine.
+    /// Io error returned from standard library routines.
     Io(io::Error),
     /// File not found.
     FileNotFound,
@@ -103,41 +103,39 @@ impl fmt::Display for NodeId {
 /// A type to represent edges between nodes within an `Arena`.
 pub type EdgeId = (NodeId, NodeId);
 
-/// An arena in which to place `NodeID`-indexed AST nodes.
+/// An arena in which to place `NodeId`-indexed AST nodes.
 ///
-/// `T` and `U` are types given to internal values stored within each node.
+/// `T` type is given to internal values stored within each node.
 /// These values contain information that the `lrpar` crate will provide, and
-/// represent the type (e.g. `expr`, `factor`, `term`) of each node and any
-/// information (e.g. literals) stored within the node. In most uses, `T` and
-/// `U` will both be `String` types.
-pub struct Arena<T: Clone, U: Clone> {
-    nodes: Vec<Node<T, U>>,
+/// represent any lexical information (e.g. literals) from the original text.
+pub struct Arena<T: Clone> {
+    nodes: Vec<Node<T>>,
 }
 
-impl<T: Clone, U: Clone> Index<NodeId> for Arena<T, U> {
-    type Output = Node<T, U>;
+impl<T: Clone> Index<NodeId> for Arena<T> {
+    type Output = Node<T>;
 
-    fn index(&self, node: NodeId) -> &Node<T, U> {
+    fn index(&self, node: NodeId) -> &Node<T> {
         &self.nodes[node.index]
     }
 }
 
-impl<T: Clone, U: Clone> IndexMut<NodeId> for Arena<T, U> {
-    fn index_mut(&mut self, node: NodeId) -> &mut Node<T, U> {
+impl<T: Clone> IndexMut<NodeId> for Arena<T> {
+    fn index_mut(&mut self, node: NodeId) -> &mut Node<T> {
         &mut self.nodes[node.index]
     }
 }
 
-impl<T: Clone, U: Clone> Arena<T, U> {
+impl<T: Clone> Arena<T> {
     /// Create an empty `Arena`.
-    pub fn new() -> Arena<T, U> {
+    pub fn new() -> Arena<T> {
         Arena { nodes: Vec::new() }
     }
 
     /// Create a new node from its data.
-    pub fn new_node(&mut self, data: T, ty: U, indent: u32) -> NodeId {
+    pub fn new_node(&mut self, value: T, label: String, indent: u32) -> NodeId {
         let next_index = self.nodes.len();
-        let mut node = Node::new(data, ty, indent);
+        let mut node = Node::new(value, label, indent);
         node.index = Some(NodeId { index: next_index });
         self.nodes.push(node);
         NodeId { index: next_index }
@@ -187,8 +185,10 @@ impl<T: Clone, U: Clone> Arena<T, U> {
     }
 
     /// Return a vector of edges between nodes in this arena.
+    ///
     /// Each edge pair `(n1, n2)` denotes an edge between nodes `n1` and `n2`,
-    /// both numbers being `NodeId` indices within this arena.
+    /// both being `NodeId` indices within this arena. An edge within an `Arena`
+    /// denotes a parent / child relationship between nodes.
     pub fn get_edges(&self) -> Vec<EdgeId> {
         let mut edges: Vec<EdgeId> = vec![];
         for index in 0..self.nodes.len() {
@@ -203,7 +203,7 @@ impl<T: Clone, U: Clone> Arena<T, U> {
 }
 
 // Should have same output as lrpar::parser::Node<TokId>::pretty_print().
-impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Arena<T, U> {
+impl<T: fmt::Display + Clone> fmt::Display for Arena<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.nodes.is_empty() {
             return write!(f, "");
@@ -239,34 +239,41 @@ impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Arena<T,
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// An AST node within an `Arena`.
-pub struct Node<T: Clone, U: Clone> {
+pub struct Node<T: Clone> {
     parent: Option<NodeId>,
     previous_sibling: Option<NodeId>,
     next_sibling: Option<NodeId>,
     first_child: Option<NodeId>,
     last_child: Option<NodeId>,
     /// Index of this node in the arena.
+    ///
     /// Note that nodes with a non-`None` index are unique.
     index: Option<NodeId>,
-    /// The actual data which will be stored within the tree.
-    pub data: T,
-    /// Type of this AST node, derived from grammar e.g. `expr`, `factor`, `term`.
-    pub ty: U,
+    /// The `value` of a node is the lexeme it corresponds to in the code.
+    ///
+    /// For example, a numerical or string literal, bracket, semicolon, etc.
+    pub value: T,
+    /// The `label` of a node is its name of its production in the grammar.
+    ///
+    /// For example, `Expr`, `Factor`, `Term`.
+    pub label: String,
     /// Level of indentation, useful for pretty printing, formatting, etc.
+    ///
+    /// This node should be indented by `indent` spaces by a pretty-printer.
     pub indent: u32,
 }
 
-impl<T: Clone, U: Clone> Node<T, U> {
+impl<T: Clone> Node<T> {
     /// Create a new node, with data, but without a parent or children.
-    pub fn new(data: T, ty: U, indent: u32) -> Node<T, U> {
+    pub fn new(value: T, label: String, indent: u32) -> Node<T> {
         Node {
             parent: None,
             previous_sibling: None,
             next_sibling: None,
             first_child: None,
             last_child: None,
-            data: data,
-            ty: ty,
+            value: value,
+            label: label,
             indent: indent,
             index: None,
         }
@@ -291,49 +298,46 @@ impl<T: Clone, U: Clone> Node<T, U> {
         }
     }
 
-    /// Return the ID of the parent node, if there is one.
+    /// Return the Id of the parent node, if there is one.
     pub fn parent(&self) -> Option<NodeId> {
         self.parent
     }
 
-    /// Return the ID of the first child of this node, if there is one.
+    /// Return the Id of the first child of this node, if there is one.
     pub fn first_child(&self) -> Option<NodeId> {
         self.first_child
     }
 
-    /// Return the ID of the last child of this node, if there is one.
+    /// Return the Id of the last child of this node, if there is one.
     pub fn last_child(&self) -> Option<NodeId> {
         self.last_child
     }
 
-    /// Return the ID of the previous sibling of this node, if there is one.
+    /// Return the Id of the previous sibling of this node, if there is one.
     pub fn previous_sibling(&self) -> Option<NodeId> {
         self.previous_sibling
     }
 
-    /// Return the ID of the previous sibling of this node, if there is one.
+    /// Return the Id of the previous sibling of this node, if there is one.
     pub fn next_sibling(&self) -> Option<NodeId> {
         self.next_sibling
     }
 
-    /// Return the ID of this node.
+    /// Return the Id of this node.
     pub fn index(&self) -> Option<NodeId> {
         self.index
     }
 }
 
-impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Node<T, U> {
+impl<T: fmt::Display + Clone> fmt::Display for Node<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut s = String::new();
-        for _ in 0..self.indent {
-            s.push_str(" ");
-        }
+        let s = " ".repeat(self.indent as usize);
         write!(f, "{}", s).unwrap(); // Indentation.
-        let data_s = format!(" {}", self.data);
+        let data_s = format!(" {}", self.value);
         if data_s.len() == 1 {
-            return write!(f, "{}", self.ty);
+            return write!(f, "{}", self.label);
         }
-        write!(f, "{}", self.ty).unwrap();
+        write!(f, "{}", self.label).unwrap();
         write!(f, "{}", data_s)
     }
 }
@@ -355,7 +359,7 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn detach<T: Clone>(&self, arena: &mut Arena<T>) -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -383,7 +387,7 @@ impl NodeId {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T: Clone, U: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn detach_with_children<T: Clone>(&self, arena: &mut Arena<T>) -> ArenaResult {
         self.detach(arena)?;
         let ids: Vec<NodeId> = self.children(arena).collect();
         for id in ids {
@@ -396,11 +400,11 @@ impl NodeId {
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
     /// child of `parent`.
-    pub fn make_nth_child_of<T: Clone, U: Clone>(&mut self,
-                                                 parent: NodeId,
-                                                 nth: u16,
-                                                 arena: &mut Arena<T, U>)
-                                                 -> ArenaResult {
+    pub fn make_nth_child_of<T: Clone>(&mut self,
+                                       parent: NodeId,
+                                       nth: u16,
+                                       arena: &mut Arena<T>)
+                                       -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -442,7 +446,7 @@ impl NodeId {
     }
 
     /// Return an iterator of references to this node’s children.
-    pub fn children<T: Clone, U: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
+    pub fn children<T: Clone>(self, arena: &Arena<T>) -> Children<T> {
         Children {
             arena: arena,
             node: arena[self].first_child,
@@ -452,7 +456,7 @@ impl NodeId {
 
 macro_rules! impl_node_iterator {
     ($name: ident, $next: expr) => {
-        impl<'a, T: Clone, U: Clone> Iterator for $name<'a, T, U> {
+        impl<'a, T: Clone> Iterator for $name<'a, T> {
             type Item = NodeId;
             fn next(&mut self) -> Option<NodeId> {
                 match self.node.take() {
@@ -468,17 +472,17 @@ macro_rules! impl_node_iterator {
 }
 
 /// An iterator of references to the children of a given node.
-pub struct Children<'a, T: Clone + 'a, U: Clone + 'a> {
-    arena: &'a Arena<T, U>,
+pub struct Children<'a, T: Clone + 'a> {
+    arena: &'a Arena<T>,
     node: Option<NodeId>,
 }
-impl_node_iterator!(Children, |node: &Node<T, U>| node.next_sibling);
+impl_node_iterator!(Children, |node: &Node<T>| node.next_sibling);
 
 // Turn a grammar, parser and input string into an AST arena.
-fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String, String> {
+fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String> {
     let mut arena = Arena::new();
     let mut st = vec![(0, pt)]; // Stack of (indent level, node) pairs
-    // Stack of Option(NodeId)s which are parents of nodes on the `st` stack.
+    // Stack of `Option<NodeId>`s which are parents of nodes on the `st` stack.
     // The stack should never be empty, a `None` should be at the bottom of the stack.
     let mut parent = vec![None];
     let mut child_node: NodeId;
@@ -535,7 +539,7 @@ fn read_file(path: &str) -> Result<String, ParseError> {
 }
 
 /// Parse an individual input file, and return an `Arena` or `ParseError`.
-pub fn parse_file(input_path: &str) -> Result<Arena<String, String>, ParseError> {
+pub fn parse_file(input_path: &str) -> Result<Arena<String>, ParseError> {
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
@@ -612,22 +616,22 @@ mod tests {
     fn new_ast_node() {
         let arena = &mut Arena::new();
         assert!(arena.is_empty());
-        let n0 = arena.new_node("100", "INT", 8);
+        let n0 = arena.new_node("100", String::from("INT"), 8);
         assert!(arena[n0].index != None);
         assert_eq!(n0, arena[n0].index.unwrap());
         assert!(!arena.is_empty());
-        let n1 = arena.new_node("foobar", "STR", 12);
+        let n1 = arena.new_node("foobar", String::from("STR"), 12);
         assert!(arena[n1].index != None);
         assert_eq!(n1, arena[n1].index.unwrap());
         assert!(!arena.is_empty());
         // Check node ids, data, types and indent levels.
         assert_eq!(0, n0.index);
-        assert_eq!("100", arena[n0].data);
-        assert_eq!("INT", arena[n0].ty);
+        assert_eq!("100", arena[n0].value);
+        assert_eq!(String::from("INT"), arena[n0].label);
         assert_eq!(8, arena[n0].indent);
         assert_eq!(1, n1.index);
-        assert_eq!("foobar", arena[n1].data);
-        assert_eq!("STR", arena[n1].ty);
+        assert_eq!("foobar", arena[n1].value);
+        assert_eq!(String::from("STR"), arena[n1].label);
         assert_eq!(12, arena[n1].indent);
     }
 
@@ -635,14 +639,14 @@ mod tests {
     fn make_child_of_1() {
         let arena = &mut Arena::new();
         assert!(arena.is_empty());
-        let root = arena.new_node("+", "Expr", 0);
-        let n1 = arena.new_node("1", "INT", 4);
+        let root = arena.new_node("+", String::from("Expr"), 0);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", "Expr", 4);
+        let n2 = arena.new_node("*", String::from("Expr"), 4);
         arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", "INT", 8);
+        let n3 = arena.new_node("3", String::from("INT"), 8);
         arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", "INT", 8);
+        let n4 = arena.new_node("4", String::from("INT"), 8);
         arena.make_child_of(n4, n2).unwrap();
         assert!(!arena.is_empty());
         // Check indices.
@@ -668,12 +672,12 @@ mod tests {
     fn make_child_of_2() {
         let arena = &mut Arena::new();
         assert!(arena.is_empty());
-        let root = arena.new_node("+", "Expr", 4);
+        let root = arena.new_node("+", String::from("Expr"), 4);
         assert!(!arena.is_empty());
-        let n1 = arena.new_node("1", "INT", 0);
+        let n1 = arena.new_node("1", String::from("INT"), 0);
         assert!(!arena.is_empty());
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("2", "INT", 0);
+        let n2 = arena.new_node("2", String::from("INT"), 0);
         assert!(!arena.is_empty());
         arena.make_child_of(n2, root).unwrap();
         // Check indices.
@@ -703,19 +707,19 @@ mod tests {
     #[test]
     fn make_nth_child_of_1() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
+        let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
-        let n1 = arena.new_node("1", "INT", 4);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("2", "INT", 4);
+        let n2 = arena.new_node("2", String::from("INT"), 4);
         arena.make_child_of(n2, root).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
 ";
         assert_eq!(format1, format!("{:}", arena));
-        let mut n3 = arena.new_node("100", "INT", 8);
+        let mut n3 = arena.new_node("100", String::from("INT"), 8);
         // Make first child.
         n3.make_nth_child_of(n2, 0, arena).unwrap();
         let format2 = "Expr +
@@ -729,19 +733,19 @@ mod tests {
     #[test]
     fn make_nth_child_of_2() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
+        let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
-        let n1 = arena.new_node("1", "INT", 4);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("2", "INT", 4);
+        let n2 = arena.new_node("2", String::from("INT"), 4);
         arena.make_child_of(n2, root).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
 ";
         assert_eq!(format1, format!("{:}", arena));
-        let mut n3 = arena.new_node("100", "INT", 4);
+        let mut n3 = arena.new_node("100", String::from("INT"), 4);
         // Make last child.
         n3.make_nth_child_of(root, 2, arena).unwrap();
         let format2 = "Expr +
@@ -755,19 +759,19 @@ mod tests {
     #[test]
     fn make_nth_child_of_3() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
+        let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
-        let n1 = arena.new_node("1", "INT", 4);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("2", "INT", 4);
+        let n2 = arena.new_node("2", String::from("INT"), 4);
         arena.make_child_of(n2, root).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
 ";
         assert_eq!(format1, format!("{:}", arena));
-        let mut n3 = arena.new_node("100", "INT", 4);
+        let mut n3 = arena.new_node("100", String::from("INT"), 4);
         // Make second child.
         n3.make_nth_child_of(root, 1, arena).unwrap();
         let format2 = "Expr +
@@ -780,7 +784,7 @@ mod tests {
 
     #[test]
     fn node_fmt() {
-        let node = Node::new("private", "MODIFIER", 4);
+        let node = Node::new("private", String::from("MODIFIER"), 4);
         let expected = "    MODIFIER private";
         assert_eq!(expected, format!("{:}", node));
     }
@@ -788,10 +792,10 @@ mod tests {
     #[test]
     fn arena_fmt() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 4);
-        let n1 = arena.new_node("1", "INT", 0);
+        let root = arena.new_node("+", String::from("Expr"), 4);
+        let n1 = arena.new_node("1", String::from("INT"), 0);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("2", "INT", 0);
+        let n2 = arena.new_node("2", String::from("INT"), 0);
         arena.make_child_of(n2, root).unwrap();
         let expected = "    Expr +
 INT 1
@@ -802,7 +806,7 @@ INT 2
 
     #[test]
     fn get_edges_1() {
-        let arena: Arena<String, String> = Arena::new();
+        let arena: Arena<String> = Arena::new();
         assert!(arena.is_empty());
         let edges: Vec<EdgeId> = vec![];
         assert_eq!(edges, arena.get_edges());
@@ -811,7 +815,7 @@ INT 2
     #[test]
     fn get_edges_2() {
         let arena = &mut Arena::new();
-        arena.new_node("1", "INT", 0);
+        arena.new_node("1", String::from("INT"), 0);
         let edges: Vec<EdgeId> = vec![];
         assert_eq!(edges, arena.get_edges());
     }
@@ -819,14 +823,14 @@ INT 2
     #[test]
     fn get_edges_3() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
-        let n1 = arena.new_node("1", "INT", 4);
+        let root = arena.new_node("+", String::from("Expr"), 0);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", "Expr", 4);
+        let n2 = arena.new_node("*", String::from("Expr"), 4);
         arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", "INT", 8);
+        let n3 = arena.new_node("3", String::from("INT"), 8);
         arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", "INT", 8);
+        let n4 = arena.new_node("4", String::from("INT"), 8);
         arena.make_child_of(n4, n2).unwrap();
         let edges: Vec<EdgeId> = vec![(NodeId::new(0), NodeId::new(1)),
                                       (NodeId::new(0), NodeId::new(2)),
@@ -839,14 +843,14 @@ INT 2
     #[test]
     fn detach_1() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
-        let n1 = arena.new_node("1", "INT", 4);
+        let root = arena.new_node("+", String::from("Expr"), 0);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", "Expr", 4);
+        let n2 = arena.new_node("*", String::from("Expr"), 4);
         arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", "INT", 8);
+        let n3 = arena.new_node("3", String::from("INT"), 8);
         arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", "INT", 8);
+        let n4 = arena.new_node("4", String::from("INT"), 8);
         arena.make_child_of(n4, n2).unwrap();
         let first_format = "Expr +
     INT 1
@@ -863,14 +867,14 @@ INT 2
     #[test]
     fn detach_2() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
-        let n1 = arena.new_node("1", "INT", 4);
+        let root = arena.new_node("+", String::from("Expr"), 0);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", "Expr", 4);
+        let n2 = arena.new_node("*", String::from("Expr"), 4);
         arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", "INT", 8);
+        let n3 = arena.new_node("3", String::from("INT"), 8);
         arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", "INT", 8);
+        let n4 = arena.new_node("4", String::from("INT"), 8);
         arena.make_child_of(n4, n2).unwrap();
         let first_format = "Expr +
     INT 1
@@ -889,14 +893,14 @@ INT 2
     #[test]
     fn children_iterator() {
         let arena = &mut Arena::new();
-        let root = arena.new_node("+", "Expr", 0);
-        let n1 = arena.new_node("1", "INT", 4);
+        let root = arena.new_node("+", String::from("Expr"), 0);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", "Expr", 4);
+        let n2 = arena.new_node("*", String::from("Expr"), 4);
         arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", "INT", 8);
+        let n3 = arena.new_node("3", String::from("INT"), 8);
         arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", "INT", 8);
+        let n4 = arena.new_node("4", String::from("INT"), 8);
         arena.make_child_of(n4, n2).unwrap();
         // Children of root.
         let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
@@ -917,7 +921,7 @@ INT 2
     #[test]
     fn contains() {
         let arena = &mut Arena::new();
-        let n1 = arena.new_node("1", "INT", 4);
+        let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(arena.contains(n1));
         assert!(!arena.contains(NodeId { index: 1 }));
     }
@@ -926,15 +930,15 @@ INT 2
     fn size() {
         let arena = &mut Arena::new();
         assert_eq!(0, arena.size());
-        let _ = arena.new_node("+", "Expr", 0);
+        let _ = arena.new_node("+", String::from("Expr"), 0);
         assert_eq!(1, arena.size());
-        let _ = arena.new_node("1", "INT", 4);
+        let _ = arena.new_node("1", String::from("INT"), 4);
         assert_eq!(2, arena.size());
-        let _ = arena.new_node("*", "Expr", 4);
+        let _ = arena.new_node("*", String::from("Expr"), 4);
         assert_eq!(3, arena.size());
-        let _ = arena.new_node("3", "INT", 8);
+        let _ = arena.new_node("3", String::from("INT"), 8);
         assert_eq!(4, arena.size());
-        let _ = arena.new_node("4", "INT", 8);
+        let _ = arena.new_node("4", String::from("INT"), 8);
         assert_eq!(5, arena.size());
     }
 }
