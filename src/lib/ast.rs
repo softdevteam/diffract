@@ -353,6 +353,21 @@ impl NodeId {
         self.index
     }
 
+    /// Get the height of this node.
+    ///
+    /// The height of a leaf node is 1, the height of a branch node is 1 +
+    /// the height of its tallest child node.
+    pub fn height<T: Clone>(&self, arena: &Arena<T>) -> u32 {
+        if arena[*self].is_leaf() {
+            return 1;
+        }
+        let mut heights: Vec<u32> = self.children(arena)
+            .map(|child| child.height(arena))
+            .collect();
+        heights.sort();
+        1 + heights[heights.len() - 1]
+    }
+
     /// Detach this node, leaving its children unaffected.
     ///
     /// Detaching a node makes it inaccessible to other nodes. The node is not
@@ -940,5 +955,31 @@ INT 2
         assert_eq!(4, arena.size());
         let _ = arena.new_node("4", String::from("INT"), 8);
         assert_eq!(5, arena.size());
+    }
+
+    #[test]
+    fn height() {
+        let mut arena = Arena::new();
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        arena.make_child_of(n4, n2).unwrap();
+        let format1 = "Expr +
+  INT 1
+  Expr *
+    INT 3
+    INT 4
+";
+        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(3, root.height(&arena));
+        assert_eq!(1, n1.height(&arena));
+        assert_eq!(2, n2.height(&arena));
+        assert_eq!(1, n3.height(&arena));
+        assert_eq!(1, n4.height(&arena));
     }
 }
