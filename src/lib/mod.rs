@@ -60,12 +60,13 @@ pub mod emitters;
 /// Matchers create mappings between abstract syntax trees.
 pub mod matchers;
 
+
 // Re-exported enums, structs and types.
 pub use action::{Delete, Insert, Move, Update};
 pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
 pub use ast::{EdgeId, Node, NodeId};
 pub use emitters::EmitterError;
-pub use matchers::{Mapping, MappingStore};
+pub use matchers::{Config, Mapping, MappingStore};
 
 // Re-exported traits.
 pub use action::ApplyAction;

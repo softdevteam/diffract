@@ -39,6 +39,29 @@
 
 use ast::{Arena, NodeId};
 
+/// Variables required by the matcher algorithm, set by the user.
+pub struct Config {
+    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
+    pub max_size: u16,
+
+    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
+    pub min_dice: f32,
+
+    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
+    pub min_height: u16,
+}
+
+impl Config {
+    /// Create a new matcher configuration with default threshold values.
+    pub fn new() -> Config {
+        Config {
+            max_size: 100,
+            min_dice: 0.3,
+            min_height: 2,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 /// Mapping between nodes in distinct arenas.
 pub struct Mapping {
@@ -92,7 +115,10 @@ impl<T: Clone> MappingStore<T> {
 }
 
 /// Match locations in distinct ASTs.
-pub fn match_trees<'a, T: Clone>(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+pub fn match_trees<'a, T: Clone>(base: Arena<T>,
+                                 diff: Arena<T>,
+                                 config: Config)
+                                 -> MappingStore<T> {
     let mut store = MappingStore::new(base, diff);
     if store.from.size() == 0 || store.to.size() == 0 {
         return store;
