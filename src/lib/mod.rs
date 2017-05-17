@@ -35,6 +35,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#![feature(test)]
 #![feature(try_from)]
 
 extern crate dot;
@@ -44,6 +45,7 @@ extern crate log;
 extern crate lrlex;
 extern crate lrtable;
 extern crate lrpar;
+extern crate test;
 
 /// Actions are operations that transform abstract syntax trees.
 pub mod action;
@@ -60,6 +62,8 @@ pub mod emitters;
 /// Matchers create mappings between abstract syntax trees.
 pub mod matchers;
 
+/// A queue of `NodeId`s sorted on the height of their respective nodes.
+pub mod hqueue;
 
 // Re-exported enums, structs and types.
 pub use action::{Delete, Insert, Move, Update};
@@ -67,6 +71,7 @@ pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
 pub use ast::{EdgeId, Node, NodeId};
 pub use emitters::EmitterError;
 pub use matchers::{Config, Mapping, MappingStore};
+pub use hqueue::HeightQueue;
 
 // Re-exported traits.
 pub use action::ApplyAction;

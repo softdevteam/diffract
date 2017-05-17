@@ -50,6 +50,8 @@ use lrlex::{build_lex, Lexeme};
 use lrpar::parser;
 use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
 
+use hqueue::HeightQueue;
+
 #[derive(Debug)]
 /// Errors raised when parsing a source file.
 pub enum ParseError {
@@ -182,6 +184,15 @@ impl<T: Clone> Arena<T> {
             }
         };
         Ok(())
+    }
+
+    /// Return a queue of `NodeId`s sorted by height.
+    pub fn get_priority_queue(&self) -> HeightQueue {
+        let mut queue = HeightQueue::new();
+        for id in 0..self.size() {
+            queue.push(NodeId::new(id), self);
+        }
+        queue
     }
 
     /// Return a vector of edges between nodes in this arena.
@@ -361,9 +372,9 @@ impl NodeId {
         if arena[*self].is_leaf() {
             return 1;
         }
-        let mut heights: Vec<u32> = self.children(arena)
+        let mut heights = self.children(arena)
             .map(|child| child.height(arena))
-            .collect();
+            .collect::<Vec<u32>>();
         heights.sort();
         1 + heights[heights.len() - 1]
     }
@@ -404,7 +415,7 @@ impl NodeId {
     /// still be able to reach the root (but not any of the other nodes).
     pub fn detach_with_children<T: Clone>(&self, arena: &mut Arena<T>) -> ArenaResult {
         self.detach(arena)?;
-        let ids: Vec<NodeId> = self.children(arena).collect();
+        let ids = self.children(arena).collect::<Vec<NodeId>>();
         for id in ids {
             id.detach_with_children(arena)?;
         }
@@ -430,7 +441,7 @@ impl NodeId {
             // Make self the *first* child of parent.
             return arena.make_child_of(*self, parent);
         }
-        let children: Vec<NodeId> = parent.children(arena).collect();
+        let children = parent.children(arena).collect::<Vec<NodeId>>();
         let n_children = children.len() as u16;
         if nth == children.len() as u16 {
             // Make self the *last* child of parent.
@@ -919,14 +930,14 @@ INT 2
         arena.make_child_of(n4, n2).unwrap();
         // Children of root.
         let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
-        let root_child_ids: Vec<NodeId> = root.children(&arena).collect();
+        let root_child_ids = root.children(&arena).collect::<Vec<NodeId>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], root_child_ids[index]);
         }
         // Children of n2.
         let expected2: Vec<NodeId> = vec![NodeId { index: 3 }, NodeId { index: 4 }];
-        let n2_child_ids: Vec<NodeId> = n2.children(&arena).collect();
+        let n2_child_ids = n2.children(&arena).collect::<Vec<NodeId>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);
