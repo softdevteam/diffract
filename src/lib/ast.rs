@@ -12,7 +12,7 @@
 // the Larger Works (as defined below), to deal in both
 //
 // (a) the Software, and
-// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file //
+// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file
 // if one is included with the Software (each a “Larger Work” to which the Software
 // is contributed by such licensors),
 //
@@ -344,6 +344,11 @@ impl NodeId {
         NodeId { index: index }
     }
 
+    /// Return the index of this Node Id.
+    pub fn id(&self) -> usize {
+        self.index
+    }
+
     /// Detach this node, leaving its children unaffected.
     ///
     /// Detaching a node makes it inaccessible to other nodes. The node is not
@@ -479,8 +484,8 @@ fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<S
     let mut child_node: NodeId;
     while !st.is_empty() {
         let (indent, e) = st.pop().unwrap();
-        match e {
-            &parser::Node::Terminal { lexeme } => {
+        match *e {
+            parser::Node::Terminal { lexeme } => {
                 let token_id: usize = lexeme.tok_id().try_into().ok().unwrap();
                 let term_name = grm.term_name(TIdx::from(token_id)).unwrap();
                 let lexeme_string = &input[lexeme.start()..lexeme.start() + lexeme.len()];
@@ -493,10 +498,10 @@ fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<S
                     }
                 };
             }
-            &parser::Node::Nonterminal {
-                 nonterm_idx,
-                 ref nodes,
-             } => {
+            parser::Node::Nonterminal {
+                nonterm_idx,
+                ref nodes,
+            } => {
                 // A non-terminal has no value of its own, but has a node type.
                 child_node = arena.new_node("".to_string(),
                                             grm.nonterm_name(nonterm_idx).unwrap().to_string(),

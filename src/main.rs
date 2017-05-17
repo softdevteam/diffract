@@ -12,7 +12,7 @@
 // the Larger Works (as defined below), to deal in both
 //
 // (a) the Software, and
-// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file //
+// (b) any piece of software and/or hardware listed in the lrgrwrks.txt file
 // if one is included with the Software (each a “Larger Work” to which the Software
 // is contributed by such licensors),
 //
@@ -50,6 +50,7 @@ use docopt::Docopt;
 extern crate treediff;
 use treediff::ast;
 use treediff::emitters;
+use treediff::matchers;
 
 const USAGE: &'static str = "
 Usage: rstreediff [options] <base-file> <diff-file>
@@ -59,21 +60,35 @@ Usage: rstreediff [options] <base-file> <diff-file>
 Diff two input files.
 
 Options:
-    -a, --ast         print AST of input files to STDOUT
-    -d, --dot <file>  write out GraphViz representations of the input file(s)
-    -h, --help        print this help menu and exit
-    -v, --version     print version information and exit
+    -a, --ast         print AST of input files to STDOUT.
+    --debug LEVEL     debug level used by logger. Valid (case sensitive) values
+                      are: Debug, Error, Info, Trace, Warn.
+    -d, --dot <file>  write out GraphViz representations of the input file(s).
+    -h, --help        print this help menu and exit.
+    -m, --map <file>  write out GraphViz representation of the mapping store.
+    -v, --version     print version information and exit.
 ";
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+#[derive(RustcDecodable, Debug)]
+enum DebugLevel {
+    Debug,
+    Error,
+    Info,
+    Trace,
+    Warn,
+}
 
 #[derive(RustcDecodable, Debug)]
 struct Args {
     arg_base_file: String,
     arg_diff_file: String,
     flag_ast: bool,
+    flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
     flag_help: bool,
+    flag_map: Option<String>,
     flag_version: bool,
 }
 
@@ -82,8 +97,8 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
-fn write_dotfile_to_disk(filepath: &str, arena: &ast::Arena<String, String>) {
-    if let Err(err) = emitters::write_dotfile_to_disk(filepath, arena) {
+fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
+    if let Err(err) = emitters::write_dotfile_to_disk(filepath, object) {
         use emitters::EmitterError::*;
         let action = match err {
             CouldNotCreateFile => "create",
@@ -112,15 +127,15 @@ fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<S
 }
 
 fn main() {
-    env_logger::init().unwrap();
-
     let argv: Vec<_> = env::args().collect();
-    debug!("argv from stdout: {:?}", argv);
-
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.argv(argv).decode())
         .unwrap_or_else(|e| e.exit());
-    debug!("args from docopt: {:?}", args);
+
+    if let Some(l) = args.flag_debug {
+        env::set_var("RUST_LOG", &format!("{:?}", l).to_lowercase());
+    }
+    env_logger::init().unwrap();
 
     if args.flag_help {
         println!("{}", USAGE);
@@ -178,5 +193,12 @@ fn main() {
     }
     if args.flag_dot.len() > 1 {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
+    }
+
+    let mapping = matchers::match_trees(ast_base, ast_diff);
+    if args.flag_map.is_some() {
+        let map_file = args.flag_map.unwrap();
+        info!("User wishes to create graphviz files {:?}.", map_file);
+        write_dotfile_to_disk(&map_file, &mapping);
     }
 }
