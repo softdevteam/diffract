@@ -106,8 +106,8 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
-fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
-    if let Err(err) = emitters::write_dotfile_to_disk(filepath, object) {
+fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
+    if let Err(err) = res {
         use emitters::EmitterError::*;
         let action = match err {
             CouldNotCreateFile => "create",
@@ -115,6 +115,10 @@ fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, o
         };
         exit_with_message(&format!("Could not {} file {}.", action, filepath));
     }
+}
+
+fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
+    consume_emitter_err(emitters::write_dotfile_to_disk(filepath, object), filepath);
 }
 
 fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String> {
@@ -157,7 +161,7 @@ fn main() {
 
     // Set any global constants requested by the user. This should be the ONLY
     // block of code that mutates these values.
-    let mut config = matchers::Config::new();
+    let mut config: matchers::Config = Default::default();
     if let Some(value) = args.flag_max_size {
         info!("User has set value of MAX_SIZE to {}.", value);
         config.max_size = value;
@@ -223,10 +227,11 @@ fn main() {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
-    let mapping = matchers::match_trees(ast_base, ast_diff, config);
+    let mapping = matchers::match_trees(ast_base, ast_diff, &config);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("User wishes to create graphviz files {:?}.", map_file);
-        write_dotfile_to_disk(&map_file, &mapping);
+        consume_emitter_err(emitters::render_mapping_store(&mapping, &map_file),
+                            &map_file);
     }
 }

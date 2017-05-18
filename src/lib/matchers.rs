@@ -39,6 +39,25 @@
 
 use ast::{Arena, NodeId};
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+/// Type of mapping.
+///
+/// Not needed by matching algorithms, but useful for debugging.
+pub enum MappingType {
+    /// Anchor mappings are found by the top-down GumTree matcher.
+    ANCHOR,
+    /// Container mappings are found by the phase one of the bottom-up GumTree matcher.
+    CONTAINER,
+    /// Recovery mappings are found by phase two of the bottom-up GumTree matcher.
+    RECOVERY,
+}
+
+impl Default for MappingType {
+    fn default() -> MappingType {
+        MappingType::ANCHOR
+    }
+}
+
 /// Variables required by the matcher algorithm, set by the user.
 pub struct Config {
     /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
@@ -51,9 +70,8 @@ pub struct Config {
     pub min_height: u16,
 }
 
-impl Config {
-    /// Create a new matcher configuration with default threshold values.
-    pub fn new() -> Config {
+impl Default for Config {
+    fn default() -> Config {
         Config {
             max_size: 100,
             min_dice: 0.3,
@@ -69,15 +87,18 @@ pub struct Mapping {
     pub from: NodeId,
     /// Destination node.
     pub to: NodeId,
+    /// Type of mapping (only used for debugging).
+    pub ty: MappingType,
 }
 
 impl Mapping {
     /// Create a new mapping from one index to another.
     /// It is assumed that the `from` and `to` nodes are in different arenas.
-    pub fn new(from: usize, to: usize) -> Mapping {
+    pub fn new(from: usize, to: usize, ty: MappingType) -> Mapping {
         Mapping {
             from: NodeId::new(from),
             to: NodeId::new(to),
+            ty: ty,
         }
     }
 }
@@ -104,26 +125,43 @@ impl<T: Clone> MappingStore<T> {
     }
 
     /// Push a new mapping into the store.
-    pub fn push(&mut self, from: usize, to: usize) {
-        self.mappings.push(Mapping::new(from, to));
+    pub fn push(&mut self, from: usize, to: usize, ty: MappingType) {
+        self.mappings.push(Mapping::new(from, to, ty));
     }
 
     /// True if `mapping` is contained within this store.
     pub fn contains(&self, mapping: Mapping) -> bool {
         self.mappings.contains(&mapping)
     }
+
+    /// Given two `NodeId`s, return the type of mapping between them.
+    pub fn get_type(&self, from: NodeId, to: NodeId) -> Option<MappingType> {
+        for mapping in &self.mappings {
+            if mapping.from == from && mapping.to == to {
+                return Some(mapping.ty.clone());
+            }
+        }
+        None
+    }
+
+    /// `true` if `node` is involved in a mapping, `false` otherwise.
+    pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
+        for mapping in &self.mappings {
+            if is_from && mapping.from == node || !is_from && mapping.to == node {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Match locations in distinct ASTs.
-pub fn match_trees<'a, T: Clone>(base: Arena<T>,
-                                 diff: Arena<T>,
-                                 config: Config)
-                                 -> MappingStore<T> {
+pub fn match_trees<T: Clone>(base: Arena<T>, diff: Arena<T>, config: &Config) -> MappingStore<T> {
     let mut store = MappingStore::new(base, diff);
     if store.from.size() == 0 || store.to.size() == 0 {
         return store;
     }
     // TODO: Implement classic GumTree matcher algorithm.
-    store.push(0, 0);
+    store.push(0, 0, MappingType::ANCHOR);
     store
 }

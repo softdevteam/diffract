@@ -69,8 +69,8 @@ pub mod hqueue;
 pub use action::{Delete, Insert, Move, Update};
 pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
 pub use ast::{EdgeId, Node, NodeId};
-pub use emitters::EmitterError;
-pub use matchers::{Config, Mapping, MappingStore};
+pub use emitters::{EmitterError, EmitterResult};
+pub use matchers::{Config, Mapping, MappingStore, MappingType};
 pub use hqueue::HeightQueue;
 
 // Re-exported traits.
@@ -79,4 +79,4 @@ pub use emitters::RenderDotfile;
 
 // Re-exported functions.
 pub use ast::parse_file;
-pub use emitters::write_dotfile_to_disk;
+pub use emitters::{render_mapping_store, write_dotfile_to_disk};
