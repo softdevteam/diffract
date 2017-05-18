@@ -43,15 +43,15 @@ use std::fmt;
 use ast::{Arena, ArenaError, ArenaResult, NodeId};
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone, U: Clone> {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult;
+pub trait ApplyAction<T: Clone> {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult;
 }
 
 /// A list of actions to be applied.
 ///
 /// This type will usually be used by iterating over the list and calling
 /// `apply()` on each element.
-pub type ActionList<T, U> = Vec<Box<ApplyAction<T, U>>>;
+pub type ActionList<T> = Vec<Box<ApplyAction<T>>>;
 
 /// Delete a node from a given AST.
 pub struct Delete {
@@ -59,10 +59,10 @@ pub struct Delete {
 }
 
 /// Insert a new node into an AST as the `position`th child of an existing node.
-pub struct Insert<T: Clone, U: Clone> {
+pub struct Insert<T: Clone> {
     nth_child: u16,
-    data: T,
-    ty: U,
+    value: T,
+    label: String,
     indent: u32,
     new_parent: NodeId,
 }
@@ -75,10 +75,10 @@ pub struct Move {
 }
 
 /// Update the data inside an AST node.
-pub struct Update<T: Clone, U: Clone> {
+pub struct Update<T: Clone> {
     node: NodeId,
     value: T,
-    ty: U,
+    label: String,
 }
 
 impl fmt::Display for Delete {
@@ -87,14 +87,14 @@ impl fmt::Display for Delete {
     }
 }
 
-impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Insert<T, U> {
+impl<T: fmt::Display + Clone> fmt::Display for Insert<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let indent = " ".repeat(self.indent as usize);
         write!(f,
                "INS {}{} {} to {} at {}",
                indent,
-               self.ty,
-               self.data,
+               self.label,
+               self.value,
                self.new_parent,
                self.nth_child)
     }
@@ -110,45 +110,45 @@ impl fmt::Display for Move {
     }
 }
 
-impl<T: fmt::Display + Clone, U: fmt::Display + Clone> fmt::Display for Update<T, U> {
+impl<T: fmt::Display + Clone> fmt::Display for Update<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "UPD {} to {} {}", self.node, self.ty, self.value)
+        write!(f, "UPD {} to {} {}", self.node, self.label, self.value)
     }
 }
 
-impl<T: Clone, U: Clone> ApplyAction<T, U> for Delete {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult {
+impl<T: Clone> ApplyAction<T> for Delete {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         self.node.detach_with_children(arena)
     }
 }
 
-impl<T: Clone, U: Clone> ApplyAction<T, U> for Insert<T, U> {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult {
-        let mut new_id = arena.new_node(self.data.clone(), self.ty.clone(), self.indent);
+impl<T: Clone> ApplyAction<T> for Insert<T> {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+        let mut new_id = arena.new_node(self.value.clone(), self.label.clone(), self.indent);
         new_id.make_nth_child_of(self.new_parent, self.nth_child, arena)
     }
 }
 
-impl<T: Clone, U: Clone> ApplyAction<T, U> for Move {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult {
+impl<T: Clone> ApplyAction<T> for Move {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         self.from_node
             .make_nth_child_of(self.parent, self.pos, arena)
     }
 }
 
-impl<T: Clone, U: Clone> ApplyAction<T, U> for Update<T, U> {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult {
+impl<T: Clone> ApplyAction<T> for Update<T> {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
         }
-        arena[self.node].data = self.value.clone();
-        arena[self.node].ty = self.ty.clone();
+        arena[self.node].value = self.value.clone();
+        arena[self.node].label = self.label.clone();
         Ok(())
     }
 }
 
-impl<T: Clone, U: Clone> ApplyAction<T, U> for ActionList<T, U> {
-    fn apply(&mut self, arena: &mut Arena<T, U>) -> ArenaResult {
+impl<T: Clone> ApplyAction<T> for ActionList<T> {
+    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         // Iterating over indices here avoids having two mutable borrows.
         for index in 0..self.len() {
             self[index].apply(arena)?;
@@ -161,7 +161,7 @@ impl<T: Clone, U: Clone> ApplyAction<T, U> for ActionList<T, U> {
 mod test {
     use super::*;
 
-    fn create_arena() -> Arena<String, String> {
+    fn create_arena() -> Arena<String> {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
         let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
@@ -184,8 +184,8 @@ mod test {
     #[test]
     fn fmt_insert() {
         let ins = Insert {
-            data: "100",
-            ty: "INT",
+            value: "100",
+            label: String::from("INT"),
             indent: 4,
             new_parent: NodeId::new(2),
             nth_child: 0,
@@ -208,7 +208,7 @@ mod test {
         let upd = Update {
             node: NodeId::new(4),
             value: String::from("100"),
-            ty: String::from("INT"),
+            label: String::from("INT"),
         };
         assert_eq!("UPD 4 to INT 100", format!("{:}", upd));
     }
@@ -243,8 +243,8 @@ mod test {
         assert_eq!(format1, format!("{}", arena));
         let mut ins = Insert {
             nth_child: 0,
-            data: String::from("100"),
-            ty: String::from("INT"),
+            value: String::from("100"),
+            label: String::from("INT"),
             indent: 4,
             new_parent: NodeId::new(2),
         };
@@ -298,7 +298,7 @@ mod test {
         let mut upd = Update {
             node: NodeId::new(2),
             value: String::from("+"),
-            ty: String::from("Expr"),
+            label: String::from("Expr"),
         };
         upd.apply(&mut arena).unwrap();
         let format2 = "Expr +
@@ -321,19 +321,19 @@ mod test {
 ";
         assert_eq!(format1, format!("{}", arena));
         // Create action list.
-        let mut actions: ActionList<String, String> = vec![];
+        let mut actions: ActionList<String> = vec![];
         let del1 = Delete { node: NodeId::new(3) }; // INT 3
         let del2 = Delete { node: NodeId::new(4) }; // INT 4
         let ins1 = Insert {
-            data: String::from("100"),
-            ty: String::from("INT"),
+            value: String::from("100"),
+            label: String::from("INT"),
             indent: 4,
             new_parent: NodeId::new(2),
             nth_child: 0,
         };
         let ins2 = Insert {
-            data: String::from("99"),
-            ty: String::from("INT"),
+            value: String::from("99"),
+            label: String::from("INT"),
             indent: 4,
             new_parent: NodeId::new(2),
             nth_child: 1,
@@ -348,7 +348,7 @@ mod test {
             // Change "+"" to "*".
             node: NodeId::new(0),
             value: String::from("*"),
-            ty: String::from("Expr"),
+            label: String::from("Expr"),
         };
         actions.push(Box::new(del1));
         actions.push(Box::new(del2));
@@ -378,11 +378,11 @@ mod test {
 ";
         assert_eq!(format1, format!("{}", arena));
         // Create action list.
-        let mut actions: ActionList<String, String> = vec![];
+        let mut actions: ActionList<String> = vec![];
         let del = Delete { node: NodeId::new(2) }; // Remove "Expr *".
         let ins = Insert {
-            data: String::from("2"),
-            ty: String::from("INT"),
+            value: String::from("2"),
+            label: String::from("INT"),
             indent: 2,
             new_parent: NodeId::new(0),
             nth_child: 1,
@@ -391,7 +391,7 @@ mod test {
             // Change "+" to "*".
             node: NodeId::new(0),
             value: String::from("*"),
-            ty: String::from("Expr"),
+            label: String::from("Expr"),
         };
         actions.push(Box::new(del));
         actions.push(Box::new(ins));

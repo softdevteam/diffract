@@ -35,48 +35,62 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(test)]
-#![feature(try_from)]
+//! Integration tests for hqueue module.
+//! All file paths are relative to the root of the repository.
 
-extern crate dot;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrtable;
-extern crate lrpar;
-extern crate test;
+#[cfg(test)]
 
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
+extern crate treediff;
 
-/// AST defines the abstract syntax tree types that the differ works on.
-///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+use treediff::ast::{Arena, parse_file};
+use treediff::hqueue::HeightQueue;
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+// Assert that this queue is in sorted order, and has the same size as the arena.
+fn assert_sorted<T: Clone>(queue: &HeightQueue, arena: &Arena<T>) {
+    let mut expected = arena.size();
+    if expected == 0 {
+        assert!(queue.is_empty());
+        return;
+    }
+    let mut clone = queue.clone();
+    let mut tallest = clone.pop().unwrap();
+    expected -= 1;
+    while !clone.is_empty() {
+        assert!(expected > 0);
+        assert!(tallest.height(arena) >= clone.peek_max().unwrap().height(arena));
+        tallest = clone.pop().unwrap();
+        expected -= 1;
+    }
+    assert_eq!(0, expected);
+}
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+fn assert_sorted_from_file(filepath: &str) {
+    let arena = parse_file(filepath).unwrap();
+    let queue = arena.get_priority_queue();
+    assert_sorted(&queue, &arena);
+}
 
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
+#[test]
+fn test_empty_calc() {
+    assert_sorted_from_file("tests/empty.calc");
+}
 
-// Re-exported enums, structs and types.
-pub use action::{Delete, Insert, Move, Update};
-pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
-pub use ast::{EdgeId, Node, NodeId};
-pub use emitters::EmitterError;
-pub use matchers::{Config, Mapping, MappingStore};
-pub use hqueue::HeightQueue;
+#[test]
+fn test_one_calc() {
+    assert_sorted_from_file("tests/one.calc");
+}
 
-// Re-exported traits.
-pub use action::ApplyAction;
-pub use emitters::RenderDotfile;
+#[test]
+fn test_add_calc() {
+    assert_sorted_from_file("tests/add.calc");
+}
 
-// Re-exported functions.
-pub use ast::parse_file;
-pub use emitters::write_dotfile_to_disk;
+#[test]
+fn test_mult_calc() {
+    assert_sorted_from_file("tests/mult.calc");
+}
+
+#[test]
+fn test_hello_java() {
+    assert_sorted_from_file("tests/Hello.java");
+}

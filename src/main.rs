@@ -66,6 +66,12 @@ Options:
     -d, --dot <file>  write out GraphViz representations of the input file(s).
     -h, --help        print this help menu and exit.
     -m, --map <file>  write out GraphViz representation of the mapping store.
+    --max-size VAL    consider subtrees for matching only if they have a size
+                      less than VAL.
+    --min-dice VAL    set the similarity threshold used for matching ASTs. Two
+                      trees are mapped if they are mappable and have a dice
+                      coefficient greater than VAL in [0, 1] (default: 0.3).
+    --min-height VAL  match only nodes with a height greater than VAL (default: 2).
     -v, --version     print version information and exit.
 ";
 
@@ -89,6 +95,9 @@ struct Args {
     flag_dot: Vec<String>,
     flag_help: bool,
     flag_map: Option<String>,
+    flag_max_size: Option<u16>,
+    flag_min_dice: Option<f32>,
+    flag_min_height: Option<u16>,
     flag_version: bool,
 }
 
@@ -108,7 +117,7 @@ fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, o
     }
 }
 
-fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String, String> {
+fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String> {
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {
@@ -144,6 +153,25 @@ fn main() {
     if args.flag_version {
         println!("{}", VERSION);
         process::exit(0);
+    }
+
+    // Set any global constants requested by the user. This should be the ONLY
+    // block of code that mutates these values.
+    let mut config = matchers::Config::new();
+    if let Some(value) = args.flag_max_size {
+        info!("User has set value of MAX_SIZE to {}.", value);
+        config.max_size = value;
+    }
+    if let Some(value) = args.flag_min_dice {
+        if value < 0. || value > 1. {
+            exit_with_message("Value for --min-dice must be in interval [0, 1].");
+        }
+        info!("User has set value of MIN_DICE to {}.", value);
+        config.min_dice = value;
+    }
+    if let Some(value) = args.flag_min_height {
+        info!("User has set value of MIN_HEIGHT to {}.", value);
+        config.min_height = value;
     }
 
     // This function duplicates some checks that are performed by the
@@ -195,7 +223,7 @@ fn main() {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
-    let mapping = matchers::match_trees(ast_base, ast_diff);
+    let mapping = matchers::match_trees(ast_base, ast_diff, config);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("User wishes to create graphviz files {:?}.", map_file);
