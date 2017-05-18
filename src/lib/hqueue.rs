@@ -116,19 +116,24 @@ impl HeightQueue {
     }
 
     /// Get the id of the `Node` with the greatest height in the current queue.
-    pub fn peek_max(&self) -> Option<NodeId> {
+    pub fn peek_max(&self) -> Option<u32> {
         if self.queue.is_empty() {
             return None;
         }
-        return Some(self.queue[self.queue.len() - 1].index);
+        Some(self.queue[self.queue.len() - 1].height)
     }
 
-    /// Remove information about the tallest node and return its `NodeId`.
-    pub fn pop(&mut self) -> Option<NodeId> {
+    /// Remove information about the tallest node(s) and return their `NodeId`.
+    pub fn pop(&mut self) -> Vec<NodeId> {
+        let mut nodes = vec![];
         if self.is_empty() {
-            return None;
+            return nodes;
         }
-        Some(self.queue.pop().unwrap().index)
+        let max = self.queue[self.queue.len() - 1].height;
+        while !self.is_empty() && self.queue[self.queue.len() - 1].height == max {
+            nodes.push(self.queue.pop().unwrap().id());
+        }
+        nodes
     }
 
     /// Push a new node into this priority queue, keeping the queue sorted.
@@ -158,10 +163,10 @@ impl HeightQueue {
     }
 
     /// Insert all the children of `parent` into this queue, keeping it sorted.
-    pub fn open<T: Clone>(&mut self, parent: &NodeId, arena: Arena<T>) {
-        let children = parent.children(&arena).collect::<Vec<NodeId>>();
+    pub fn open<T: Clone>(&mut self, parent: &NodeId, arena: &Arena<T>) {
+        let children = parent.children(arena).collect::<Vec<NodeId>>();
         for child in children {
-            self.push(child, &arena);
+            self.push(child, arena);
         }
     }
 }
@@ -200,13 +205,20 @@ mod tests {
             return;
         }
         let mut clone = queue.clone();
-        let mut tallest = clone.pop().unwrap();
-        expected -= 1;
-        while !clone.is_empty() {
-            assert!(expected > 0);
-            assert!(tallest.height(arena) >= clone.peek_max().unwrap().height(arena));
-            tallest = clone.pop().unwrap();
-            expected -= 1;
+        let mut tallest: Vec<NodeId>;
+        loop {
+            tallest = clone.pop();
+            println!("{:?}", tallest);
+            expected -= tallest.len();
+            for node in &tallest {
+                assert!(node.height(arena) == tallest[0].height(arena));
+                if !clone.is_empty() {
+                    assert!(node.height(arena) > clone.peek_max().unwrap());
+                }
+            }
+            if clone.is_empty() {
+                break;
+            }
         }
         assert_eq!(0, expected);
     }
@@ -258,31 +270,35 @@ mod tests {
     fn open() {
         let arena = create_arena();
         let mut queue = HeightQueue::new();
-        queue.open(&NodeId::new(0), arena);
-        assert_eq!(NodeId::new(2), queue.pop().unwrap()); // Expr *
-        assert_eq!(NodeId::new(1), queue.pop().unwrap()); // INT 1
+        queue.open(&NodeId::new(0), &arena);
+        let expected1 = vec![NodeId::new(2)]; // Expr *
+        assert_eq!(expected1, queue.pop());
+        let expected2 = vec![NodeId::new(1)]; // INT 1
+        assert_eq!(expected2, queue.pop());
     }
 
     #[test]
     fn peek_max() {
         let arena = create_arena();
         let queue = arena.get_priority_queue();
-        let root = queue.peek_max().unwrap();
-        assert_eq!(0, root.id());
-        assert_eq!(3, root.height(&arena));
+        let height = queue.peek_max().unwrap();
+        assert_eq!(NodeId::new(0).height(&arena), height);
     }
 
     #[test]
     fn pop() {
         let arena = create_arena();
         let mut queue = arena.get_priority_queue();
-        assert_eq!(0, queue.pop().unwrap().id());
-        assert_eq!(2, queue.pop().unwrap().id());
+        assert_eq!(vec![NodeId::new(0)], queue.pop());
+        assert_eq!(vec![NodeId::new(2)], queue.pop());
         // Nodes 1, 3, 4 have the same height, and so may be stored in any order.
-        let leaves = vec![1, 3, 4];
-        assert!(leaves.contains(&queue.pop().unwrap().id()));
-        assert!(leaves.contains(&queue.pop().unwrap().id()));
-        assert!(leaves.contains(&queue.pop().unwrap().id()));
+        let expected = vec![NodeId::new(1), NodeId::new(3), NodeId::new(4)];
+        let leaves = queue.pop();
+        assert_eq!(expected.len(), leaves.len());
+        for leaf in leaves {
+            assert!(expected.contains(&leaf));
+        }
+        assert!(queue.is_empty());
     }
 
     #[test]

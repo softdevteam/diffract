@@ -42,10 +42,10 @@
 
 extern crate treediff;
 
-use treediff::ast::{Arena, parse_file};
+use treediff::ast::{Arena, NodeId, parse_file};
 use treediff::hqueue::HeightQueue;
 
-// Assert that this queue is in sorted order, and has the same size as the arena.
+// Assert that `queue` is in sorted order and has the same size `arena`.
 fn assert_sorted<T: Clone>(queue: &HeightQueue, arena: &Arena<T>) {
     let mut expected = arena.size();
     if expected == 0 {
@@ -53,13 +53,20 @@ fn assert_sorted<T: Clone>(queue: &HeightQueue, arena: &Arena<T>) {
         return;
     }
     let mut clone = queue.clone();
-    let mut tallest = clone.pop().unwrap();
-    expected -= 1;
-    while !clone.is_empty() {
-        assert!(expected > 0);
-        assert!(tallest.height(arena) >= clone.peek_max().unwrap().height(arena));
-        tallest = clone.pop().unwrap();
-        expected -= 1;
+    let mut tallest: Vec<NodeId>;
+    loop {
+        tallest = clone.pop();
+        println!("{:?}", tallest);
+        expected -= tallest.len();
+        for node in &tallest {
+            assert_eq!(node.height(arena), tallest[0].height(arena));
+            if !clone.is_empty() {
+                assert!(node.height(arena) > clone.peek_max().unwrap());
+            }
+        }
+        if clone.is_empty() {
+            break;
+        }
     }
     assert_eq!(0, expected);
 }
