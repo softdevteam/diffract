@@ -35,53 +35,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(test)]
-#![feature(try_from)]
+#![warn(missing_docs)]
 
-extern crate dot;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrtable;
-extern crate lrpar;
-extern crate test;
 
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
+use ast::Arena;
+use matchers::{MappingStore, MappingType, MatchTrees};
 
-/// AST defines the abstract syntax tree types that the differ works on.
-///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+#[derive(Debug, Clone, PartialEq)]
+/// Variables required by the matcher algorithm, set by the user.
+pub struct GumTreeConfig {
+    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
+    pub max_size: u16,
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
+    pub min_dice: f32,
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
+    pub min_height: u16,
+}
 
-/// GumTree matcher.
-pub mod gt_matcher;
+impl Default for GumTreeConfig {
+    fn default() -> GumTreeConfig {
+        GumTreeConfig {
+            max_size: 100,
+            min_dice: 0.3,
+            min_height: 2,
+        }
+    }
+}
 
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
-
-// Re-exported enums, structs and types.
-pub use action::{Delete, Insert, Move, Update};
-pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
-pub use ast::{EdgeId, Node, NodeId};
-pub use emitters::{EmitterError, EmitterResult};
-pub use gt_matcher::GumTreeConfig;
-pub use matchers::{Mapping, MappingStore, MappingType};
-pub use hqueue::HeightQueue;
-
-// Re-exported traits.
-pub use action::ApplyAction;
-pub use emitters::RenderDotfile;
-pub use matchers::MatchTrees;
-
-// Re-exported functions.
-pub use ast::parse_file;
-pub use emitters::{render_mapping_store, write_dotfile_to_disk};
+impl<T: Clone> MatchTrees<T> for GumTreeConfig {
+    /// Match locations in distinct ASTs.
+    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+        let mut store = MappingStore::new(base, diff);
+        if store.from.size() == 0 || store.to.size() == 0 {
+            return store;
+        }
+        store.push(0, 0, MappingType::ANCHOR);
+        // TODO: implement classic GumTree algorithm.
+        store
+    }
+}

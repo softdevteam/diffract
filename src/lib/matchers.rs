@@ -58,28 +58,6 @@ impl Default for MappingType {
     }
 }
 
-/// Variables required by the matcher algorithm, set by the user.
-pub struct Config {
-    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
-    pub max_size: u16,
-
-    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
-    pub min_dice: f32,
-
-    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
-    pub min_height: u16,
-}
-
-impl Default for Config {
-    fn default() -> Config {
-        Config {
-            max_size: 100,
-            min_dice: 0.3,
-            min_height: 2,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 /// Mapping between nodes in distinct arenas.
 pub struct Mapping {
@@ -116,7 +94,7 @@ pub struct MappingStore<T: Clone> {
 
 impl<T: Clone> MappingStore<T> {
     /// Create a new mapping store.
-    fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+    pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
             mappings: vec![],
             from: base,
@@ -134,16 +112,6 @@ impl<T: Clone> MappingStore<T> {
         self.mappings.contains(&mapping)
     }
 
-    /// Given two `NodeId`s, return the type of mapping between them.
-    pub fn get_type(&self, from: NodeId, to: NodeId) -> Option<MappingType> {
-        for mapping in &self.mappings {
-            if mapping.from == from && mapping.to == to {
-                return Some(mapping.ty.clone());
-            }
-        }
-        None
-    }
-
     /// `true` if `node` is involved in a mapping, `false` otherwise.
     pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
         for mapping in &self.mappings {
@@ -155,13 +123,11 @@ impl<T: Clone> MappingStore<T> {
     }
 }
 
-/// Match locations in distinct ASTs.
-pub fn match_trees<T: Clone>(base: Arena<T>, diff: Arena<T>, config: &Config) -> MappingStore<T> {
-    let mut store = MappingStore::new(base, diff);
-    if store.from.size() == 0 || store.to.size() == 0 {
-        return store;
-    }
-    // TODO: Implement classic GumTree matcher algorithm.
-    store.push(0, 0, MappingType::ANCHOR);
-    store
+/// Match two trees and return a store of mappings between them.
+///
+/// This trait should usually be implemented on configuration objects that
+/// define thresholds and weights for a given algorithm.
+pub trait MatchTrees<T: Clone> {
+    /// Match two trees and return a store of mappings between them.
+    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
 }
