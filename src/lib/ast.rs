@@ -224,7 +224,7 @@ impl<T: fmt::Display + Clone> fmt::Display for Arena<T> {
         while !stack.is_empty() {
             let id = stack.pop().unwrap();
             let node = &self.nodes[id.index];
-            if node.is_leaf() {
+            if id.is_leaf(self) {
                 // Terminal node.
                 formatted.push_str(&format!("{}\n", node));
             } else {
@@ -290,25 +290,6 @@ impl<T: Clone> Node<T> {
         }
     }
 
-    /// `true` if this node has no children.
-    pub fn is_leaf(&self) -> bool {
-        match self.first_child {
-            Some(_) => false,
-            None => true,
-        }
-    }
-
-    /// `true` if this node has no parent.
-    ///
-    /// If a node has been added to the arena without being given a parent, or
-    /// a node has been detached from its parent, this method will return `true`.
-    pub fn is_root(&self) -> bool {
-        match self.parent {
-            Some(_) => false,
-            None => true,
-        }
-    }
-
     /// Return the Id of the parent node, if there is one.
     pub fn parent(&self) -> Option<NodeId> {
         self.parent
@@ -364,12 +345,25 @@ impl NodeId {
         self.index
     }
 
+    /// `true` if this node has no children.
+    pub fn is_leaf<T: Clone>(&self, arena: &Arena<T>) -> bool {
+        arena[*self].first_child.is_none()
+    }
+
+    /// `true` if this node has no parent.
+    ///
+    /// If a node has been added to the arena without being given a parent, or
+    /// a node has been detached from its parent, this method will return `true`.
+    pub fn is_root<T: Clone>(&self, arena: &Arena<T>) -> bool {
+        arena[*self].parent.is_none()
+    }
+
     /// Get the height of this node.
     ///
     /// The height of a leaf node is 1, the height of a branch node is 1 +
     /// the height of its tallest child node.
     pub fn height<T: Clone>(&self, arena: &Arena<T>) -> u32 {
-        if arena[*self].is_leaf() {
+        if self.is_leaf(arena) {
             return 1;
         }
         let mut heights = self.children(arena)
@@ -682,16 +676,16 @@ mod tests {
         assert_eq!(n3, arena[n3].index.unwrap());
         assert_eq!(n4, arena[n4].index.unwrap());
         // Check roots and leaves.
-        assert!(arena[root].is_root());
-        assert!(!arena[n1].is_root());
-        assert!(!arena[n2].is_root());
-        assert!(!arena[n3].is_root());
-        assert!(!arena[n4].is_root());
-        assert!(!arena[root].is_leaf());
-        assert!(arena[n1].is_leaf());
-        assert!(!arena[n2].is_leaf());
-        assert!(arena[n3].is_leaf());
-        assert!(arena[n4].is_leaf());
+        assert!(root.is_root(&arena));
+        assert!(!n1.is_root(&arena));
+        assert!(!n2.is_root(&arena));
+        assert!(!n3.is_root(&arena));
+        assert!(!n4.is_root(&arena));
+        assert!(!root.is_leaf(&arena));
+        assert!(n1.is_leaf(&arena));
+        assert!(!n2.is_leaf(&arena));
+        assert!(n3.is_leaf(&arena));
+        assert!(n4.is_leaf(&arena));
     }
 
     #[test]
