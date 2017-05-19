@@ -62,7 +62,7 @@ pub mod emitters;
 /// Matchers create mappings between abstract syntax trees.
 pub mod matchers;
 
-/// GumTree matcher.
+/// GT matching algorithm.
 pub mod gt_matcher;
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
@@ -74,7 +74,7 @@ pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
 pub use ast::{EdgeId, Node, NodeId};
 pub use emitters::{EmitterError, EmitterResult};
 pub use gt_matcher::GumTreeConfig;
-pub use matchers::{Mapping, MappingStore, MappingType};
+pub use matchers::{MappingStore, MappingType};
 pub use hqueue::HeightQueue;
 
 // Re-exported traits.

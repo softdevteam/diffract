@@ -37,8 +37,7 @@
 
 #![warn(missing_docs)]
 
-
-use ast::Arena;
+use ast::{Arena, NodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,8 +70,7 @@ impl<T: Clone> MatchTrees<T> for GumTreeConfig {
         if store.from.size() == 0 || store.to.size() == 0 {
             return store;
         }
-        store.push(0, 0, MappingType::ANCHOR);
-        // TODO: implement classic GumTree algorithm.
+        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
         store
     }
 }

@@ -87,7 +87,7 @@ pub enum ArenaError {
 /// Result type returned by AST operations.
 pub type ArenaResult = Result<(), ArenaError>;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd)]
 /// A node identifier used for indexing nodes within a particular `Arena`.
 ///
 /// A `NodeId` should be immutable, in the sense that no action on a node or

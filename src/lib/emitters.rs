@@ -183,16 +183,14 @@ pub fn render_mapping_store(store: &MappingStore<String>, filepath: &str) -> Emi
     }
     digraph.push(String::from("\t}\n"));
     // Mappings between ASTs.
-    for mapping in &store.mappings {
-        attrs = match mapping.ty {
+    for (from, val) in &store.from_map {
+        let &(to, ref ty) = val;
+        attrs = match *ty {
             MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",
             MappingType::CONTAINER => "[style=dotted, color=red, arrowhead=diamond]",
             MappingType::RECOVERY => "[style=dashed, color=green, arrowhead=diamond]",
         };
-        line = format!("\tFROM{} -> TO{}{};\n",
-                       mapping.from.id(),
-                       mapping.to.id(),
-                       attrs);
+        line = format!("\tFROM{} -> TO{}{};\n", from.id(), to.id(), attrs);
         digraph.push(line);
     }
     digraph.push(String::from("}\n"));
