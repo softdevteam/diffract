@@ -465,6 +465,18 @@ impl NodeId {
         Ok(())
     }
 
+    /// If `self` is the *nth* child of its parent, return *n*.
+    pub fn get_child_position<T: Clone>(self, arena: &Arena<T>) -> Option<usize> {
+        if arena[self].parent.is_none() {
+            return None;
+        }
+        arena[self]
+            .parent
+            .unwrap()
+            .children(arena)
+            .position(|val| val == self)
+    }
+
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T>) -> Children<T> {
         Children {
@@ -1207,5 +1219,15 @@ INT 2
         assert_eq!(2, n2.height(&arena));
         assert_eq!(1, n3.height(&arena));
         assert_eq!(1, n4.height(&arena));
+    }
+
+    #[test]
+    fn get_child_position() {
+        let arena = create_arena();
+        assert_eq!(None, NodeId::new(0).get_child_position(&arena));
+        assert_eq!(Some(0), NodeId::new(1).get_child_position(&arena));
+        assert_eq!(Some(1), NodeId::new(2).get_child_position(&arena));
+        assert_eq!(Some(0), NodeId::new(3).get_child_position(&arena));
+        assert_eq!(Some(1), NodeId::new(4).get_child_position(&arena));
     }
 }
