@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ast::{Arena, NodeId};
 
@@ -111,6 +111,16 @@ impl<T: Clone> MappingStore<T> {
         self.to_map.contains_key(to)
     }
 
+    /// Get the `NodeId` that `to` is mapped from.
+    pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
+        self.to_map.get(to).map_or(None, |x| Some(x.0))
+    }
+
+    /// Get the `NodeId` that `from` is mapped to.
+    pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
+        self.from_map.get(from).map_or(None, |x| Some(x.0))
+    }
+
     /// `true` if `node` is involved in a mapping, `false` otherwise.
     pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
         if is_from {
@@ -158,6 +168,66 @@ impl<T: Clone> MappingStore<T> {
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
     pub fn is_mapping_allowed(&self, from: &NodeId, to: &NodeId) -> bool {
         self.from[*from].label == self.to[*to].label && !(self.has_from(from) || self.has_to(to))
+    }
+
+    /// Dice measure of similarity between subtrees.
+    pub fn dice_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
+        debug_assert!(dice >= 0. && dice <= 1.);
+        dice
+    }
+
+    /// Jaccard measure of similarity between subtrees.
+    pub fn jaccard_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let common = self.num_common_descendants(from, to) as f64;
+        let jaccard = common / (n_from + n_to - common);
+        debug_assert!(jaccard >= 0. && jaccard <= 1.);
+        jaccard
+    }
+
+    /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
+    pub fn chawathe_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let common = self.num_common_descendants(from, to) as f64;
+        let chawathe = common / n_from.max(n_to);
+        debug_assert!(chawathe >= 0. && chawathe <= 1.);
+        chawathe
+    }
+
+    /// Find the number of "common" descendants in two matched subtrees.
+    ///
+    /// To nodes are common if they have already been matched.
+    fn num_common_descendants(&self, from: &NodeId, to: &NodeId) -> u32 {
+        let mut dst_desc = HashSet::new();
+        for node in to.breadth_first_traversal(&self.to) {
+            dst_desc.insert(node);
+        }
+        let mut common = 0;
+        let mut to: Option<NodeId>;
+        for node in from.descendants(&self.from) {
+            to = self.get_to(&node);
+            if to.is_some() && dst_desc.contains(&to.unwrap()) {
+                common += 1;
+            }
+        }
+        common
     }
 }
 
@@ -247,5 +317,21 @@ mod tests {
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(!store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
         assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(0)));
+    }
+
+    #[test]
+    fn num_common_descendants() {
+        let mult = create_mult_arena();
+        let plus = create_plus_arena();
+        let mut store = MappingStore::new(plus, mult);
+        store.push(NodeId::new(0), NodeId::new(2), Default::default());
+        store.push(NodeId::new(1), NodeId::new(3), Default::default());
+        store.push(NodeId::new(2), NodeId::new(4), Default::default());
+        assert_eq!(2,
+                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(2)));
+        assert_eq!(2,
+                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(0)));
+        assert_eq!(0,
+                   store.num_common_descendants(&NodeId::new(1), &NodeId::new(0)));
     }
 }
