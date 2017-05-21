@@ -64,7 +64,7 @@ pub trait RenderDotfile {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<'a, T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
+pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
     let mut stream = File::create(&filepath)
         .map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph

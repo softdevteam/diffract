@@ -366,11 +366,10 @@ impl NodeId {
         if self.is_leaf(arena) {
             return 1;
         }
-        let mut heights = self.children(arena)
+        self.children(arena)
             .map(|child| child.height(arena))
-            .collect::<Vec<u32>>();
-        heights.sort();
-        1 + heights[heights.len() - 1]
+            .max()
+            .unwrap() + 1
     }
 
     /// Detach this node, leaving its children unaffected.
@@ -1202,11 +1201,6 @@ INT 2
     #[test]
     fn height() {
         let arena = create_arena();
-        let root = NodeId::new(0);
-        let n1 = NodeId::new(1);
-        let n2 = NodeId::new(2);
-        let n3 = NodeId::new(3);
-        let n4 = NodeId::new(4);
         let format1 = "Expr +
     INT 1
     Expr *
@@ -1214,11 +1208,11 @@ INT 2
         INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
-        assert_eq!(3, root.height(&arena));
-        assert_eq!(1, n1.height(&arena));
-        assert_eq!(2, n2.height(&arena));
-        assert_eq!(1, n3.height(&arena));
-        assert_eq!(1, n4.height(&arena));
+        assert_eq!(3, NodeId::new(0).height(&arena));
+        assert_eq!(1, NodeId::new(1).height(&arena));
+        assert_eq!(2, NodeId::new(2).height(&arena));
+        assert_eq!(1, NodeId::new(3).height(&arena));
+        assert_eq!(1, NodeId::new(4).height(&arena));
     }
 
     #[test]

@@ -89,6 +89,12 @@ pub struct HeightQueue {
     queue: Vec<PriorityNodeId>, // Use Vec so we can call `sort()`.
 }
 
+impl Default for HeightQueue {
+    fn default() -> HeightQueue {
+        HeightQueue { queue: vec![] }
+    }
+}
+
 impl fmt::Debug for HeightQueue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[ ")?;
@@ -102,7 +108,7 @@ impl fmt::Debug for HeightQueue {
 impl HeightQueue {
     /// Create empty priority queue.
     pub fn new() -> HeightQueue {
-        HeightQueue { queue: Vec::new() }
+        Default::default()
     }
 
     /// Remove (and discard) all items in this queue, leaving it empty.
