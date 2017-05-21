@@ -67,21 +67,3 @@ pub mod gt_matcher;
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
-
-// Re-exported enums, structs and types.
-pub use action::{Delete, Insert, Move, Update};
-pub use ast::{Arena, ArenaError, ArenaResult, ParseError};
-pub use ast::{EdgeId, Node, NodeId};
-pub use emitters::{EmitterError, EmitterResult};
-pub use gt_matcher::GumTreeConfig;
-pub use matchers::{MappingStore, MappingType};
-pub use hqueue::HeightQueue;
-
-// Re-exported traits.
-pub use action::ApplyAction;
-pub use emitters::RenderDotfile;
-pub use matchers::MatchTrees;
-
-// Re-exported functions.
-pub use ast::parse_file;
-pub use emitters::{render_mapping_store, write_dotfile_to_disk};
