@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
@@ -87,7 +87,7 @@ pub enum ArenaError {
 /// Result type returned by AST operations.
 pub type ArenaResult = Result<(), ArenaError>;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd)]
 /// A node identifier used for indexing nodes within a particular `Arena`.
 ///
 /// A `NodeId` should be immutable, in the sense that no action on a node or
@@ -224,7 +224,7 @@ impl<T: fmt::Display + Clone> fmt::Display for Arena<T> {
         while !stack.is_empty() {
             let id = stack.pop().unwrap();
             let node = &self.nodes[id.index];
-            if node.is_leaf() {
+            if id.is_leaf(self) {
                 // Terminal node.
                 formatted.push_str(&format!("{}\n", node));
             } else {
@@ -290,25 +290,6 @@ impl<T: Clone> Node<T> {
         }
     }
 
-    /// `true` if this node has no children.
-    pub fn is_leaf(&self) -> bool {
-        match self.first_child {
-            Some(_) => false,
-            None => true,
-        }
-    }
-
-    /// `true` if this node has no parent.
-    ///
-    /// If a node has been added to the arena without being given a parent, or
-    /// a node has been detached from its parent, this method will return `true`.
-    pub fn is_root(&self) -> bool {
-        match self.parent {
-            Some(_) => false,
-            None => true,
-        }
-    }
-
     /// Return the Id of the parent node, if there is one.
     pub fn parent(&self) -> Option<NodeId> {
         self.parent
@@ -364,19 +345,31 @@ impl NodeId {
         self.index
     }
 
+    /// `true` if this node has no children.
+    pub fn is_leaf<T: Clone>(&self, arena: &Arena<T>) -> bool {
+        arena[*self].first_child.is_none()
+    }
+
+    /// `true` if this node has no parent.
+    ///
+    /// If a node has been added to the arena without being given a parent, or
+    /// a node has been detached from its parent, this method will return `true`.
+    pub fn is_root<T: Clone>(&self, arena: &Arena<T>) -> bool {
+        arena[*self].parent.is_none()
+    }
+
     /// Get the height of this node.
     ///
     /// The height of a leaf node is 1, the height of a branch node is 1 +
     /// the height of its tallest child node.
     pub fn height<T: Clone>(&self, arena: &Arena<T>) -> u32 {
-        if arena[*self].is_leaf() {
+        if self.is_leaf(arena) {
             return 1;
         }
-        let mut heights = self.children(arena)
+        self.children(arena)
             .map(|child| child.height(arena))
-            .collect::<Vec<u32>>();
-        heights.sort();
-        1 + heights[heights.len() - 1]
+            .max()
+            .unwrap() + 1
     }
 
     /// Detach this node, leaving its children unaffected.
@@ -471,12 +464,75 @@ impl NodeId {
         Ok(())
     }
 
+    /// If `self` is the *nth* child of its parent, return *n*.
+    pub fn get_child_position<T: Clone>(self, arena: &Arena<T>) -> Option<usize> {
+        if arena[self].parent.is_none() {
+            return None;
+        }
+        arena[self]
+            .parent
+            .unwrap()
+            .children(arena)
+            .position(|val| val == self)
+    }
+
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T>) -> Children<T> {
         Children {
             arena: arena,
             node: arena[self].first_child,
         }
+    }
+
+    /// Return an iterator of references to this node’s children, in reverse order.
+    pub fn reverse_children<T: Clone>(self, arena: &Arena<T>) -> ReverseChildren<T> {
+        ReverseChildren {
+            arena: arena,
+            node: arena[self].last_child,
+        }
+    }
+
+    /// Return a breadth-first iterator of references to this node's descendants.
+    pub fn breadth_first_traversal<T: Clone>(self, arena: &Arena<T>) -> BreadthFirstTraversal<T> {
+        let mut queue = VecDeque::new();
+        queue.push_back(self);
+        BreadthFirstTraversal {
+            arena: arena,
+            queue: queue,
+        }
+    }
+
+    /// Return a post-order iterator of references to this node's descendants.
+    pub fn post_order_traversal<T: Clone>(self, arena: &Arena<T>) -> PostOrderTraversal<T> {
+        let mut stack1 = VecDeque::new();
+        stack1.push_front(self);
+        PostOrderTraversal {
+            arena: arena,
+            stack1: stack1,
+            stack2: VecDeque::new(),
+        }
+    }
+
+    /// Return a pre-order iterator of references to this node's descendants.
+    pub fn pre_order_traversal<T: Clone>(self, arena: &Arena<T>) -> PreOrderTraversal<T> {
+        let mut stack = VecDeque::new();
+        stack.push_front(self);
+        PreOrderTraversal {
+            arena: arena,
+            stack: stack,
+        }
+    }
+
+    /// Get the descendants of this node, without including the node itself.
+    pub fn descendants<T: Clone>(self, arena: &Arena<T>) -> PreOrderTraversal<T> {
+        let mut stack = VecDeque::new();
+        stack.push_front(self);
+        let mut iterator = PreOrderTraversal {
+            arena: arena,
+            stack: stack,
+        };
+        iterator.next(); // Consume self.
+        iterator
     }
 }
 
@@ -503,6 +559,76 @@ pub struct Children<'a, T: Clone + 'a> {
     node: Option<NodeId>,
 }
 impl_node_iterator!(Children, |node: &Node<T>| node.next_sibling);
+
+/// An iterator of references to the children of a given node.
+pub struct ReverseChildren<'a, T: Clone + 'a> {
+    arena: &'a Arena<T>,
+    node: Option<NodeId>,
+}
+impl_node_iterator!(ReverseChildren, |node: &Node<T>| node.previous_sibling);
+
+/// A breadth-first iterator of references to the descendants of a given node.
+pub struct BreadthFirstTraversal<'a, T: Clone + 'a> {
+    arena: &'a Arena<T>,
+    queue: VecDeque<NodeId>,
+}
+
+impl<'a, T: Clone> Iterator for BreadthFirstTraversal<'a, T> {
+    type Item = NodeId;
+    fn next(&mut self) -> Option<NodeId> {
+        match self.queue.pop_front() {
+            Some(node) => {
+                for child in node.children(self.arena) {
+                    self.queue.push_back(child);
+                }
+                Some(node)
+            }
+            None => None,
+        }
+    }
+}
+
+/// A post-order iterator of references to the descendants of a given node.
+pub struct PostOrderTraversal<'a, T: Clone + 'a> {
+    arena: &'a Arena<T>,
+    stack1: VecDeque<NodeId>,
+    stack2: VecDeque<NodeId>,
+}
+
+impl<'a, T: Clone> Iterator for PostOrderTraversal<'a, T> {
+    type Item = NodeId;
+    fn next(&mut self) -> Option<NodeId> {
+        let mut current: NodeId;
+        while !self.stack1.is_empty() {
+            current = self.stack1.pop_front().unwrap();
+            self.stack2.push_front(current);
+            for child in current.children(self.arena) {
+                self.stack1.push_front(child);
+            }
+        }
+        self.stack2.pop_front()
+    }
+}
+
+/// A pre-order iterator of references to the descendants of a given node.
+pub struct PreOrderTraversal<'a, T: Clone + 'a> {
+    arena: &'a Arena<T>,
+    stack: VecDeque<NodeId>,
+}
+
+impl<'a, T: Clone> Iterator for PreOrderTraversal<'a, T> {
+    type Item = NodeId;
+    fn next(&mut self) -> Option<NodeId> {
+        if self.stack.is_empty() {
+            return None;
+        }
+        let current = self.stack.pop_front().unwrap();
+        for child in current.reverse_children(self.arena) {
+            self.stack.push_front(child);
+        }
+        Some(current)
+    }
+}
 
 // Turn a grammar, parser and input string into an AST arena.
 fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String> {
@@ -638,6 +764,20 @@ pub fn parse_file(input_path: &str) -> Result<Arena<String>, ParseError> {
 mod tests {
     use super::*;
 
+    fn create_arena() -> Arena<String> {
+        let mut arena = Arena::new();
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 4);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 8);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 8);
+        arena.make_child_of(n4, n2).unwrap();
+        arena
+    }
+
     #[test]
     fn new_ast_node() {
         let arena = &mut Arena::new();
@@ -663,18 +803,12 @@ mod tests {
 
     #[test]
     fn make_child_of_1() {
-        let arena = &mut Arena::new();
-        assert!(arena.is_empty());
-        let root = arena.new_node("+", String::from("Expr"), 0);
-        let n1 = arena.new_node("1", String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
-        assert!(!arena.is_empty());
+        let arena = create_arena();
+        let root = NodeId::new(0);
+        let n1 = NodeId::new(1);
+        let n2 = NodeId::new(2);
+        let n3 = NodeId::new(3);
+        let n4 = NodeId::new(4);
         // Check indices.
         assert_eq!(root, arena[root].index.unwrap());
         assert_eq!(n1, arena[n1].index.unwrap());
@@ -682,16 +816,16 @@ mod tests {
         assert_eq!(n3, arena[n3].index.unwrap());
         assert_eq!(n4, arena[n4].index.unwrap());
         // Check roots and leaves.
-        assert!(arena[root].is_root());
-        assert!(!arena[n1].is_root());
-        assert!(!arena[n2].is_root());
-        assert!(!arena[n3].is_root());
-        assert!(!arena[n4].is_root());
-        assert!(!arena[root].is_leaf());
-        assert!(arena[n1].is_leaf());
-        assert!(!arena[n2].is_leaf());
-        assert!(arena[n3].is_leaf());
-        assert!(arena[n4].is_leaf());
+        assert!(root.is_root(&arena));
+        assert!(!n1.is_root(&arena));
+        assert!(!n2.is_root(&arena));
+        assert!(!n3.is_root(&arena));
+        assert!(!n4.is_root(&arena));
+        assert!(!root.is_leaf(&arena));
+        assert!(n1.is_leaf(&arena));
+        assert!(!n2.is_leaf(&arena));
+        assert!(n3.is_leaf(&arena));
+        assert!(n4.is_leaf(&arena));
     }
 
     #[test]
@@ -848,16 +982,7 @@ INT 2
 
     #[test]
     fn get_edges_3() {
-        let arena = &mut Arena::new();
-        let root = arena.new_node("+", String::from("Expr"), 0);
-        let n1 = arena.new_node("1", String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
+        let arena = create_arena();
         let edges: Vec<EdgeId> = vec![(NodeId::new(0), NodeId::new(1)),
                                       (NodeId::new(0), NodeId::new(2)),
                                       (NodeId::new(2), NodeId::new(3)),
@@ -868,16 +993,8 @@ INT 2
 
     #[test]
     fn detach_1() {
-        let arena = &mut Arena::new();
-        let root = arena.new_node("+", String::from("Expr"), 0);
-        let n1 = arena.new_node("1", String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
+        let mut arena = create_arena();
+        let root = NodeId::new(0);
         let first_format = "Expr +
     INT 1
     Expr *
@@ -885,23 +1002,15 @@ INT 2
         INT 4
 ";
         assert_eq!(first_format, format!("{:}", arena));
-        root.detach_with_children(arena).unwrap();
+        root.detach_with_children(&mut arena).unwrap();
         let second_format = "Expr +\n";
         assert_eq!(second_format, format!("{:}", arena));
     }
 
     #[test]
     fn detach_2() {
-        let arena = &mut Arena::new();
-        let root = arena.new_node("+", String::from("Expr"), 0);
-        let n1 = arena.new_node("1", String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
+        let mut arena = create_arena();
+        let n2 = NodeId::new(2);
         let first_format = "Expr +
     INT 1
     Expr *
@@ -909,7 +1018,7 @@ INT 2
         INT 4
 ";
         assert_eq!(first_format, format!("{:}", arena));
-        n2.detach_with_children(arena).unwrap();
+        n2.detach_with_children(&mut arena).unwrap();
         let second_format = "Expr +
     INT 1
 ";
@@ -918,16 +1027,9 @@ INT 2
 
     #[test]
     fn children_iterator() {
-        let arena = &mut Arena::new();
-        let root = arena.new_node("+", String::from("Expr"), 0);
-        let n1 = arena.new_node("1", String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node("*", String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node("3", String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node("4", String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
+        let arena = create_arena();
+        let root = NodeId::new(0);
+        let n2 = NodeId::new(2);
         // Children of root.
         let expected1: Vec<NodeId> = vec![NodeId { index: 1 }, NodeId { index: 2 }];
         let root_child_ids = root.children(&arena).collect::<Vec<NodeId>>();
@@ -941,6 +1043,134 @@ INT 2
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);
+        }
+    }
+
+    #[test]
+    fn reverse_children_iterator() {
+        let arena = create_arena();
+        let root = NodeId::new(0);
+        let n2 = NodeId::new(2);
+        // Children of root.
+        let expected1: Vec<NodeId> = vec![NodeId { index: 2 }, NodeId { index: 1 }];
+        let root_child_ids = root.reverse_children(&arena).collect::<Vec<NodeId>>();
+        assert_eq!(expected1.len(), root_child_ids.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], root_child_ids[index]);
+        }
+        // Children of n2.
+        let expected2: Vec<NodeId> = vec![NodeId { index: 4 }, NodeId { index: 3 }];
+        let n2_child_ids = n2.reverse_children(&arena).collect::<Vec<NodeId>>();
+        assert_eq!(expected2.len(), n2_child_ids.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], n2_child_ids[index]);
+        }
+    }
+
+    #[test]
+    fn breadth_first_traversal() {
+        let arena = create_arena();
+        // Descendants  of root.
+        let expected1: Vec<NodeId> = vec![NodeId::new(0),
+                                          NodeId::new(1),
+                                          NodeId::new(2),
+                                          NodeId::new(3),
+                                          NodeId::new(4)];
+        let descendants1 = NodeId::new(0)
+            .breadth_first_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected1.len(), descendants1.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], descendants1[index]);
+        }
+        // Descendants of n2.
+        let expected2: Vec<NodeId> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let descendants2 = NodeId::new(2)
+            .breadth_first_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected2.len(), descendants2.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], descendants2[index]);
+        }
+    }
+
+    #[test]
+    fn post_order_traversal() {
+        let arena = create_arena();
+        // Descendants  of root.
+        let expected1: Vec<NodeId> = vec![NodeId::new(1),
+                                          NodeId::new(3),
+                                          NodeId::new(4),
+                                          NodeId::new(2),
+                                          NodeId::new(0)];
+        let descendants1 = NodeId::new(0)
+            .post_order_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected1.len(), descendants1.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], descendants1[index]);
+        }
+        // Descendants of n2.
+        let expected2: Vec<NodeId> = vec![NodeId::new(3), NodeId::new(4), NodeId::new(2)];
+        let descendants2 = NodeId::new(2)
+            .post_order_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected2.len(), descendants2.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], descendants2[index]);
+        }
+    }
+
+    #[test]
+    fn pre_order_traversal() {
+        let arena = create_arena();
+        // Descendants  of root.
+        let expected1: Vec<NodeId> = vec![NodeId::new(0),
+                                          NodeId::new(1),
+                                          NodeId::new(2),
+                                          NodeId::new(3),
+                                          NodeId::new(4)];
+        let descendants1 = NodeId::new(0)
+            .pre_order_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected1.len(), descendants1.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], descendants1[index]);
+        }
+        // Descendants of n2.
+        let expected2: Vec<NodeId> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let descendants2 = NodeId::new(2)
+            .pre_order_traversal(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected2.len(), descendants2.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], descendants2[index]);
+        }
+    }
+
+    #[test]
+    fn descendants() {
+        let arena = create_arena();
+        // Descendants  of root.
+        let expected1: Vec<NodeId> = vec![NodeId::new(1),
+                                          NodeId::new(2),
+                                          NodeId::new(3),
+                                          NodeId::new(4)];
+        let descendants1 = NodeId::new(0)
+            .descendants(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected1.len(), descendants1.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], descendants1[index]);
+        }
+        // Descendants of n2.
+        let expected2: Vec<NodeId> = vec![NodeId::new(3), NodeId::new(4)];
+        let descendants2 = NodeId::new(2)
+            .descendants(&arena)
+            .collect::<Vec<NodeId>>();
+        assert_eq!(expected2.len(), descendants2.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], descendants2[index]);
         }
     }
 
@@ -970,27 +1200,28 @@ INT 2
 
     #[test]
     fn height() {
-        let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
-        arena.make_child_of(n1, root).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
-        arena.make_child_of(n2, root).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
-        arena.make_child_of(n3, n2).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
-        arena.make_child_of(n4, n2).unwrap();
+        let arena = create_arena();
         let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+    INT 1
+    Expr *
+        INT 3
+        INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
-        assert_eq!(3, root.height(&arena));
-        assert_eq!(1, n1.height(&arena));
-        assert_eq!(2, n2.height(&arena));
-        assert_eq!(1, n3.height(&arena));
-        assert_eq!(1, n4.height(&arena));
+        assert_eq!(3, NodeId::new(0).height(&arena));
+        assert_eq!(1, NodeId::new(1).height(&arena));
+        assert_eq!(2, NodeId::new(2).height(&arena));
+        assert_eq!(1, NodeId::new(3).height(&arena));
+        assert_eq!(1, NodeId::new(4).height(&arena));
+    }
+
+    #[test]
+    fn get_child_position() {
+        let arena = create_arena();
+        assert_eq!(None, NodeId::new(0).get_child_position(&arena));
+        assert_eq!(Some(0), NodeId::new(1).get_child_position(&arena));
+        assert_eq!(Some(1), NodeId::new(2).get_child_position(&arena));
+        assert_eq!(Some(0), NodeId::new(3).get_child_position(&arena));
+        assert_eq!(Some(1), NodeId::new(4).get_child_position(&arena));
     }
 }

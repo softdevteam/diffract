@@ -37,56 +37,41 @@
 
 #![warn(missing_docs)]
 
+use std::collections::{HashMap, HashSet};
+
 use ast::{Arena, NodeId};
 
-/// Variables required by the matcher algorithm, set by the user.
-pub struct Config {
-    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
-    pub max_size: u16,
-
-    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
-    pub min_dice: f32,
-
-    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
-    pub min_height: u16,
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+/// Type of mapping.
+///
+/// Not needed by matching algorithms, but useful for debugging.
+pub enum MappingType {
+    /// Anchor mappings are found by the top-down GumTree matcher.
+    ANCHOR,
+    /// Container mappings are found by the phase one of the bottom-up GumTree matcher.
+    CONTAINER,
+    /// Recovery mappings are found by phase two of the bottom-up GumTree matcher.
+    RECOVERY,
 }
 
-impl Config {
-    /// Create a new matcher configuration with default threshold values.
-    pub fn new() -> Config {
-        Config {
-            max_size: 100,
-            min_dice: 0.3,
-            min_height: 2,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-/// Mapping between nodes in distinct arenas.
-pub struct Mapping {
-    /// Source node.
-    pub from: NodeId,
-    /// Destination node.
-    pub to: NodeId,
-}
-
-impl Mapping {
-    /// Create a new mapping from one index to another.
-    /// It is assumed that the `from` and `to` nodes are in different arenas.
-    pub fn new(from: usize, to: usize) -> Mapping {
-        Mapping {
-            from: NodeId::new(from),
-            to: NodeId::new(to),
-        }
+impl Default for MappingType {
+    fn default() -> MappingType {
+        MappingType::ANCHOR
     }
 }
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
 pub struct MappingStore<T: Clone> {
-    /// Mappings for the stored arenas.
-    pub mappings: Vec<Mapping>,
+    /// Mappings from the source tree to the destination.
+    ///
+    /// Should contain the same information as `to_map`.
+    pub from_map: HashMap<NodeId, (NodeId, MappingType)>,
+    /// Mappings from the destination tree to the source.
+    ///
+    /// Should contain the same information as `from_map`.
+    pub to_map: HashMap<NodeId, (NodeId, MappingType)>,
+
     /// Source arena (treat as immutable).
     pub from: Arena<T>,
     /// Destination arena (treat as immutable).
@@ -95,35 +80,258 @@ pub struct MappingStore<T: Clone> {
 
 impl<T: Clone> MappingStore<T> {
     /// Create a new mapping store.
-    fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+    pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
-            mappings: vec![],
+            from_map: HashMap::new(),
+            to_map: HashMap::new(),
             from: base,
             to: diff,
         }
     }
 
     /// Push a new mapping into the store.
-    pub fn push(&mut self, from: usize, to: usize) {
-        self.mappings.push(Mapping::new(from, to));
+    pub fn push(&mut self, from: NodeId, to: NodeId, ty: MappingType) {
+        self.from_map.insert(from, (to, ty.clone()));
+        self.to_map.insert(to, (from, ty.clone()));
     }
 
-    /// True if `mapping` is contained within this store.
-    pub fn contains(&self, mapping: Mapping) -> bool {
-        self.mappings.contains(&mapping)
+    /// Remove mapping from store.
+    pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
+        self.from_map.remove(from);
+        self.to_map.remove(to);
+    }
+
+    /// `true` if the store has a mapping from `from` to another node.
+    pub fn has_from(&self, from: &NodeId) -> bool {
+        self.from_map.contains_key(from)
+    }
+
+    /// `true` if the store has a mapping from a node to `to`.
+    pub fn has_to(&self, to: &NodeId) -> bool {
+        self.to_map.contains_key(to)
+    }
+
+    /// Get the `NodeId` that `to` is mapped from.
+    pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
+        self.to_map.get(to).map_or(None, |x| Some(x.0))
+    }
+
+    /// Get the `NodeId` that `from` is mapped to.
+    pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
+        self.from_map.get(from).map_or(None, |x| Some(x.0))
+    }
+
+    /// `true` if `node` is involved in a mapping, `false` otherwise.
+    pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
+        if is_from {
+            return self.from_map.contains_key(&node);
+        }
+        self.to_map.contains_key(&node)
+    }
+
+    /// Two sub-trees are isomorphic if they have the same structure.
+    ///
+    /// Two single-node trees are isomorphic if they have the same labels
+    /// (although the nodes may have different values). Isomorphic subtrees must
+    /// have the same *shape* i.e. the subtrees must have isomorphic children.
+    ///
+    /// Described in more detail in Chawathe et al. (1996).
+    pub fn is_isomorphic(&self, from: NodeId, to: NodeId) -> bool {
+        // Case 1: both nodes are leaves.
+        if from.is_leaf(&self.from) && to.is_leaf(&self.to) &&
+           self.from[from].label == self.to[to].label {
+            return true;
+        }
+        // Case 2: one node is a leaf and the other is a branch.
+        if from.is_leaf(&self.from) && !to.is_leaf(&self.to) ||
+           !from.is_leaf(&self.from) && to.is_leaf(&self.to) {
+            return false;
+        }
+        // Case 3: both nodes are branches.
+        if self.from[from].label != self.to[to].label ||
+           from.height(&self.from) != to.height(&self.to) {
+            return false;
+        }
+        let f_children = from.children(&self.from).collect::<Vec<NodeId>>();
+        let t_children = to.children(&self.to).collect::<Vec<NodeId>>();
+        if f_children.len() != t_children.len() {
+            return false;
+        }
+        for index in 0..f_children.len() {
+            if !self.is_isomorphic(f_children[index], t_children[index]) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
+    pub fn is_mapping_allowed(&self, from: &NodeId, to: &NodeId) -> bool {
+        self.from[*from].label == self.to[*to].label && !(self.has_from(from) || self.has_to(to))
+    }
+
+    /// Dice measure of similarity between subtrees.
+    pub fn dice_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
+        debug_assert!(dice >= 0. && dice <= 1.);
+        dice
+    }
+
+    /// Jaccard measure of similarity between subtrees.
+    pub fn jaccard_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let common = self.num_common_descendants(from, to) as f64;
+        let jaccard = common / (n_from + n_to - common);
+        debug_assert!(jaccard >= 0. && jaccard <= 1.);
+        jaccard
+    }
+
+    /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
+    pub fn chawathe_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+        let n_from = from.breadth_first_traversal(&self.from)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to)
+            .collect::<Vec<NodeId>>()
+            .len() as f64;
+        let common = self.num_common_descendants(from, to) as f64;
+        let chawathe = common / n_from.max(n_to);
+        debug_assert!(chawathe >= 0. && chawathe <= 1.);
+        chawathe
+    }
+
+    /// Find the number of "common" descendants in two matched subtrees.
+    ///
+    /// To nodes are common if they have already been matched.
+    fn num_common_descendants(&self, from: &NodeId, to: &NodeId) -> u32 {
+        let mut dst_desc = HashSet::new();
+        for node in to.breadth_first_traversal(&self.to) {
+            dst_desc.insert(node);
+        }
+        let mut common = 0;
+        let mut to: Option<NodeId>;
+        for node in from.descendants(&self.from) {
+            to = self.get_to(&node);
+            if to.is_some() && dst_desc.contains(&to.unwrap()) {
+                common += 1;
+            }
+        }
+        common
     }
 }
 
-/// Match locations in distinct ASTs.
-pub fn match_trees<'a, T: Clone>(base: Arena<T>,
-                                 diff: Arena<T>,
-                                 config: Config)
-                                 -> MappingStore<T> {
-    let mut store = MappingStore::new(base, diff);
-    if store.from.size() == 0 || store.to.size() == 0 {
-        return store;
+/// Match two trees and return a store of mappings between them.
+///
+/// This trait should usually be implemented on configuration objects that
+/// define thresholds and weights for a given algorithm.
+pub trait MatchTrees<T: Clone> {
+    /// Match two trees and return a store of mappings between them.
+    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_mult_arena() -> Arena<String> {
+        let mut arena = Arena::new();
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        arena.make_child_of(n2, root).unwrap();
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        arena.make_child_of(n3, n2).unwrap();
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        arena.make_child_of(n4, n2).unwrap();
+        let format1 = "Expr +
+  INT 1
+  Expr *
+    INT 3
+    INT 4
+";
+        assert_eq!(format1, format!("{}", arena));
+        arena
     }
-    // TODO: Implement classic GumTree matcher algorithm.
-    store.push(0, 0);
-    store
+
+    fn create_plus_arena() -> Arena<String> {
+        let mut arena = Arena::new();
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
+        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        arena.make_child_of(n1, root).unwrap();
+        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        arena.make_child_of(n2, root).unwrap();
+        let format1 = "Expr +
+    INT 3
+    INT 4
+";
+        assert_eq!(format1, format!("{}", arena));
+        arena
+    }
+
+    #[test]
+    fn is_isomorphic() {
+        let mult = create_mult_arena();
+        let plus = create_plus_arena();
+        let store = MappingStore::new(plus, mult);
+        assert!(store.is_isomorphic(NodeId::new(0), NodeId::new(2)));
+        assert!(store.is_isomorphic(NodeId::new(1), NodeId::new(3)));
+        assert!(store.is_isomorphic(NodeId::new(2), NodeId::new(4)));
+        assert!(store.is_isomorphic(NodeId::new(1), NodeId::new(4)));
+        assert!(store.is_isomorphic(NodeId::new(2), NodeId::new(3)));
+        // Not isomorphic.
+        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(1)));
+        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(3)));
+        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(4)));
+    }
+
+    #[test]
+    fn is_mapping_allowed() {
+        let mult = create_mult_arena();
+        let plus = create_plus_arena();
+        let mut store = MappingStore::new(plus, mult);
+        assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
+        assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
+        assert!(store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
+        assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(0)));
+        // Not allowed.
+        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(1)));
+        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(3)));
+        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(4)));
+        // Mapping already exists.
+        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
+        store.push(NodeId::new(2), NodeId::new(4), MappingType::ANCHOR);
+        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
+        assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
+        assert!(!store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
+        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(0)));
+    }
+
+    #[test]
+    fn num_common_descendants() {
+        let mult = create_mult_arena();
+        let plus = create_plus_arena();
+        let mut store = MappingStore::new(plus, mult);
+        store.push(NodeId::new(0), NodeId::new(2), Default::default());
+        store.push(NodeId::new(1), NodeId::new(3), Default::default());
+        store.push(NodeId::new(2), NodeId::new(4), Default::default());
+        assert_eq!(2,
+                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(2)));
+        assert_eq!(2,
+                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(0)));
+        assert_eq!(0,
+                   store.num_common_descendants(&NodeId::new(1), &NodeId::new(0)));
+    }
 }

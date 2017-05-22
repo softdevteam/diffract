@@ -150,8 +150,8 @@ impl<T: Clone> ApplyAction<T> for Update<T> {
 impl<T: Clone> ApplyAction<T> for ActionList<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         // Iterating over indices here avoids having two mutable borrows.
-        for index in 0..self.len() {
-            self[index].apply(arena)?;
+        for action in self {
+            action.apply(arena)?;
         }
         Ok(())
     }

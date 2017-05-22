@@ -41,10 +41,10 @@ use std::borrow::Cow::Owned;
 use std::fs::File;
 use std::io::{Error, Write};
 
-use dot::{Id, Edges, GraphWalk, Labeller, LabelText, Nodes, render, Style};
+use dot::{Id, Edges, GraphWalk, Labeller, LabelText, Nodes, render};
 
 use ast::{Arena, EdgeId, NodeId};
-use matchers::{Mapping, MappingStore};
+use matchers::{MappingStore, MappingType};
 
 /// Errors produced in emitting new data.
 pub enum EmitterError {
@@ -54,6 +54,9 @@ pub enum EmitterError {
     CouldNotWriteToFile,
 }
 
+/// Result returned by emitters.
+pub type EmitterResult = Result<(), EmitterError>;
+
 /// Create a graphviz representation of this type and write to buffer.
 pub trait RenderDotfile {
     /// Render a dotfile to `buffer`.
@@ -61,9 +64,7 @@ pub trait RenderDotfile {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<'a, T: RenderDotfile>(filepath: &str,
-                                                   graph: &T)
-                                                   -> Result<(), EmitterError> {
+pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
     let mut stream = File::create(&filepath)
         .map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph
@@ -113,84 +114,91 @@ impl RenderDotfile for Arena<String> {
     }
 }
 
-impl<'a> Labeller<'a, NodeId, EdgeId> for MappingStore<String> {
-    fn graph_id(&self) -> Id {
-        Id::new("MappingStore").unwrap()
-    }
-
-    fn node_id(&self, id: &NodeId) -> Id {
-        // Node ids must be unique dot identifiers, be non-empty strings made up
-        // of alphanumeric or underscore characters, not beginning with a digit
-        // (i.e. the regular expression [a-zA-Z_][a-zA-Z_0-9]*).
-        if id.id() < self.from.size() {
-            return Id::new(format!("N{}", id)).unwrap(); // Source nodes.
-        }
-        Id::new(format!("M{}", id)).unwrap() // Destination nodes.
-    }
-
-    fn node_label(&self, id: &NodeId) -> LabelText {
-        let size = self.from.size() as usize;
-        let label = if id.id() < self.from.size() {
-            format!("{} {}", self.from[*id].label, self.from[*id].value)
-        } else {
-            let index = NodeId::new(id.id() - size);
-            format!("{} {}", self.to[index].label, self.to[index].value)
-        };
-        LabelText::LabelStr(label.into())
-    }
-
-    /// Edges between nodes within an AST are solid, mappings are dashed.
-    fn edge_style(&self, edge: &EdgeId) -> Style {
-        let size = self.from.size() as usize;
-        if edge.0.id() < size && edge.1.id() >= size {
-            if self.contains(Mapping::new(edge.0.id(), edge.1.id() - size)) {
-                return Style::Dashed;
-            }
-        }
-        Style::Solid
-    }
-}
-
-/// Here, the two arenas and list of mappings in `self` become a single graph.
+/// Render a mapping store as a Graphviz digraph.
 ///
-/// `Nodeid`s in the source arena are left as-is. `Nodeid`s from the destination
-/// arena have the size of the source arena added to them. Likewise each mapping
-/// of the form `(s_id, d_id)` becomes `(s_id, d_id + s_size)`.
-impl<'a, T: Clone> GraphWalk<'a, NodeId, EdgeId> for MappingStore<T> {
-    fn nodes(&self) -> Nodes<'a, NodeId> {
-        let mut nodes: Vec<NodeId> = (0..self.from.size()).map(NodeId::new).collect();
-        for index in 0..self.to.size() {
-            nodes.push(NodeId::new(self.from.size() + index));
+/// The `dot` crate cannot add arbitrary attributes to nodes or edges, or create
+/// subgraphs. Therefore, we provide this custom function.
+pub fn render_mapping_store(store: &MappingStore<String>, filepath: &str) -> EmitterResult {
+    let mut digraph = vec![String::from("digraph MappingStore {\n"),
+                           String::from("\tratio=fill;\n\tfontsize=16\n")];
+    let mut line: String;
+    let mut node: NodeId;
+    let mut attrs: &str;
+    // Node labels for both ASTs.
+    for id in 0..store.from.size() {
+        node = NodeId::new(id);
+        if !store.is_mapped(node, true) {
+            attrs = ", style=filled, fillcolor=lightgrey";
+        } else {
+            attrs = "";
         }
-        Owned(nodes)
+        if store.from[node].value.is_empty() {
+            digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
+                                 id,
+                                 store.from[node].label,
+                                 store.from[node].value,
+                                 attrs));
+        } else {
+            digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
+                                 id,
+                                 store.from[node].label,
+                                 attrs));
+        }
     }
-
-    fn edges(&'a self) -> Edges<'a, EdgeId> {
-        let mut edges: Vec<EdgeId> = self.from.get_edges();
-        let size = self.from.size() as usize;
-        edges.extend(self.to
-                         .get_edges()
-                         .iter()
-                         .map(|x| {
-                                  (NodeId::new(x.0.id() + size), NodeId::new(x.1.id() + size))
-                              }));
-        edges.extend(self.mappings
-                         .iter()
-                         .map(|x| (x.from, NodeId::new(x.to.id() + size))));
-        Owned(edges)
+    for id in 0..store.to.size() {
+        node = NodeId::new(id);
+        if !store.is_mapped(node, false) {
+            attrs = ", style=filled, fillcolor=lightgrey";
+        } else {
+            attrs = "";
+        }
+        if store.to[node].value.is_empty() {
+            digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
+                                 id,
+                                 store.to[node].label,
+                                 store.to[node].value,
+                                 attrs));
+        } else {
+            digraph.push(format!("\tTO{}[label=\"{}\"{}];\n", id, store.to[node].label, attrs));
+        }
     }
-
-    fn source(&self, e: &EdgeId) -> NodeId {
-        e.0
+    // From AST parent relationships.
+    digraph.push(String::from("\tsubgraph clusterFROM {\n"));
+    digraph.push(String::from("\t\tcolor=white;\n"));
+    for (e0, e1) in store.from.get_edges() {
+        line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee];\n",
+                       e0.id(),
+                       e1.id());
+        digraph.push(line);
     }
-
-    fn target(&self, e: &EdgeId) -> NodeId {
-        e.1
+    digraph.push(String::from("\t}\n"));
+    // To AST parent relationships.
+    digraph.push(String::from("\tsubgraph clusterTO {\n"));
+    digraph.push(String::from("\t\tcolor=white;\n"));
+    for (e0, e1) in store.to.get_edges() {
+        line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee];\n",
+                       e0.id(),
+                       e1.id());
+        digraph.push(line);
     }
-}
-
-impl RenderDotfile for MappingStore<String> {
-    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
-        render(self, buffer)
+    digraph.push(String::from("\t}\n"));
+    // Mappings between ASTs.
+    for (from, val) in &store.from_map {
+        let &(to, ref ty) = val;
+        attrs = match *ty {
+            MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",
+            MappingType::CONTAINER => "[style=dotted, color=red, arrowhead=diamond]",
+            MappingType::RECOVERY => "[style=dashed, color=green, arrowhead=diamond]",
+        };
+        line = format!("\tFROM{} -> TO{}{};\n", from.id(), to.id(), attrs);
+        digraph.push(line);
     }
+    digraph.push(String::from("}\n"));
+    // Write dotfile to disk.
+    let mut stream = File::create(&filepath)
+        .map_err(|_| EmitterError::CouldNotCreateFile)?;
+    stream
+        .write_all(digraph.join("").as_bytes())
+        .map_err(|_| EmitterError::CouldNotWriteToFile)?;
+    Ok(())
 }

@@ -35,35 +35,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(test)]
-#![feature(try_from)]
+#![warn(missing_docs)]
 
-extern crate dot;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrtable;
-extern crate lrpar;
-extern crate test;
+use ast::{Arena, NodeId};
+use matchers::{MappingStore, MappingType, MatchTrees};
 
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
+#[derive(Debug, Clone, PartialEq)]
+/// Variables required by the matcher algorithm, set by the user.
+pub struct GumTreeConfig {
+    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
+    pub max_size: u16,
 
-/// AST defines the abstract syntax tree types that the differ works on.
-///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
+    pub min_dice: f32,
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
+    pub min_height: u16,
+}
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+impl Default for GumTreeConfig {
+    fn default() -> GumTreeConfig {
+        GumTreeConfig {
+            max_size: 100,
+            min_dice: 0.3,
+            min_height: 2,
+        }
+    }
+}
 
-/// GT matching algorithm.
-pub mod gt_matcher;
-
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
+impl<T: Clone> MatchTrees<T> for GumTreeConfig {
+    /// Match locations in distinct ASTs.
+    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+        let mut store = MappingStore::new(base, diff);
+        if store.from.size() == 0 || store.to.size() == 0 {
+            return store;
+        }
+        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
+        store
+    }
+}
