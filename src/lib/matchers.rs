@@ -66,67 +66,59 @@ pub struct MappingStore<T: Clone> {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `to_map`.
-    pub from_map: HashMap<NodeId, (NodeId, MappingType)>,
+    pub from: HashMap<NodeId, (NodeId, MappingType)>,
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `from_map`.
-    pub to_map: HashMap<NodeId, (NodeId, MappingType)>,
+    pub to: HashMap<NodeId, (NodeId, MappingType)>,
 
     /// Source arena (treat as immutable).
-    pub from: Arena<T>,
+    pub from_arena: Arena<T>,
     /// Destination arena (treat as immutable).
-    pub to: Arena<T>,
+    pub to_arena: Arena<T>,
 }
 
 impl<T: Clone> MappingStore<T> {
     /// Create a new mapping store.
     pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
-            from_map: HashMap::new(),
-            to_map: HashMap::new(),
-            from: base,
-            to: diff,
+            from: HashMap::new(),
+            to: HashMap::new(),
+            from_arena: base,
+            to_arena: diff,
         }
     }
 
     /// Push a new mapping into the store.
     pub fn push(&mut self, from: NodeId, to: NodeId, ty: MappingType) {
-        self.from_map.insert(from, (to, ty.clone()));
-        self.to_map.insert(to, (from, ty.clone()));
+        self.from.insert(from, (to, ty.clone()));
+        self.to.insert(to, (from, ty.clone()));
     }
 
     /// Remove mapping from store.
     pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
-        self.from_map.remove(from);
-        self.to_map.remove(to);
+        self.from.remove(from);
+        self.to.remove(to);
     }
 
     /// `true` if the store has a mapping from `from` to another node.
-    pub fn has_from(&self, from: &NodeId) -> bool {
-        self.from_map.contains_key(from)
+    pub fn contains_from(&self, from: &NodeId) -> bool {
+        self.from.contains_key(from)
     }
 
     /// `true` if the store has a mapping from a node to `to`.
-    pub fn has_to(&self, to: &NodeId) -> bool {
-        self.to_map.contains_key(to)
+    pub fn contains_to(&self, to: &NodeId) -> bool {
+        self.to.contains_key(to)
     }
 
     /// Get the `NodeId` that `to` is mapped from.
     pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
-        self.to_map.get(to).map_or(None, |x| Some(x.0))
+        self.to.get(to).map_or(None, |x| Some(x.0))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
-        self.from_map.get(from).map_or(None, |x| Some(x.0))
-    }
-
-    /// `true` if `node` is involved in a mapping, `false` otherwise.
-    pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
-        if is_from {
-            return self.from_map.contains_key(&node);
-        }
-        self.to_map.contains_key(&node)
+        self.from.get(from).map_or(None, |x| Some(x.0))
     }
 
     /// Two sub-trees are isomorphic if they have the same structure.
@@ -138,22 +130,22 @@ impl<T: Clone> MappingStore<T> {
     /// Described in more detail in Chawathe et al. (1996).
     pub fn is_isomorphic(&self, from: NodeId, to: NodeId) -> bool {
         // Case 1: both nodes are leaves.
-        if from.is_leaf(&self.from) && to.is_leaf(&self.to) &&
-           self.from[from].label == self.to[to].label {
+        if from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) &&
+           self.from_arena[from].label == self.to_arena[to].label {
             return true;
         }
         // Case 2: one node is a leaf and the other is a branch.
-        if from.is_leaf(&self.from) && !to.is_leaf(&self.to) ||
-           !from.is_leaf(&self.from) && to.is_leaf(&self.to) {
+        if from.is_leaf(&self.from_arena) && !to.is_leaf(&self.to_arena) ||
+           !from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) {
             return false;
         }
         // Case 3: both nodes are branches.
-        if self.from[from].label != self.to[to].label ||
-           from.height(&self.from) != to.height(&self.to) {
+        if self.from_arena[from].label != self.to_arena[to].label ||
+           from.height(&self.from_arena) != to.height(&self.to_arena) {
             return false;
         }
-        let f_children = from.children(&self.from).collect::<Vec<NodeId>>();
-        let t_children = to.children(&self.to).collect::<Vec<NodeId>>();
+        let f_children = from.children(&self.from_arena).collect::<Vec<NodeId>>();
+        let t_children = to.children(&self.to_arena).collect::<Vec<NodeId>>();
         if f_children.len() != t_children.len() {
             return false;
         }
@@ -167,15 +159,16 @@ impl<T: Clone> MappingStore<T> {
 
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
     pub fn is_mapping_allowed(&self, from: &NodeId, to: &NodeId) -> bool {
-        self.from[*from].label == self.to[*to].label && !(self.has_from(from) || self.has_to(to))
+        self.from_arena[*from].label == self.to_arena[*to].label &&
+        !(self.contains_from(from) || self.contains_to(to))
     }
 
     /// Dice measure of similarity between subtrees.
     pub fn dice_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
@@ -185,10 +178,10 @@ impl<T: Clone> MappingStore<T> {
 
     /// Jaccard measure of similarity between subtrees.
     pub fn jaccard_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let common = self.num_common_descendants(from, to) as f64;
@@ -199,10 +192,10 @@ impl<T: Clone> MappingStore<T> {
 
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
     pub fn chawathe_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let common = self.num_common_descendants(from, to) as f64;
@@ -216,12 +209,12 @@ impl<T: Clone> MappingStore<T> {
     /// To nodes are common if they have already been matched.
     fn num_common_descendants(&self, from: &NodeId, to: &NodeId) -> u32 {
         let mut dst_desc = HashSet::new();
-        for node in to.breadth_first_traversal(&self.to) {
+        for node in to.breadth_first_traversal(&self.to_arena) {
             dst_desc.insert(node);
         }
         let mut common = 0;
         let mut to: Option<NodeId>;
-        for node in from.descendants(&self.from) {
+        for node in from.descendants(&self.from_arena) {
             to = self.get_to(&node);
             if to.is_some() && dst_desc.contains(&to.unwrap()) {
                 common += 1;

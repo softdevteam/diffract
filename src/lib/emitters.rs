@@ -126,47 +126,50 @@ impl RenderDotfile for MappingStore<String> {
         let mut node: NodeId;
         let mut attrs: &str;
         // Node labels for both ASTs.
-        for id in 0..self.from.size() {
+        for id in 0..self.from_arena.size() {
             node = NodeId::new(id);
-            if !self.is_mapped(node, true) {
+            if !self.contains_from(&node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.from[node].value.is_empty() {
+            if self.from_arena[node].value.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.from[node].label,
-                                     self.from[node].value,
+                                     self.from_arena[node].label,
+                                     self.from_arena[node].value,
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     self.from[node].label,
+                                     self.from_arena[node].label,
                                      attrs));
             }
         }
-        for id in 0..self.to.size() {
+        for id in 0..self.to_arena.size() {
             node = NodeId::new(id);
-            if !self.is_mapped(node, false) {
+            if !self.contains_to(&node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.to[node].value.is_empty() {
+            if self.to_arena[node].value.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.to[node].label,
-                                     self.to[node].value,
+                                     self.to_arena[node].label,
+                                     self.to_arena[node].value,
                                      attrs));
             } else {
-                digraph.push(format!("\tTO{}[label=\"{}\"{}];\n", id, self.to[node].label, attrs));
+                digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
+                                     id,
+                                     self.to_arena[node].label,
+                                     attrs));
             }
         }
         // From AST parent relationships.
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
         digraph.push(String::from("\t\tcolor=white;\n"));
-        for (e0, e1) in self.from.get_edges() {
+        for (e0, e1) in self.from_arena.get_edges() {
             line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee];\n",
                            e0.id(),
                            e1.id());
@@ -176,7 +179,7 @@ impl RenderDotfile for MappingStore<String> {
         // To AST parent relationships.
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
         digraph.push(String::from("\t\tcolor=white;\n"));
-        for (e0, e1) in self.to.get_edges() {
+        for (e0, e1) in self.to_arena.get_edges() {
             line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee];\n",
                            e0.id(),
                            e1.id());
@@ -184,7 +187,7 @@ impl RenderDotfile for MappingStore<String> {
         }
         digraph.push(String::from("\t}\n"));
         // Mappings between ASTs.
-        for (from, val) in &self.from_map {
+        for (from, val) in &self.from {
             let &(to, ref ty) = val;
             attrs = match *ty {
                 MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",

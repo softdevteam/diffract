@@ -67,7 +67,7 @@ impl<T: Clone> MatchTrees<T> for GumTreeConfig {
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         let mut store = MappingStore::new(base, diff);
-        if store.from.size() == 0 || store.to.size() == 0 {
+        if store.from_arena.size() == 0 || store.to_arena.size() == 0 {
             return store;
         }
         store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
