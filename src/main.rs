@@ -232,7 +232,6 @@ fn main() {
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("User wishes to create graphviz files {:?}.", map_file);
-        consume_emitter_err(emitters::render_mapping_store(&mapping, &map_file),
-                            &map_file);
+        write_dotfile_to_disk(&map_file, &mapping);
     }
 }

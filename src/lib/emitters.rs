@@ -114,91 +114,88 @@ impl RenderDotfile for Arena<String> {
     }
 }
 
-/// Render a mapping store as a Graphviz digraph.
-///
-/// The `dot` crate cannot add arbitrary attributes to nodes or edges, or create
-/// subgraphs. Therefore, we provide this custom function.
-pub fn render_mapping_store(store: &MappingStore<String>, filepath: &str) -> EmitterResult {
-    let mut digraph = vec![String::from("digraph MappingStore {\n"),
-                           String::from("\tratio=fill;\n\tfontsize=16\n")];
-    let mut line: String;
-    let mut node: NodeId;
-    let mut attrs: &str;
-    // Node labels for both ASTs.
-    for id in 0..store.from.size() {
-        node = NodeId::new(id);
-        if !store.is_mapped(node, true) {
-            attrs = ", style=filled, fillcolor=lightgrey";
-        } else {
-            attrs = "";
+impl RenderDotfile for MappingStore<String> {
+    // Because the `dot` crate cannot add arbitrary attributes to nodes and
+    // edges, or create subgraphs and clusters, we render mapping stores to
+    // a dot digraph manually. This produces output similar to the Figure 1
+    // of Falleri et al. (2014).
+    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
+        let mut digraph = vec![String::from("digraph MappingStore {\n"),
+                               String::from("\tratio=fill;\n\tfontsize=16\n")];
+        let mut line: String;
+        let mut node: NodeId;
+        let mut attrs: &str;
+        // Node labels for both ASTs.
+        for id in 0..self.from.size() {
+            node = NodeId::new(id);
+            if !self.is_mapped(node, true) {
+                attrs = ", style=filled, fillcolor=lightgrey";
+            } else {
+                attrs = "";
+            }
+            if self.from[node].value.is_empty() {
+                digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     self.from[node].label,
+                                     self.from[node].value,
+                                     attrs));
+            } else {
+                digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
+                                     id,
+                                     self.from[node].label,
+                                     attrs));
+            }
         }
-        if store.from[node].value.is_empty() {
-            digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
-                                 id,
-                                 store.from[node].label,
-                                 store.from[node].value,
-                                 attrs));
-        } else {
-            digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
-                                 id,
-                                 store.from[node].label,
-                                 attrs));
+        for id in 0..self.to.size() {
+            node = NodeId::new(id);
+            if !self.is_mapped(node, false) {
+                attrs = ", style=filled, fillcolor=lightgrey";
+            } else {
+                attrs = "";
+            }
+            if self.to[node].value.is_empty() {
+                digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     self.to[node].label,
+                                     self.to[node].value,
+                                     attrs));
+            } else {
+                digraph.push(format!("\tTO{}[label=\"{}\"{}];\n", id, self.to[node].label, attrs));
+            }
         }
-    }
-    for id in 0..store.to.size() {
-        node = NodeId::new(id);
-        if !store.is_mapped(node, false) {
-            attrs = ", style=filled, fillcolor=lightgrey";
-        } else {
-            attrs = "";
+        // From AST parent relationships.
+        digraph.push(String::from("\tsubgraph clusterFROM {\n"));
+        digraph.push(String::from("\t\tcolor=white;\n"));
+        for (e0, e1) in self.from.get_edges() {
+            line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee];\n",
+                           e0.id(),
+                           e1.id());
+            digraph.push(line);
         }
-        if store.to[node].value.is_empty() {
-            digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
-                                 id,
-                                 store.to[node].label,
-                                 store.to[node].value,
-                                 attrs));
-        } else {
-            digraph.push(format!("\tTO{}[label=\"{}\"{}];\n", id, store.to[node].label, attrs));
+        digraph.push(String::from("\t}\n"));
+        // To AST parent relationships.
+        digraph.push(String::from("\tsubgraph clusterTO {\n"));
+        digraph.push(String::from("\t\tcolor=white;\n"));
+        for (e0, e1) in self.to.get_edges() {
+            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee];\n",
+                           e0.id(),
+                           e1.id());
+            digraph.push(line);
         }
+        digraph.push(String::from("\t}\n"));
+        // Mappings between ASTs.
+        for (from, val) in &self.from_map {
+            let &(to, ref ty) = val;
+            attrs = match *ty {
+                MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",
+                MappingType::CONTAINER => "[style=dotted, color=red, arrowhead=diamond]",
+                MappingType::RECOVERY => "[style=dashed, color=green, arrowhead=diamond]",
+            };
+            line = format!("\tFROM{} -> TO{}{};\n", from.id(), to.id(), attrs);
+            digraph.push(line);
+        }
+        digraph.push(String::from("}\n"));
+        // Write dotfile to stream.
+        buffer.write_all(digraph.join("").as_bytes())
     }
-    // From AST parent relationships.
-    digraph.push(String::from("\tsubgraph clusterFROM {\n"));
-    digraph.push(String::from("\t\tcolor=white;\n"));
-    for (e0, e1) in store.from.get_edges() {
-        line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee];\n",
-                       e0.id(),
-                       e1.id());
-        digraph.push(line);
-    }
-    digraph.push(String::from("\t}\n"));
-    // To AST parent relationships.
-    digraph.push(String::from("\tsubgraph clusterTO {\n"));
-    digraph.push(String::from("\t\tcolor=white;\n"));
-    for (e0, e1) in store.to.get_edges() {
-        line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee];\n",
-                       e0.id(),
-                       e1.id());
-        digraph.push(line);
-    }
-    digraph.push(String::from("\t}\n"));
-    // Mappings between ASTs.
-    for (from, val) in &store.from_map {
-        let &(to, ref ty) = val;
-        attrs = match *ty {
-            MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",
-            MappingType::CONTAINER => "[style=dotted, color=red, arrowhead=diamond]",
-            MappingType::RECOVERY => "[style=dashed, color=green, arrowhead=diamond]",
-        };
-        line = format!("\tFROM{} -> TO{}{};\n", from.id(), to.id(), attrs);
-        digraph.push(line);
-    }
-    digraph.push(String::from("}\n"));
-    // Write dotfile to disk.
-    let mut stream = File::create(&filepath)
-        .map_err(|_| EmitterError::CouldNotCreateFile)?;
-    stream
-        .write_all(digraph.join("").as_bytes())
-        .map_err(|_| EmitterError::CouldNotWriteToFile)?;
-    Ok(())
 }
