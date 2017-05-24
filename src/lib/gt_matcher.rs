@@ -37,6 +37,8 @@
 
 #![warn(missing_docs)]
 
+use std::fmt::Display;
+
 use ast::{Arena, NodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
 
@@ -63,7 +65,28 @@ impl Default for GumTreeConfig {
     }
 }
 
-impl<T: Clone> MatchTrees<T> for GumTreeConfig {
+impl GumTreeConfig {
+    /// Create a new configuration object, with default values.
+    pub fn new() -> GumTreeConfig {
+        Default::default()
+    }
+}
+
+impl<T: Clone + Display> MatchTrees<T> for GumTreeConfig {
+    /// Describe this matcher for the user.
+    fn describe(&self) -> String {
+        let desc = "
+This matcher finds implements the GumTree algorithm, which takes account of MOVE
+operations between ASTs.
+
+The GumTree algorithm can be configured with the --min-dice, --max-size and
+--min-height switches. See --help for more details.
+
+For more information see Falleri et al. (2014) Find-Grained and Accurate Source
+Code Differencing.";
+        String::from(desc)
+    }
+
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         let mut store = MappingStore::new(base, diff);
