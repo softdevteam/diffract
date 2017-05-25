@@ -67,3 +67,6 @@ pub mod gt_matcher;
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
+
+/// Algorithms which act on sequences of values.
+pub mod sequence;
