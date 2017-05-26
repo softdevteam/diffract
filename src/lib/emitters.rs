@@ -41,7 +41,7 @@ use std::borrow::Cow::Owned;
 use std::fs::File;
 use std::io::{Error, Write};
 
-use dot::{Id, Edges, GraphWalk, Labeller, LabelText, Nodes, render};
+use dot::{Id, Edges, escape_html, GraphWalk, Labeller, LabelText, Nodes, render};
 
 use ast::{Arena, EdgeId, NodeId};
 use matchers::{MappingStore, MappingType};
@@ -85,7 +85,9 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String> {
     }
 
     fn node_label(&self, id: &NodeId) -> LabelText {
-        let label = format!("{} {}", self[*id].label, self[*id].value);
+        let label = format!("{} {}",
+                            self[*id].label,
+                            escape_html(self[*id].value.as_str()));
         LabelText::LabelStr(label.into())
     }
 }
@@ -121,7 +123,7 @@ impl RenderDotfile for MappingStore<String> {
     // of Falleri et al. (2014).
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         let mut digraph = vec![String::from("digraph MappingStore {\n"),
-                               String::from("\tratio=fill;\n\tfontsize=16\n")];
+                               String::from("\tratio=fill;\n\tfontsize=16;\n")];
         let mut line: String;
         let mut node: NodeId;
         let mut attrs: &str;
@@ -134,15 +136,15 @@ impl RenderDotfile for MappingStore<String> {
                 attrs = "";
             }
             if self.from_arena[node].value.is_empty() {
-                digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
-                                     id,
-                                     self.from_arena[node].label,
-                                     self.from_arena[node].value,
-                                     attrs));
-            } else {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
                                      self.from_arena[node].label,
+                                     attrs));
+            } else {
+                digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     self.from_arena[node].label,
+                                     escape_html(self.from_arena[node].value.as_str()),
                                      attrs));
             }
         }
@@ -154,15 +156,15 @@ impl RenderDotfile for MappingStore<String> {
                 attrs = "";
             }
             if self.to_arena[node].value.is_empty() {
-                digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
-                                     id,
-                                     self.to_arena[node].label,
-                                     self.to_arena[node].value,
-                                     attrs));
-            } else {
                 digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
                                      id,
                                      self.to_arena[node].label,
+                                     attrs));
+            } else {
+                digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     self.to_arena[node].label,
+                                     escape_html(self.to_arena[node].value.as_str()),
                                      attrs));
             }
         }
@@ -170,7 +172,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
         digraph.push(String::from("\t\tcolor=white;\n"));
         for (e0, e1) in self.from_arena.get_edges() {
-            line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee];\n",
+            line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
             digraph.push(line);
@@ -180,21 +182,27 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
         digraph.push(String::from("\t\tcolor=white;\n"));
         for (e0, e1) in self.to_arena.get_edges() {
-            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee];\n",
+            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
             digraph.push(line);
         }
         digraph.push(String::from("\t}\n"));
         // Mappings between ASTs.
+        let common = "dir=both, arrowsize=.75, arrowhead=odot, arrowtail=odot";
         for (from, val) in &self.from {
             let &(to, ref ty) = val;
             attrs = match *ty {
-                MappingType::ANCHOR => "[style=dotted, color=blue, arrowhead=diamond]",
-                MappingType::CONTAINER => "[style=dotted, color=red, arrowhead=diamond]",
-                MappingType::RECOVERY => "[style=dashed, color=green, arrowhead=diamond]",
+                MappingType::ANCHOR => "[style=dashed, color=blue, ",
+                MappingType::CONTAINER => "[style=dashed, color=red, ",
+                MappingType::RECOVERY => "[style=dotted, color=green, ",
+                MappingType::EDIT => "[style=dotted, color=indigo, ",
             };
-            line = format!("\tFROM{} -> TO{}{};\n", from.id(), to.id(), attrs);
+            line = format!("\tFROM{} -> TO{}{}{}];\n",
+                           from.id(),
+                           to.id(),
+                           attrs,
+                           common);
             digraph.push(line);
         }
         digraph.push(String::from("}\n"));
