@@ -51,40 +51,53 @@ extern crate treediff;
 use treediff::ast;
 use treediff::emitters;
 use treediff::gt_matcher;
+use treediff::myers_matcher;
 use treediff::matchers::MatchTrees;
 
 const USAGE: &'static str = "
 Usage: rstreediff [options] <base-file> <diff-file>
        rstreediff [options] <base-file> <diff-file> -d <file> ...
-       rstreediff (--help | --version)
+       rstreediff (--help | --list | --version)
 
 Diff two input files.
 
 Options:
-    -a, --ast         print AST of input files to STDOUT.
-    --debug LEVEL     debug level used by logger. Valid (case sensitive) values
-                      are: Debug, Error, Info, Trace, Warn.
-    -d, --dot <file>  write out GraphViz representations of the input file(s).
-    -h, --help        print this help menu and exit.
-    -m, --map <file>  write out GraphViz representation of the mapping store.
-    --max-size VAL    consider subtrees for matching only if they have a size
-                      less than VAL.
-    --min-dice VAL    set the similarity threshold used for matching ASTs. Two
-                      trees are mapped if they are mappable and have a dice
-                      coefficient greater than VAL in [0, 1] (default: 0.3).
-    --min-height VAL  match only nodes with a height greater than VAL (default: 2).
-    -v, --version     print version information and exit.
+    -a, --ast           print AST of input files to STDOUT.
+    --debug LEVEL       debug level used by logger. Valid (case sensitive)
+                        values are: Debug, Error, Info, Trace, Warn.
+    -d, --dot <file>    write out GraphViz representations of the input file(s).
+    -e, --edit          write the edit script to the terminal.
+    -h, --help          print this help menu and exit.
+    -l, --list          print information about the available matchers and exit.
+    --map <file>        write out GraphViz representation of the mapping store.
+    -m, --matcher ALGO  use a given matching algorithm. Valid (case sensitive)
+                        values for ALGO are: GumTree (default), Myers.
+    --max-size VAL      consider subtrees for matching only if they have a size
+                        less than VAL. GumTree only.
+    --min-dice VAL      set the similarity threshold used for matching ASTs.
+                        Two trees are mapped if they are mappable and have a
+                        dice coefficient greater than VAL in [0, 1] (default:
+                        0.3). GumTree only.
+    --min-height VAL    match only nodes with a height greater than VAL
+                        (default: 2). GumTree only.
+    -v, --version       print version information and exit.
 ";
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-#[derive(RustcDecodable, Debug)]
+#[derive(Clone, Copy, Debug, RustcDecodable)]
 enum DebugLevel {
     Debug,
     Error,
     Info,
     Trace,
     Warn,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
+enum Matchers {
+    GumTree, // Default.
+    Myers,
 }
 
 #[derive(RustcDecodable, Debug)]
@@ -95,7 +108,9 @@ struct Args {
     flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
     flag_help: bool,
+    flag_list: bool,
     flag_map: Option<String>,
+    flag_matcher: Option<Matchers>,
     flag_max_size: Option<u16>,
     flag_min_dice: Option<f32>,
     flag_min_height: Option<u16>,
@@ -120,6 +135,58 @@ fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
 
 fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
     consume_emitter_err(emitters::write_dotfile_to_disk(filepath, object), filepath);
+}
+
+// Set any global constants requested by the user.
+// This should be the ONLY block of code that mutates these values.
+fn process_configs(args: &Args) -> Box<MatchTrees<String>> {
+    let config: Box<MatchTrees<String>>;
+    if args.flag_matcher != None && args.flag_matcher != Some(Matchers::GumTree) {
+        if args.flag_max_size.is_some() {
+            exit_with_message("--max-size only makes sense with the GumTree matcher.");
+        }
+        if args.flag_min_dice.is_some() {
+            exit_with_message("--min-dice only makes sense with the GumTree matcher.");
+        }
+        if args.flag_min_height.is_some() {
+            exit_with_message("--min_height only makes sense with the GumTree matcher.");
+        }
+    }
+    if args.flag_matcher == Some(Matchers::Myers) {
+        // Longest common subsequence matcher from Myers (1986).
+        info!("Selecting the Myers matching algorithm.");
+        config = Box::new(myers_matcher::MyersConfig::new());
+    } else {
+        // GumTree default.
+        info!("Selecting the GumTree matching algorithm.");
+        let mut unboxed_config = gt_matcher::GumTreeConfig::new();
+        if let Some(value) = args.flag_max_size {
+            info!("User has set value of MAX_SIZE to {}.", value);
+            unboxed_config.max_size = value;
+        }
+        if let Some(value) = args.flag_min_dice {
+            if value < 0. || value > 1. {
+                exit_with_message("Value for --min-dice must be in interval [0, 1].");
+            }
+            info!("User has set value of MIN_DICE to {}.", value);
+            unboxed_config.min_dice = value;
+        }
+        if let Some(value) = args.flag_min_height {
+            info!("User has set value of MIN_HEIGHT to {}.", value);
+            unboxed_config.min_height = value;
+        }
+        config = Box::new(unboxed_config);
+    }
+    config
+}
+
+fn get_matcher_descriptions() -> String {
+    let mut descriptions = vec![];
+    let myers: Box<MatchTrees<u16>> = Box::new(myers_matcher::MyersConfig::new());
+    let gt: Box<MatchTrees<u16>> = Box::new(gt_matcher::GumTreeConfig::new());
+    descriptions.push(format!("{}\n-----{}\n", "Myers:", myers.describe()));
+    descriptions.push(format!("{}\n-------{}\n", "GumTree", gt.describe()));
+    descriptions.join("\n")
 }
 
 fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String> {
@@ -159,25 +226,13 @@ fn main() {
         println!("{}", VERSION);
         process::exit(0);
     }
+    if args.flag_list {
+        println!("{}", get_matcher_descriptions());
+        process::exit(0);
+    }
 
-    // Set any global constants requested by the user. This should be the ONLY
-    // block of code that mutates these values.
-    let mut gt_config: gt_matcher::GumTreeConfig = Default::default();
-    if let Some(value) = args.flag_max_size {
-        info!("User has set value of MAX_SIZE to {}.", value);
-        gt_config.max_size = value;
-    }
-    if let Some(value) = args.flag_min_dice {
-        if value < 0. || value > 1. {
-            exit_with_message("Value for --min-dice must be in interval [0, 1].");
-        }
-        info!("User has set value of MIN_DICE to {}.", value);
-        gt_config.min_dice = value;
-    }
-    if let Some(value) = args.flag_min_height {
-        info!("User has set value of MIN_HEIGHT to {}.", value);
-        gt_config.min_height = value;
-    }
+    // Matcher configuration object.
+    let config: Box<MatchTrees<String>> = process_configs(&args);
 
     // This function duplicates some checks that are performed by the
     // treediff::ast::parse_file in order to give better error messages.
@@ -228,7 +283,7 @@ fn main() {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
-    let mapping = gt_config.match_trees(ast_base, ast_diff);
+    let mapping = config.match_trees(ast_base, ast_diff);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("User wishes to create graphviz files {:?}.", map_file);

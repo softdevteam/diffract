@@ -65,6 +65,11 @@ pub mod matchers;
 /// GT matching algorithm.
 pub mod gt_matcher;
 
+/// Longest common subsequence matching algorithm.
+///
+/// Described in Myers (1986).
+pub mod myers_matcher;
+
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
 

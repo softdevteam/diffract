@@ -231,6 +231,12 @@ impl<T: Clone> MappingStore<T> {
 pub trait MatchTrees<T: Clone> {
     /// Match two trees and return a store of mappings between them.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
+
+    /// Describe the matcher for the user.
+    ///
+    /// This is the string that is printed when the user passes in the --list
+    /// CLI option.
+    fn describe(&self) -> String;
 }
 
 #[cfg(test)]
