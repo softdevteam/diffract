@@ -62,6 +62,67 @@ impl Default for MappingType {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
+pub struct TemporaryMappingStore {
+    /// Mappings from the source tree to the destination.
+    ///
+    /// Should contain the same information as `to_map`.
+    pub from: HashMap<NodeId, NodeId>,
+    /// Mappings from the destination tree to the source.
+    ///
+    /// Should contain the same information as `from_map`.
+    pub to: HashMap<NodeId, NodeId>,
+}
+
+impl TemporaryMappingStore {
+    /// Create a new mapping store.
+    pub fn new() -> TemporaryMappingStore {
+        Default::default()
+    }
+
+    /// Push a new mapping into the store.
+    pub fn push(&mut self, from: NodeId, to: NodeId) {
+        self.from.insert(from, to);
+        self.to.insert(to, from);
+    }
+
+    /// Remove mapping from store.
+    pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
+        self.from.remove(from);
+        self.to.remove(to);
+    }
+
+    /// `true` if the store has a mapping from `from` to another node.
+    pub fn contains_from(&self, from: &NodeId) -> bool {
+        self.from.contains_key(from)
+    }
+
+    /// `true` if the store has a mapping from a node to `to`.
+    pub fn contains_to(&self, to: &NodeId) -> bool {
+        self.to.contains_key(to)
+    }
+
+    /// Get the `NodeId` that `to` is mapped from.
+    pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
+        self.to.get(to).map_or(None, |x| Some(*x))
+    }
+
+    /// Get the `NodeId` that `from` is mapped to.
+    pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
+        self.from.get(from).map_or(None, |x| Some(*x))
+    }
+}
+
+impl Default for TemporaryMappingStore {
+    fn default() -> TemporaryMappingStore {
+        TemporaryMappingStore {
+            from: HashMap::new(),
+            to: HashMap::new(),
+        }
+    }
+}
+
+/// A store of mappings between nodes in different arenas.
+/// Direction is important.
 pub struct MappingStore<T: Clone> {
     /// Mappings from the source tree to the destination.
     ///
