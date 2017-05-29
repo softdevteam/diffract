@@ -66,7 +66,8 @@ Options:
     --debug LEVEL       debug level used by logger. Valid (case sensitive)
                         values are: Debug, Error, Info, Trace, Warn.
     -d, --dot <file>    write out GraphViz representations of the input file(s).
-    -e, --edit          write the edit script to the terminal.
+    --edit <file>       write a GraphViz representation of the mapping store to
+                        file, after the edit script has been generated.
     -h, --help          print this help menu and exit.
     -l, --list          print information about the available matchers and exit.
     --map <file>        write out GraphViz representation of the mapping store.
@@ -106,6 +107,7 @@ struct Args {
     arg_diff_file: String,
     flag_ast: bool,
     flag_debug: Option<DebugLevel>,
+    flag_edit: Option<String>,
     flag_dot: Vec<String>,
     flag_help: bool,
     flag_list: bool,
@@ -131,6 +133,22 @@ fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
         };
         exit_with_message(&format!("Could not {} file {}.", action, filepath));
     }
+}
+
+fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
+    use ast::ArenaError::*;
+    let s: String;
+    let message = match *error {
+        EmtpyArena => "Could not create edit script, AST was empty.",
+        NodeIdNotFound => "Could not create edit script, NodeId was not found.",
+        NodeHasTooFewChildren(n) => {
+            s = format!("Could not create edit script, NodeId had only {} children.",
+                        n);
+            &s
+        }
+        NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical.",
+    };
+    exit_with_message(message);
 }
 
 fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
@@ -276,17 +294,31 @@ fn main() {
 
     // Generate graphviz file(s), if requested.
     if !args.flag_dot.is_empty() {
-        info!("User wishes to create graphviz files {:?}.", args.flag_dot);
+        info!("Creating dot representation of AST {:?}.", args.flag_dot);
         write_dotfile_to_disk(&args.flag_dot[0], &ast_base);
     }
     if args.flag_dot.len() > 1 {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
-    let mapping = config.match_trees(ast_base, ast_diff);
+    // Generate mappings between ASTs.
+    let mut mapping = config.match_trees(ast_base, ast_diff);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
-        info!("User wishes to create graphviz files {:?}.", map_file);
+        info!("Creating dot representation of mapping {:?}.", map_file);
         write_dotfile_to_disk(&map_file, &mapping);
+    }
+
+    // Generate edit script. By convention, the parser will generate an AST
+    // whose root is in the 0th element of its arena.
+    let edit_script = match mapping.generate_edit_script(ast::NodeId::new(0)) {
+        Ok(script) => script,
+        Err(err) => consume_edit_script_err(&err),
+    };
+    if args.flag_edit.is_some() {
+        let edit_file = args.flag_edit.unwrap();
+        info!("Creating dot representation of edit script {:?}.",
+              edit_file);
+        write_dotfile_to_disk(&edit_file, &mapping);
     }
 }

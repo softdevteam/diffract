@@ -37,9 +37,15 @@
 
 #![warn(missing_docs)]
 
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 
-use ast::{Arena, NodeId};
+use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
+use ast::{Arena, ArenaError, NodeId};
+
+/// Result type returned by the edit script generator.
+pub type EditScriptResult<T> = Result<EditScript<T>, ArenaError>;
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 /// Type of mapping.
@@ -52,6 +58,10 @@ pub enum MappingType {
     CONTAINER,
     /// Recovery mappings are found by phase two of the bottom-up GumTree matcher.
     RECOVERY,
+    /// A mapping added by the algorithm that generates the edit script.
+    ///
+    /// See Chawathe et al. (1996).
+    EDIT,
 }
 
 impl Default for MappingType {
@@ -139,7 +149,7 @@ pub struct MappingStore<T: Clone> {
     pub to_arena: Arena<T>,
 }
 
-impl<T: Clone> MappingStore<T> {
+impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
     /// Create a new mapping store.
     pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
@@ -282,6 +292,248 @@ impl<T: Clone> MappingStore<T> {
             }
         }
         common
+    }
+
+    /// Given a mapping store, generate an edit script.
+    ///
+    /// This function implements the optimal algorithm of Chawathe et al. (1996).
+    /// Variable names as in Figures 8 and 9 of the paper.
+    pub fn generate_edit_script(&mut self, root: NodeId) -> EditScriptResult<T> {
+        let mut script: EditScript<T> = EditScript::new();
+        let mut from_in_order: HashSet<NodeId> = HashSet::new();
+        let mut to_in_order: HashSet<NodeId> = HashSet::new();
+        let mut next_from_id = self.from_arena.size();
+        let mut new_mappings = TemporaryMappingStore::new();
+        // Copy current mappings over to new_mappings.
+        for (key, value) in &self.from {
+            new_mappings.push(*key, value.0);
+        }
+        // Combined update, insert, align and move phases.
+        let tmp_to_arena = self.to_arena.clone();
+        for x in root.breadth_first_traversal(&tmp_to_arena) {
+            if x.is_root(&self.to_arena) {
+                continue;
+            }
+            let y = self.to_arena[x].parent().unwrap(); // x is not a root.
+            let mut w = root; // Overwritten later.
+            // Insertion phase.
+            if !new_mappings.to.contains_key(&x) {
+                let z = new_mappings.get_from(&y).unwrap();
+                let k = self.find_pos(x, &new_mappings, &to_in_order);
+                debug!("Edit script: INS {} {} Parent: {} {}",
+                       self.to_arena[x].label,
+                       self.to_arena[x].value,
+                       self.to_arena[z].label,
+                       self.to_arena[z].value);
+                let mut ins = Insert::new(k,
+                                          self.to_arena[x].value.clone(),
+                                          self.to_arena[x].label.clone(),
+                                          self.to_arena[x].indent,
+                                          z);
+                ins.apply(&mut self.from_arena)?;
+                script.push(ins);
+                w = NodeId::new(next_from_id);
+                new_mappings.push(w, x);
+                next_from_id += 1;
+            } else if !x.is_root(&self.to_arena) {
+                // Insertion and update phases.
+                w = new_mappings.get_from(&x).unwrap();
+                let v = self.from_arena[w].parent().unwrap();
+                if self.from_arena[w].value != self.to_arena[x].value {
+                    debug!("Edit script: UPD {} {} -> {} {}",
+                           self.to_arena[w].label,
+                           self.to_arena[w].value,
+                           self.to_arena[x].label,
+                           self.to_arena[x].value);
+                    let mut upd = Update::new(w,
+                                              self.to_arena[x].value.clone(),
+                                              self.to_arena[x].label.clone());
+                    upd.apply(&mut self.from_arena)?;
+                    script.push(upd.clone());
+                }
+                // MOVE phase.
+                let z = new_mappings.get_from(&y).unwrap();
+                if z != v {
+                    let k = self.find_pos(x, &new_mappings, &to_in_order);
+                    let mut mov = Move::new(w, z, k);
+                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                           self.from_arena[w].label,
+                           self.from_arena[w].value,
+                           self.to_arena[z].label,
+                           self.to_arena[z].value);
+                    mov.apply(&mut self.from_arena)?;
+                    script.push(mov);
+                }
+            }
+            // GumTree code has these lines also?
+            // from_in_order.insert(w);
+            // to_in_order.insert(x);
+            self.align_children(w,
+                                x,
+                                &mut script,
+                                &new_mappings,
+                                &mut from_in_order,
+                                &mut to_in_order)?;
+        }
+        // Delete phase.
+        let mut actions = EditScript::new();
+        for w in root.post_order_traversal(&self.from_arena) {
+            if !new_mappings.contains_from(&w) {
+                debug!("Edit script: DEL {} {}",
+                       self.from_arena[w].label,
+                       self.from_arena[w].value);
+                let del = Delete::new(w);
+                script.push(del);
+                actions.push(del);
+            }
+        }
+        actions.apply(&mut self.from_arena)?;
+        // Add new mappings to the existing store.
+        debug!("Append new mappings to store.");
+        for (from, to) in new_mappings.from {
+            if !self.contains_from(&from) {
+                debug!("New mapping due to edit script: {} -> {}", from, to);
+                self.push(from, to, MappingType::EDIT);
+            }
+        }
+        Ok(script)
+    }
+
+    fn align_children(&mut self,
+                      w: NodeId,
+                      x: NodeId,
+                      script: &mut EditScript<T>,
+                      new_mappings: &TemporaryMappingStore,
+                      from_in_order: &mut HashSet<NodeId>,
+                      to_in_order: &mut HashSet<NodeId>)
+                      -> Result<(), ArenaError> {
+        debug!("align_children({}, {})", w, x);
+        for child in x.children(&self.to_arena) {
+            to_in_order.remove(&child);
+        }
+        let mut s1: Vec<NodeId> = vec![];
+        for child in w.children(&self.from_arena) {
+            from_in_order.remove(&child);
+            if new_mappings.contains_from(&child) {
+                let mapped = new_mappings.get_to(&child).unwrap();
+                if x.children(&self.to_arena)
+                       .find(|n| *n == mapped)
+                       .is_some() {
+                    s1.push(child);
+                }
+            }
+        }
+        let s2: Vec<NodeId> = vec![];
+        for child in x.children(&self.to_arena) {
+            if new_mappings.contains_to(&child) {
+                let mapped = new_mappings.get_from(&child).unwrap();
+                if w.children(&self.from_arena)
+                       .find(|n| *n == mapped)
+                       .is_some() {
+                    s1.push(child);
+                }
+            }
+        }
+        let lcs = self.lcss(&s1, &s2);
+        for &(from, to) in &lcs {
+            from_in_order.insert(from);
+            to_in_order.insert(to);
+        }
+        for a in &s1 {
+            for b in &s2 {
+                if new_mappings.contains_from(a) && new_mappings.get_to(a).unwrap() == *b &&
+                   !lcs.contains(&(*a, *b)) {
+                    let k = self.find_pos(*b, new_mappings, to_in_order);
+                    let mut mov = Move::new(*a, w, k);
+                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                           self.from_arena[*a].label,
+                           self.from_arena[*a].value,
+                           self.to_arena[w].label,
+                           self.to_arena[w].value);
+                    script.push(mov);
+                    mov.apply(&mut self.from_arena)?;
+                    from_in_order.insert(*a);
+                    to_in_order.insert(*b);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Find the position of node x in to_arena.
+    fn find_pos(&self,
+                x: NodeId,
+                new_mappings: &TemporaryMappingStore,
+                to_in_order: &HashSet<NodeId>)
+                -> u16 {
+        debug!("find_pos({})", x);
+        if x.is_root(&self.to_arena) {
+            return 0;
+        }
+        let y = self.to_arena[x].parent().unwrap();
+        let siblings = y.children(&self.to_arena).collect::<Vec<NodeId>>();
+        for child in &siblings {
+            if to_in_order.contains(child) {
+                if x == *child {
+                    return 0;
+                } else {
+                    break;
+                }
+            }
+        }
+        let x_pos = x.get_child_position(&self.to_arena).unwrap();
+        let mut v: Option<NodeId> = None;
+        for (i, child) in x.children(&self.to_arena).enumerate() {
+            if to_in_order.contains(&child) {
+                v = Some(child);
+            }
+            if i >= x_pos {
+                break;
+            }
+        }
+        if v.is_none() {
+            return 0; // No right-most sibling in order.
+        }
+        let u = new_mappings.get_from(&v.unwrap()).unwrap();
+        let u_pos = u.get_child_position(&self.to_arena).unwrap();
+        u_pos as u16 + 1
+    }
+
+    fn lcss(&self, seq1: &[NodeId], seq2: &[NodeId]) -> Vec<(NodeId, NodeId)> {
+        let mut lcss: Vec<(NodeId, NodeId)> = vec![];
+        if seq1.is_empty() || seq2.is_empty() {
+            return lcss;
+        }
+        let mut grid = vec![];
+        for _ in 0..seq1.len() + 1 {
+            grid.push(vec![0; seq2.len() + 1]);
+        }
+        debug_assert_eq!(seq1.len() + 1, grid.len());
+        debug_assert_eq!(seq2.len() + 1, grid[0].len());
+        for (i, n1) in seq1.iter().enumerate() {
+            for (j, n2) in seq2.iter().enumerate() {
+                if self.contains_from(n1) && self.get_to(n1).unwrap() == *n2 {
+                    grid[i + 1][j + 1] = 1 + grid[i][j];
+                } else {
+                    grid[i + 1][j + 1] = max(grid[i + 1][j], grid[i][j + 1]);
+                }
+            }
+        }
+        let mut i = seq1.len();
+        let mut j = seq2.len();
+        while i != 0 && j != 0 {
+            if grid[i][j] == grid[i - 1][j] {
+                i -= 1;
+            } else if grid[i][j] == grid[i][j - 1] {
+                j -= 1;
+            } else {
+                lcss.push((seq1[i - 1], seq2[j - 1]));
+                i -= 1;
+                j -= 1;
+            }
+        }
+        lcss.reverse();
+        lcss
     }
 }
 

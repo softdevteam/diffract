@@ -60,7 +60,7 @@ impl MyersConfig {
     }
 }
 
-impl<T: Clone + Display + Eq> MatchTrees<T> for MyersConfig {
+impl<T: Clone + Display + Eq + 'static> MatchTrees<T> for MyersConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         let desc = "

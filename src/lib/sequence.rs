@@ -117,9 +117,9 @@ mod tests {
         }
     }
 
-    fn create_mapping_store<T: Clone + Default + Display + Eq>(base: &[T],
-                                                               diff: &[T])
-                                                               -> MappingStore<T> {
+    fn create_mapping_store<T: Clone + Default + Display + Eq + 'static>(base: &[T],
+                                                                         diff: &[T])
+                                                                         -> MappingStore<T> {
         let mut base_arena: Arena<T> = Arena::new();
         let mut id: NodeId;
         if !base.is_empty() {
