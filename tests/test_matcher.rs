@@ -35,43 +35,57 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(test)]
-#![feature(try_from)]
+//! Integration tests for matcher module, testing the edit script generator.
+//! All file paths are relative to the root of the repository.
 
-extern crate dot;
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrtable;
-extern crate lrpar;
-extern crate test;
+extern crate treediff;
 
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
+use treediff::ast::{NodeId, parse_file};
+use treediff::myers_matcher::MyersConfig;
+use treediff::matchers::MatchTrees;
 
-/// AST defines the abstract syntax tree types that the differ works on.
-///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+fn compare_asts_post_edit_script(base_file: &str, diff_file: &str) {
+    let ast_base = parse_file(base_file).unwrap();
+    let ast_diff = parse_file(diff_file).unwrap();
+    let size = ast_diff.size();
+    // All tests use the Myers matcher.
+    let config = MyersConfig::new();
+    // Generate mappings between ASTs.
+    let mut mapping = config.match_trees(ast_base, ast_diff);
+    // Generate edit script. By convention, the parser will generate an AST
+    // whose root is in the 0th element of its arena.
+    let _ = mapping.generate_edit_script(NodeId::new(0));
+    // Once the edit script has been generated, the mapping between the base
+    // and diff ASTs should be a total mapping.
+    assert_eq!(size, mapping.from.len());
+    assert_eq!(size, mapping.to.len());
+    for (key, val) in &mapping.from {
+        assert!(mapping.to.contains_key(&val.0));
+        assert_eq!(*key, mapping.get_from(&val.0).unwrap());
+        assert_eq!(val.0, mapping.get_to(key).unwrap());
+    }
+}
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+#[test]
+fn test_empty_calc() {
+    compare_asts_post_edit_script("tests/empty.calc", "tests/one.calc");
+    compare_asts_post_edit_script("tests/one.calc", "tests/empty.calc");
+}
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
 
-/// GT matching algorithm.
-pub mod gt_matcher;
+#[test]
+fn test_gt_example() {
+    // Example from the GumTree paper.
+    compare_asts_post_edit_script("tests/Test0.java", "tests/Test1.java");
+}
 
-/// Longest common subsequence matching algorithm.
-///
-/// Described in Myers (1986).
-pub mod myers_matcher;
+#[test]
+fn test_plain_text() {
+    compare_asts_post_edit_script("tests/lorem1.txt", "tests/lorem2.txt");
+}
 
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
-
-/// Algorithms which act on sequences of values.
-pub mod sequence;
+#[test]
+fn test_wiki() {
+    // Example from wikipedia.
+    compare_asts_post_edit_script("tests/wiki1.txt", "tests/wiki2.txt");
+}

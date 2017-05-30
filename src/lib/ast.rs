@@ -105,6 +105,7 @@ impl fmt::Display for NodeId {
 /// A type to represent edges between nodes within an `Arena`.
 pub type EdgeId = (NodeId, NodeId);
 
+#[derive(Clone)]
 /// An arena in which to place `NodeId`-indexed AST nodes.
 ///
 /// `T` type is given to internal values stored within each node.
@@ -159,31 +160,6 @@ impl<T: Clone> Arena<T> {
     /// Return `true` if index is in arena, `false` otherwise.
     pub fn contains(&self, index: NodeId) -> bool {
         index.index < self.nodes.len()
-    }
-
-    /// Make one node the next (i.e. last) child of another.
-    pub fn make_child_of(&mut self, child: NodeId, parent: NodeId) -> ArenaResult {
-        if child.index >= self.nodes.len() {
-            return Err(ArenaError::NodeIdNotFound);
-        }
-        if parent.index >= self.nodes.len() {
-            return Err(ArenaError::NodeIdNotFound);
-        }
-        child.detach(self)?;
-        self[child].parent = Some(parent);
-        match self[parent].first_child {
-            None => self[parent].first_child = Some(child),
-            Some(_) => (),
-        };
-        match self[parent].last_child {
-            None => self[parent].last_child = Some(child),
-            Some(id) => {
-                self[parent].last_child = Some(child);
-                self[id].next_sibling = Some(child);
-                self[child].previous_sibling = Some(id);
-            }
-        };
-        Ok(())
     }
 
     /// Return a queue of `NodeId`s sorted by height.
@@ -391,7 +367,6 @@ impl NodeId {
         } else if let Some(parent) = parent {
             arena[parent].last_child = previous_sibling;
         }
-
         if let Some(previous_sibling) = previous_sibling {
             arena[previous_sibling].next_sibling = next_sibling;
         } else if let Some(parent) = parent {
@@ -415,6 +390,27 @@ impl NodeId {
         Ok(())
     }
 
+    /// Make self the next (i.e. last) child of another.
+    pub fn make_child_of<T: Clone>(&self, parent: NodeId, arena: &mut Arena<T>) -> ArenaResult {
+        if self.index >= arena.size() || parent.index >= arena.size() {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        self.detach(arena)?;
+        arena[*self].parent = Some(parent);
+        if arena[parent].first_child.is_none() {
+            arena[parent].first_child = Some(*self);
+        }
+        match arena[parent].last_child {
+            None => arena[parent].last_child = Some(*self),
+            Some(id) => {
+                arena[parent].last_child = Some(*self);
+                arena[id].next_sibling = Some(*self);
+                arena[*self].previous_sibling = Some(id);
+            }
+        };
+        Ok(())
+    }
+
     /// Make one node the nth child of another.
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
@@ -432,13 +428,13 @@ impl NodeId {
         }
         if nth == 0 && arena[parent].first_child == None {
             // Make self the *first* child of parent.
-            return arena.make_child_of(*self, parent);
+            return self.make_child_of(parent, arena);
         }
         let children = parent.children(arena).collect::<Vec<NodeId>>();
         let n_children = children.len() as u16;
         if nth == children.len() as u16 {
             // Make self the *last* child of parent.
-            return arena.make_child_of(*self, parent);
+            return self.make_child_of(parent, arena);
         } else if n_children < nth {
             return Err(ArenaError::NodeHasTooFewChildren(n_children));
         }
@@ -650,7 +646,7 @@ fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<S
                 match parent.pop().unwrap() {
                     None => parent.push(None),
                     Some(id) => {
-                        arena.make_child_of(child_node, id).ok();
+                        child_node.make_child_of(id, &mut arena).ok();
                     }
                 };
             }
@@ -665,7 +661,7 @@ fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<S
                 match parent.pop().unwrap() {
                     None => parent.push(None),
                     Some(id) => {
-                        arena.make_child_of(child_node, id).ok();
+                        child_node.make_child_of(id, &mut arena).ok();
                     }
                 };
                 // Push children of current non-terminal onto stacks.
@@ -768,13 +764,13 @@ mod tests {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
         let n1 = arena.new_node(String::from("1"), String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("*"), String::from("Expr"), 4);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let n3 = arena.new_node(String::from("3"), String::from("INT"), 8);
-        arena.make_child_of(n3, n2).unwrap();
+        n3.make_child_of(n2, &mut arena).unwrap();
         let n4 = arena.new_node(String::from("4"), String::from("INT"), 8);
-        arena.make_child_of(n4, n2).unwrap();
+        n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }
 
@@ -830,16 +826,16 @@ mod tests {
 
     #[test]
     fn make_child_of_2() {
-        let arena = &mut Arena::new();
+        let mut arena = Arena::new();
         assert!(arena.is_empty());
         let root = arena.new_node("+", String::from("Expr"), 4);
         assert!(!arena.is_empty());
         let n1 = arena.new_node("1", String::from("INT"), 0);
         assert!(!arena.is_empty());
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node("2", String::from("INT"), 0);
         assert!(!arena.is_empty());
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         // Check indices.
         assert_eq!(root, arena[root].index.unwrap());
         assert_eq!(n1, arena[n1].index.unwrap());
@@ -866,14 +862,14 @@ mod tests {
 
     #[test]
     fn make_nth_child_of_1() {
-        let arena = &mut Arena::new();
+        let mut arena = Arena::new();
         let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
         let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node("2", String::from("INT"), 4);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
@@ -881,7 +877,7 @@ mod tests {
         assert_eq!(format1, format!("{:}", arena));
         let mut n3 = arena.new_node("100", String::from("INT"), 8);
         // Make first child.
-        n3.make_nth_child_of(n2, 0, arena).unwrap();
+        n3.make_nth_child_of(n2, 0, &mut arena).unwrap();
         let format2 = "Expr +
     INT 1
     INT 2
@@ -892,14 +888,14 @@ mod tests {
 
     #[test]
     fn make_nth_child_of_2() {
-        let arena = &mut Arena::new();
+        let mut arena = Arena::new();
         let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
         let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node("2", String::from("INT"), 4);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
@@ -907,7 +903,7 @@ mod tests {
         assert_eq!(format1, format!("{:}", arena));
         let mut n3 = arena.new_node("100", String::from("INT"), 4);
         // Make last child.
-        n3.make_nth_child_of(root, 2, arena).unwrap();
+        n3.make_nth_child_of(root, 2, &mut arena).unwrap();
         let format2 = "Expr +
     INT 1
     INT 2
@@ -918,14 +914,14 @@ mod tests {
 
     #[test]
     fn make_nth_child_of_3() {
-        let arena = &mut Arena::new();
+        let mut arena = Arena::new();
         let root = arena.new_node("+", String::from("Expr"), 0);
         assert!(!arena.is_empty());
         let n1 = arena.new_node("1", String::from("INT"), 4);
         assert!(!arena.is_empty());
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node("2", String::from("INT"), 4);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 1
     INT 2
@@ -933,7 +929,7 @@ mod tests {
         assert_eq!(format1, format!("{:}", arena));
         let mut n3 = arena.new_node("100", String::from("INT"), 4);
         // Make second child.
-        n3.make_nth_child_of(root, 1, arena).unwrap();
+        n3.make_nth_child_of(root, 1, &mut arena).unwrap();
         let format2 = "Expr +
     INT 1
     INT 100
@@ -951,12 +947,12 @@ mod tests {
 
     #[test]
     fn arena_fmt() {
-        let arena = &mut Arena::new();
+        let mut arena = Arena::new();
         let root = arena.new_node("+", String::from("Expr"), 4);
         let n1 = arena.new_node("1", String::from("INT"), 0);
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node("2", String::from("INT"), 0);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let expected = "    Expr +
 INT 1
 INT 2

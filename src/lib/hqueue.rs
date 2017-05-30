@@ -186,13 +186,13 @@ mod tests {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
         let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
-        arena.make_child_of(n3, n2).unwrap();
+        n3.make_child_of(n2, &mut arena).unwrap();
         let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
-        arena.make_child_of(n4, n2).unwrap();
+        n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "Expr +
   INT 1
   Expr *

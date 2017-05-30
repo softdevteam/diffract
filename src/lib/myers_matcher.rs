@@ -41,59 +41,67 @@ use std::fmt::Display;
 
 use ast::{Arena, NodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
+use sequence::lcss;
 
 #[derive(Debug, Clone, PartialEq)]
-/// Variables required by the matcher algorithm, set by the user.
-pub struct GumTreeConfig {
-    /// Only consider sub-trees for matching if they have a size `< MAX_SIZE`.
-    pub max_size: u16,
+/// The Myers matcher does not require any configuration.
+pub struct MyersConfig {}
 
-    /// Only consider sub-trees for matching if they have a dice value `> MIN_DICE`.
-    pub min_dice: f32,
-
-    /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
-    pub min_height: u16,
-}
-
-impl Default for GumTreeConfig {
-    fn default() -> GumTreeConfig {
-        GumTreeConfig {
-            max_size: 100,
-            min_dice: 0.3,
-            min_height: 2,
-        }
+impl Default for MyersConfig {
+    fn default() -> MyersConfig {
+        MyersConfig {}
     }
 }
 
-impl GumTreeConfig {
+impl MyersConfig {
     /// Create a new configuration object, with default values.
-    pub fn new() -> GumTreeConfig {
+    pub fn new() -> MyersConfig {
         Default::default()
     }
 }
 
-impl<T: Clone + Display + Eq + 'static> MatchTrees<T> for GumTreeConfig {
+impl<T: Clone + Display + Eq + 'static> MatchTrees<T> for MyersConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         let desc = "
-This matcher implements the GumTree algorithm, which takes account of move
-operations between ASTs.
+This matcher finds the longest common subsequence between two ASTs. Myers is the
+default algorithm used by git-diff.
 
-The GumTree algorithm can be configured with the --min-dice, --max-size and
---min-height switches. See --help for more details.
-
-For more information see Falleri et al. (2014) Find-Grained and Accurate Source
-Code Differencing.";
+For more information see Myers (1986) An O(ND) Difference Algorithm and its
+Variations.";
         String::from(desc)
     }
 
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         let mut store = MappingStore::new(base, diff);
-        if store.from_arena.size() == 0 || store.to_arena.size() == 0 {
+        if store.from_arena.is_empty() || store.to_arena.is_empty() {
             return store;
         }
-        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
+        let base_pre = NodeId::new(0)
+            .pre_order_traversal(&store.from_arena)
+            .collect::<Vec<NodeId>>();
+        let diff_pre = NodeId::new(0)
+            .pre_order_traversal(&store.to_arena)
+            .collect::<Vec<NodeId>>();
+
+        let longest = lcss(&base_pre,
+                           &store.from_arena,
+                           &diff_pre,
+                           &store.to_arena,
+                           &eq);
+        for &(n1, n2) in &longest {
+            store.push(n1, n2, MappingType::ANCHOR);
+        }
         store
     }
+}
+
+/// Test that two nodes have the same label and value.
+fn eq<T: Clone + Display + Eq>(n1: &NodeId,
+                               arena1: &Arena<T>,
+                               n2: &NodeId,
+                               arena2: &Arena<T>)
+                               -> bool {
+    arena1[*n1].label == arena2[*n2].label && arena1[*n1].value == arena2[*n2].value
 }

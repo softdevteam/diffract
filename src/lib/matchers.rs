@@ -37,9 +37,15 @@
 
 #![warn(missing_docs)]
 
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 
-use ast::{Arena, NodeId};
+use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
+use ast::{Arena, ArenaError, NodeId};
+
+/// Result type returned by the edit script generator.
+pub type EditScriptResult<T> = Result<EditScript<T>, ArenaError>;
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 /// Type of mapping.
@@ -52,6 +58,10 @@ pub enum MappingType {
     CONTAINER,
     /// Recovery mappings are found by phase two of the bottom-up GumTree matcher.
     RECOVERY,
+    /// A mapping added by the algorithm that generates the edit script.
+    ///
+    /// See Chawathe et al. (1996).
+    EDIT,
 }
 
 impl Default for MappingType {
@@ -62,71 +72,124 @@ impl Default for MappingType {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
+pub struct TemporaryMappingStore {
+    /// Mappings from the source tree to the destination.
+    ///
+    /// Should contain the same information as `to_map`.
+    pub from: HashMap<NodeId, NodeId>,
+    /// Mappings from the destination tree to the source.
+    ///
+    /// Should contain the same information as `from_map`.
+    pub to: HashMap<NodeId, NodeId>,
+}
+
+impl TemporaryMappingStore {
+    /// Create a new mapping store.
+    pub fn new() -> TemporaryMappingStore {
+        Default::default()
+    }
+
+    /// Push a new mapping into the store.
+    pub fn push(&mut self, from: NodeId, to: NodeId) {
+        self.from.insert(from, to);
+        self.to.insert(to, from);
+    }
+
+    /// Remove mapping from store.
+    pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
+        self.from.remove(from);
+        self.to.remove(to);
+    }
+
+    /// `true` if the store has a mapping from `from` to another node.
+    pub fn contains_from(&self, from: &NodeId) -> bool {
+        self.from.contains_key(from)
+    }
+
+    /// `true` if the store has a mapping from a node to `to`.
+    pub fn contains_to(&self, to: &NodeId) -> bool {
+        self.to.contains_key(to)
+    }
+
+    /// Get the `NodeId` that `to` is mapped from.
+    pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
+        self.to.get(to).map_or(None, |x| Some(*x))
+    }
+
+    /// Get the `NodeId` that `from` is mapped to.
+    pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
+        self.from.get(from).map_or(None, |x| Some(*x))
+    }
+}
+
+impl Default for TemporaryMappingStore {
+    fn default() -> TemporaryMappingStore {
+        TemporaryMappingStore {
+            from: HashMap::new(),
+            to: HashMap::new(),
+        }
+    }
+}
+
+/// A store of mappings between nodes in different arenas.
+/// Direction is important.
 pub struct MappingStore<T: Clone> {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `to_map`.
-    pub from_map: HashMap<NodeId, (NodeId, MappingType)>,
+    pub from: HashMap<NodeId, (NodeId, MappingType)>,
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `from_map`.
-    pub to_map: HashMap<NodeId, (NodeId, MappingType)>,
+    pub to: HashMap<NodeId, (NodeId, MappingType)>,
 
     /// Source arena (treat as immutable).
-    pub from: Arena<T>,
+    pub from_arena: Arena<T>,
     /// Destination arena (treat as immutable).
-    pub to: Arena<T>,
+    pub to_arena: Arena<T>,
 }
 
-impl<T: Clone> MappingStore<T> {
+impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
     /// Create a new mapping store.
     pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
-            from_map: HashMap::new(),
-            to_map: HashMap::new(),
-            from: base,
-            to: diff,
+            from: HashMap::new(),
+            to: HashMap::new(),
+            from_arena: base,
+            to_arena: diff,
         }
     }
 
     /// Push a new mapping into the store.
     pub fn push(&mut self, from: NodeId, to: NodeId, ty: MappingType) {
-        self.from_map.insert(from, (to, ty.clone()));
-        self.to_map.insert(to, (from, ty.clone()));
+        self.from.insert(from, (to, ty.clone()));
+        self.to.insert(to, (from, ty.clone()));
     }
 
     /// Remove mapping from store.
     pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
-        self.from_map.remove(from);
-        self.to_map.remove(to);
+        self.from.remove(from);
+        self.to.remove(to);
     }
 
     /// `true` if the store has a mapping from `from` to another node.
-    pub fn has_from(&self, from: &NodeId) -> bool {
-        self.from_map.contains_key(from)
+    pub fn contains_from(&self, from: &NodeId) -> bool {
+        self.from.contains_key(from)
     }
 
     /// `true` if the store has a mapping from a node to `to`.
-    pub fn has_to(&self, to: &NodeId) -> bool {
-        self.to_map.contains_key(to)
+    pub fn contains_to(&self, to: &NodeId) -> bool {
+        self.to.contains_key(to)
     }
 
     /// Get the `NodeId` that `to` is mapped from.
     pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
-        self.to_map.get(to).map_or(None, |x| Some(x.0))
+        self.to.get(to).map_or(None, |x| Some(x.0))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
-        self.from_map.get(from).map_or(None, |x| Some(x.0))
-    }
-
-    /// `true` if `node` is involved in a mapping, `false` otherwise.
-    pub fn is_mapped(&self, node: NodeId, is_from: bool) -> bool {
-        if is_from {
-            return self.from_map.contains_key(&node);
-        }
-        self.to_map.contains_key(&node)
+        self.from.get(from).map_or(None, |x| Some(x.0))
     }
 
     /// Two sub-trees are isomorphic if they have the same structure.
@@ -138,22 +201,22 @@ impl<T: Clone> MappingStore<T> {
     /// Described in more detail in Chawathe et al. (1996).
     pub fn is_isomorphic(&self, from: NodeId, to: NodeId) -> bool {
         // Case 1: both nodes are leaves.
-        if from.is_leaf(&self.from) && to.is_leaf(&self.to) &&
-           self.from[from].label == self.to[to].label {
+        if from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) &&
+           self.from_arena[from].label == self.to_arena[to].label {
             return true;
         }
         // Case 2: one node is a leaf and the other is a branch.
-        if from.is_leaf(&self.from) && !to.is_leaf(&self.to) ||
-           !from.is_leaf(&self.from) && to.is_leaf(&self.to) {
+        if from.is_leaf(&self.from_arena) && !to.is_leaf(&self.to_arena) ||
+           !from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) {
             return false;
         }
         // Case 3: both nodes are branches.
-        if self.from[from].label != self.to[to].label ||
-           from.height(&self.from) != to.height(&self.to) {
+        if self.from_arena[from].label != self.to_arena[to].label ||
+           from.height(&self.from_arena) != to.height(&self.to_arena) {
             return false;
         }
-        let f_children = from.children(&self.from).collect::<Vec<NodeId>>();
-        let t_children = to.children(&self.to).collect::<Vec<NodeId>>();
+        let f_children = from.children(&self.from_arena).collect::<Vec<NodeId>>();
+        let t_children = to.children(&self.to_arena).collect::<Vec<NodeId>>();
         if f_children.len() != t_children.len() {
             return false;
         }
@@ -167,15 +230,16 @@ impl<T: Clone> MappingStore<T> {
 
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
     pub fn is_mapping_allowed(&self, from: &NodeId, to: &NodeId) -> bool {
-        self.from[*from].label == self.to[*to].label && !(self.has_from(from) || self.has_to(to))
+        self.from_arena[*from].label == self.to_arena[*to].label &&
+        !(self.contains_from(from) || self.contains_to(to))
     }
 
     /// Dice measure of similarity between subtrees.
     pub fn dice_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
@@ -185,10 +249,10 @@ impl<T: Clone> MappingStore<T> {
 
     /// Jaccard measure of similarity between subtrees.
     pub fn jaccard_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let common = self.num_common_descendants(from, to) as f64;
@@ -199,10 +263,10 @@ impl<T: Clone> MappingStore<T> {
 
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
     pub fn chawathe_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from)
+        let n_from = from.breadth_first_traversal(&self.from_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to)
+        let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
         let common = self.num_common_descendants(from, to) as f64;
@@ -216,18 +280,260 @@ impl<T: Clone> MappingStore<T> {
     /// To nodes are common if they have already been matched.
     fn num_common_descendants(&self, from: &NodeId, to: &NodeId) -> u32 {
         let mut dst_desc = HashSet::new();
-        for node in to.breadth_first_traversal(&self.to) {
+        for node in to.breadth_first_traversal(&self.to_arena) {
             dst_desc.insert(node);
         }
         let mut common = 0;
         let mut to: Option<NodeId>;
-        for node in from.descendants(&self.from) {
+        for node in from.descendants(&self.from_arena) {
             to = self.get_to(&node);
             if to.is_some() && dst_desc.contains(&to.unwrap()) {
                 common += 1;
             }
         }
         common
+    }
+
+    /// Given a mapping store, generate an edit script.
+    ///
+    /// This function implements the optimal algorithm of Chawathe et al. (1996).
+    /// Variable names as in Figures 8 and 9 of the paper.
+    pub fn generate_edit_script(&mut self, root: NodeId) -> EditScriptResult<T> {
+        let mut script: EditScript<T> = EditScript::new();
+        let mut from_in_order: HashSet<NodeId> = HashSet::new();
+        let mut to_in_order: HashSet<NodeId> = HashSet::new();
+        let mut next_from_id = self.from_arena.size();
+        let mut new_mappings = TemporaryMappingStore::new();
+        // Copy current mappings over to new_mappings.
+        for (key, value) in &self.from {
+            new_mappings.push(*key, value.0);
+        }
+        // Combined update, insert, align and move phases.
+        let tmp_to_arena = self.to_arena.clone();
+        for x in root.breadth_first_traversal(&tmp_to_arena) {
+            if x.is_root(&self.to_arena) {
+                continue;
+            }
+            let y = self.to_arena[x].parent().unwrap(); // x is not a root.
+            let mut w = root; // Overwritten later.
+            // Insertion phase.
+            if !new_mappings.to.contains_key(&x) {
+                let z = new_mappings.get_from(&y).unwrap();
+                let k = self.find_pos(x, &new_mappings, &to_in_order);
+                debug!("Edit script: INS {} {} Parent: {} {}",
+                       self.to_arena[x].label,
+                       self.to_arena[x].value,
+                       self.to_arena[z].label,
+                       self.to_arena[z].value);
+                let mut ins = Insert::new(k,
+                                          self.to_arena[x].value.clone(),
+                                          self.to_arena[x].label.clone(),
+                                          self.to_arena[x].indent,
+                                          z);
+                ins.apply(&mut self.from_arena)?;
+                script.push(ins);
+                w = NodeId::new(next_from_id);
+                new_mappings.push(w, x);
+                next_from_id += 1;
+            } else if !x.is_root(&self.to_arena) {
+                // Insertion and update phases.
+                w = new_mappings.get_from(&x).unwrap();
+                let v = self.from_arena[w].parent().unwrap();
+                if self.from_arena[w].value != self.to_arena[x].value {
+                    debug!("Edit script: UPD {} {} -> {} {}",
+                           self.to_arena[w].label,
+                           self.to_arena[w].value,
+                           self.to_arena[x].label,
+                           self.to_arena[x].value);
+                    let mut upd = Update::new(w,
+                                              self.to_arena[x].value.clone(),
+                                              self.to_arena[x].label.clone());
+                    upd.apply(&mut self.from_arena)?;
+                    script.push(upd.clone());
+                }
+                // MOVE phase.
+                let z = new_mappings.get_from(&y).unwrap();
+                if z != v {
+                    let k = self.find_pos(x, &new_mappings, &to_in_order);
+                    let mut mov = Move::new(w, z, k);
+                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                           self.from_arena[w].label,
+                           self.from_arena[w].value,
+                           self.to_arena[z].label,
+                           self.to_arena[z].value);
+                    mov.apply(&mut self.from_arena)?;
+                    script.push(mov);
+                }
+            }
+            // GumTree code has these lines also?
+            // from_in_order.insert(w);
+            // to_in_order.insert(x);
+            self.align_children(w,
+                                x,
+                                &mut script,
+                                &new_mappings,
+                                &mut from_in_order,
+                                &mut to_in_order)?;
+        }
+        // Delete phase.
+        let mut actions = EditScript::new();
+        for w in root.post_order_traversal(&self.from_arena) {
+            if !new_mappings.contains_from(&w) {
+                debug!("Edit script: DEL {} {}",
+                       self.from_arena[w].label,
+                       self.from_arena[w].value);
+                let del = Delete::new(w);
+                script.push(del);
+                actions.push(del);
+            }
+        }
+        actions.apply(&mut self.from_arena)?;
+        // Add new mappings to the existing store.
+        debug!("Append new mappings to store.");
+        for (from, to) in new_mappings.from {
+            if !self.contains_from(&from) {
+                debug!("New mapping due to edit script: {} -> {}", from, to);
+                self.push(from, to, MappingType::EDIT);
+            }
+        }
+        Ok(script)
+    }
+
+    fn align_children(&mut self,
+                      w: NodeId,
+                      x: NodeId,
+                      script: &mut EditScript<T>,
+                      new_mappings: &TemporaryMappingStore,
+                      from_in_order: &mut HashSet<NodeId>,
+                      to_in_order: &mut HashSet<NodeId>)
+                      -> Result<(), ArenaError> {
+        debug!("align_children({}, {})", w, x);
+        for child in x.children(&self.to_arena) {
+            to_in_order.remove(&child);
+        }
+        let mut s1: Vec<NodeId> = vec![];
+        for child in w.children(&self.from_arena) {
+            from_in_order.remove(&child);
+            if new_mappings.contains_from(&child) {
+                let mapped = new_mappings.get_to(&child).unwrap();
+                if x.children(&self.to_arena)
+                       .find(|n| *n == mapped)
+                       .is_some() {
+                    s1.push(child);
+                }
+            }
+        }
+        let s2: Vec<NodeId> = vec![];
+        for child in x.children(&self.to_arena) {
+            if new_mappings.contains_to(&child) {
+                let mapped = new_mappings.get_from(&child).unwrap();
+                if w.children(&self.from_arena)
+                       .find(|n| *n == mapped)
+                       .is_some() {
+                    s1.push(child);
+                }
+            }
+        }
+        let lcs = self.lcss(&s1, &s2);
+        for &(from, to) in &lcs {
+            from_in_order.insert(from);
+            to_in_order.insert(to);
+        }
+        for a in &s1 {
+            for b in &s2 {
+                if new_mappings.contains_from(a) && new_mappings.get_to(a).unwrap() == *b &&
+                   !lcs.contains(&(*a, *b)) {
+                    let k = self.find_pos(*b, new_mappings, to_in_order);
+                    let mut mov = Move::new(*a, w, k);
+                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                           self.from_arena[*a].label,
+                           self.from_arena[*a].value,
+                           self.to_arena[w].label,
+                           self.to_arena[w].value);
+                    script.push(mov);
+                    mov.apply(&mut self.from_arena)?;
+                    from_in_order.insert(*a);
+                    to_in_order.insert(*b);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Find the position of node x in to_arena.
+    fn find_pos(&self,
+                x: NodeId,
+                new_mappings: &TemporaryMappingStore,
+                to_in_order: &HashSet<NodeId>)
+                -> u16 {
+        debug!("find_pos({})", x);
+        if x.is_root(&self.to_arena) {
+            return 0;
+        }
+        let y = self.to_arena[x].parent().unwrap();
+        let siblings = y.children(&self.to_arena).collect::<Vec<NodeId>>();
+        for child in &siblings {
+            if to_in_order.contains(child) {
+                if x == *child {
+                    return 0;
+                } else {
+                    break;
+                }
+            }
+        }
+        let x_pos = x.get_child_position(&self.to_arena).unwrap();
+        let mut v: Option<NodeId> = None;
+        for (i, child) in x.children(&self.to_arena).enumerate() {
+            if to_in_order.contains(&child) {
+                v = Some(child);
+            }
+            if i >= x_pos {
+                break;
+            }
+        }
+        if v.is_none() {
+            return 0; // No right-most sibling in order.
+        }
+        let u = new_mappings.get_from(&v.unwrap()).unwrap();
+        let u_pos = u.get_child_position(&self.to_arena).unwrap();
+        u_pos as u16 + 1
+    }
+
+    fn lcss(&self, seq1: &[NodeId], seq2: &[NodeId]) -> Vec<(NodeId, NodeId)> {
+        let mut lcss: Vec<(NodeId, NodeId)> = vec![];
+        if seq1.is_empty() || seq2.is_empty() {
+            return lcss;
+        }
+        let mut grid = vec![];
+        for _ in 0..seq1.len() + 1 {
+            grid.push(vec![0; seq2.len() + 1]);
+        }
+        debug_assert_eq!(seq1.len() + 1, grid.len());
+        debug_assert_eq!(seq2.len() + 1, grid[0].len());
+        for (i, n1) in seq1.iter().enumerate() {
+            for (j, n2) in seq2.iter().enumerate() {
+                if self.contains_from(n1) && self.get_to(n1).unwrap() == *n2 {
+                    grid[i + 1][j + 1] = 1 + grid[i][j];
+                } else {
+                    grid[i + 1][j + 1] = max(grid[i + 1][j], grid[i][j + 1]);
+                }
+            }
+        }
+        let mut i = seq1.len();
+        let mut j = seq2.len();
+        while i != 0 && j != 0 {
+            if grid[i][j] == grid[i - 1][j] {
+                i -= 1;
+            } else if grid[i][j] == grid[i][j - 1] {
+                j -= 1;
+            } else {
+                lcss.push((seq1[i - 1], seq2[j - 1]));
+                i -= 1;
+                j -= 1;
+            }
+        }
+        lcss.reverse();
+        lcss
     }
 }
 
@@ -238,6 +544,12 @@ impl<T: Clone> MappingStore<T> {
 pub trait MatchTrees<T: Clone> {
     /// Match two trees and return a store of mappings between them.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
+
+    /// Describe the matcher for the user.
+    ///
+    /// This is the string that is printed when the user passes in the --list
+    /// CLI option.
+    fn describe(&self) -> String;
 }
 
 #[cfg(test)]
@@ -248,13 +560,13 @@ mod tests {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
         let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
-        arena.make_child_of(n3, n2).unwrap();
+        n3.make_child_of(n2, &mut arena).unwrap();
         let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
-        arena.make_child_of(n4, n2).unwrap();
+        n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "Expr +
   INT 1
   Expr *
@@ -269,9 +581,9 @@ mod tests {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
         let n1 = arena.new_node(String::from("3"), String::from("INT"), 4);
-        arena.make_child_of(n1, root).unwrap();
+        n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("4"), String::from("INT"), 4);
-        arena.make_child_of(n2, root).unwrap();
+        n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 3
     INT 4
