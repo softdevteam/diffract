@@ -63,6 +63,28 @@ pub trait RenderDotfile {
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error>;
 }
 
+/// Create a JSON representation of this type.
+pub trait RenderJson {
+    /// Render `self` as a JSON object.
+    fn render_json(&self, indent: usize) -> String;
+}
+
+/// Write a JSON representation of a `MappingStore` and `EditScript` to stream.
+///
+/// The JSON format here matches the output of gumtree. Because the format is
+/// extremely simple, the JSON is constructed manually.
+pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>,
+                                                          store: &T,
+                                                          script: &U)
+                                                          -> EmitterResult {
+    stream
+        .write_all(format!("{{\n{},\n{}\n}}\n",
+                           store.render_json(4),
+                           script.render_json(4))
+                           .as_bytes())
+        .map_err(|_| EmitterError::CouldNotWriteToFile)
+}
+
 /// Write out a graphviz file (in dot format) to `filepath`.
 pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
     let mut stream = File::create(&filepath)
