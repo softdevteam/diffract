@@ -39,7 +39,10 @@
 
 use std::fmt::Debug;
 
+use std::cmp::min;
+
 use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
+use hqueue::HeightQueue;
 use matchers::{MappingStore, MappingType, MatchTrees};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,9 +97,58 @@ Code Differencing.";
         if store.src_arena.borrow().size() == 0 || store.dst_arena.borrow().size() == 0 {
             return store;
         }
-        store.push(NodeId::<SrcNodeId>::new(0),
-                   NodeId::<DstNodeId>::new(0),
-                   &MappingType::ANCHOR);
+        get_gt_anchor_matches(&store, self);
+        get_gt_other_matches(&store, self);
         store
     }
+}
+
+fn get_gt_anchor_matches<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
+                                                                     config: &GumTreeConfig) {
+    let mut src_q: HeightQueue<SrcNodeId> = HeightQueue::new();
+    let mut dst_q: HeightQueue<DstNodeId> = HeightQueue::new();
+    let candidates = MappingStore::new(store.src_arena.borrow().clone(),
+                                       store.dst_arena.borrow().clone());
+    if store.src_arena.borrow().is_empty() || store.dst_arena.borrow().is_empty() {
+        return;
+    }
+    src_q.push(NodeId::new(0), &store.src_arena.borrow());
+    dst_q.push(NodeId::new(0), &store.dst_arena.borrow());
+    while !src_q.is_empty() && !dst_q.is_empty()
+          && min(src_q.peek_max().unwrap(), dst_q.peek_max().unwrap())
+             > u32::from(config.min_height)
+    {
+        if src_q.peek_max().unwrap() != dst_q.peek_max().unwrap() {
+            if src_q.peek_max().unwrap() > dst_q.peek_max().unwrap() {
+                for id in src_q.pop() {
+                    src_q.open(id, &store.src_arena.borrow());
+                }
+            } else {
+                // FIXME this can't be correct.
+                for id in src_q.pop() {
+                    src_q.open(id, &store.src_arena.borrow());
+                }
+            }
+        } else {
+            // TODO
+            let h1 = &src_q.pop();
+            let h2 = &dst_q.pop();
+            for t1 in h1 {
+                for t2 in h2 {
+                    if store.is_isomorphic(*t1, *t2) {
+                        // FIXME something missing here.
+                        candidates.push(*t1, *t2, &MappingType::ANCHOR);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_gt_other_matches<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
+                                                                    _config: &GumTreeConfig) {
+    if store.src_arena.borrow().is_empty() || store.dst_arena.borrow().is_empty() {
+        return;
+    }
+    // FIXME
 }
