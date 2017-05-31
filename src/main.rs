@@ -42,7 +42,7 @@ extern crate env_logger;
 extern crate rustc_serialize;
 
 use std::{env, process};
-use std::io::{stderr, Write};
+use std::io::{stderr, stdout, Write};
 use std::path::Path;
 
 use docopt::Docopt;
@@ -81,6 +81,8 @@ Options:
                         0.3). GumTree only.
     --min-height VAL    match only nodes with a height greater than VAL
                         (default: 2). GumTree only.
+    -o, --output FMT    select output format. Valid (case sensitive) values for
+                        FMT are: NoOutput (default), JSON.
     -v, --version       print version information and exit.
 ";
 
@@ -101,6 +103,12 @@ enum Matchers {
     Myers,
 }
 
+#[derive(Debug, Eq, PartialEq, RustcDecodable)]
+enum Output {
+    NoOutput, // Default.
+    JSON,
+}
+
 #[derive(RustcDecodable, Debug)]
 struct Args {
     arg_base_file: String,
@@ -116,6 +124,7 @@ struct Args {
     flag_max_size: Option<u16>,
     flag_min_dice: Option<f32>,
     flag_min_height: Option<u16>,
+    flag_output: Option<Output>,
     flag_version: bool,
 }
 
@@ -320,5 +329,17 @@ fn main() {
         info!("Creating dot representation of edit script {:?}.",
               edit_file);
         write_dotfile_to_disk(&edit_file, &mapping);
+    }
+
+    // Generate output.
+    if args.flag_output.is_none() || args.flag_output == Some(Output::NoOutput) {
+        info!("No output requested by the user.");
+        return;
+    } else if args.flag_output == Some(Output::JSON) {
+        info!("Writing JSON output to STDOUT.");
+        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()),
+                                                           &mapping,
+                                                           &edit_script),
+                            "STDOUT");
     }
 }

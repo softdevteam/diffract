@@ -43,6 +43,7 @@ use std::fmt::Display;
 
 use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{Arena, ArenaError, NodeId};
+use emitters::RenderJson;
 
 /// Result type returned by the edit script generator.
 pub type EditScriptResult<T> = Result<EditScript<T>, ArenaError>;
@@ -147,6 +148,30 @@ pub struct MappingStore<T: Clone> {
     pub from_arena: Arena<T>,
     /// Destination arena (treat as immutable).
     pub to_arena: Arena<T>,
+}
+
+impl<T: Clone + Display> RenderJson for MappingStore<T> {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_2 = " ".repeat(indent * 2);
+        let ind_3 = " ".repeat(indent * 3);
+        let mut json = vec![];
+        for (key, value) in &self.from {
+            json.push(format!("{}{{\n{}\"src\": {},\n{}\"dest\": {}\n{}}}",
+                              ind_2,
+                              ind_3,
+                              key,
+                              ind_3,
+                              value.0,
+                              ind_2));
+        }
+        format!("{}{}{}{}{}{}",
+                " ".repeat(indent),
+                "\"matches\": [\n",
+                json.join(",\n"),
+                "\n",
+                " ".repeat(indent),
+                "]")
+    }
 }
 
 impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
@@ -645,5 +670,25 @@ mod tests {
                    store.num_common_descendants(&NodeId::new(0), &NodeId::new(0)));
         assert_eq!(0,
                    store.num_common_descendants(&NodeId::new(1), &NodeId::new(0)));
+    }
+
+    #[test]
+    fn render_json() {
+        use myers_matcher::MyersConfig;
+        let plus = create_plus_arena();
+        let mult = create_mult_arena();
+        let matcher = MyersConfig::new();
+        let store = matcher.match_trees(plus, mult);
+        let expected = vec!["\"matches\": [",
+                            "{\n\"src\": 1,\n\"dest\": 3\n}",
+                            "{\n\"src\": 0,\n\"dest\": 0\n}",
+                            "{\n\"src\": 2,\n\"dest\": 4\n}"]
+                .iter()
+                .map(|s| String::from(*s))
+                .collect::<Vec<String>>();
+        let got = store.render_json(0);
+        for item in expected {
+            assert!(got.contains(&item));
+        }
     }
 }

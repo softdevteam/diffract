@@ -42,9 +42,10 @@ use std::clone::Clone;
 use std::fmt::{Formatter, Display, Result};
 
 use ast::{Arena, ArenaError, ArenaResult, NodeId};
+use emitters::RenderJson;
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone + Display>: Display {
+pub trait ApplyAction<T: Clone + Display>: Display + RenderJson {
     /// Apply an action to an AST.
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult;
 }
@@ -168,6 +169,59 @@ impl<T: Display + Clone> Display for Update<T> {
     }
 }
 
+impl RenderJson for Delete {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"delete\",", ind_s));
+        json.push(format!("{}\"tree\": {}", &ind_s, self.node.id()));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}
+
+impl<T: Clone> RenderJson for Insert<T> {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"insert\",", ind_s));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.new_parent.id()));
+        json.push(format!("{}\"parent\": {},", &ind_s, self.new_parent.id()));
+        json.push(format!("{}\"at\": {}", &ind_s, self.nth_child));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}
+
+impl RenderJson for Move {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"move\",", ind_s));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
+        json.push(format!("{}\"parent\": {},", &ind_s, self.parent));
+        json.push(format!("{}\"at\": {}", &ind_s, self.pos));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}
+
+impl<T: Clone> RenderJson for Update<T> {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"update\",", ind_s));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.node.id()));
+        json.push(format!("{}\"label\": \"{}\"", &ind_s, self.label));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}
+
 impl<T: Clone + Display> ApplyAction<T> for Delete {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
@@ -236,6 +290,22 @@ impl<T: Display + Clone> Display for EditScript<T> {
             write!(f, "{:}\n", action)?
         }
         write!(f, "")
+    }
+}
+
+impl<T: Clone> RenderJson for EditScript<T> {
+    fn render_json(&self, indent: usize) -> String {
+        let mut json = vec![];
+        for action in &self.actions {
+            json.push(action.render_json(indent + 4));
+        }
+        format!("{}{}{}{}{}{}",
+                " ".repeat(indent),
+                "\"actions\": [\n",
+                json.join(",\n"),
+                "\n",
+                " ".repeat(indent),
+                "]")
     }
 }
 
@@ -479,4 +549,63 @@ mod test {
         assert_eq!(format2, format!("{}", arena));
     }
 
+    #[test]
+    fn render_json() {
+        let mut actions: EditScript<String> = EditScript::new();
+        let del1 = Delete::new(NodeId::new(3)); // INT 3
+        let del2 = Delete::new(NodeId::new(4)); // INT 4
+        let ins1 = Insert::new(0,
+                               String::from("100"),
+                               String::from("INT"),
+                               4,
+                               NodeId::new(2));
+        let ins2 = Insert::new(1,
+                               String::from("99"),
+                               String::from("INT"),
+                               4,
+                               NodeId::new(2));
+        let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
+        // Change "+"" to "*".
+        let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
+        actions.push(del1);
+        actions.push(del2);
+        actions.push(ins1);
+        actions.push(ins2);
+        actions.push(mov);
+        actions.push(upd);
+        let expected = String::from("\"actions\": [
+    {
+        \"action\": \"delete\",
+        \"tree\": 3
+    },
+    {
+        \"action\": \"delete\",
+        \"tree\": 4
+    },
+    {
+        \"action\": \"insert\",
+        \"tree\": 2,
+        \"parent\": 2,
+        \"at\": 0
+    },
+    {
+        \"action\": \"insert\",
+        \"tree\": 2,
+        \"parent\": 2,
+        \"at\": 1
+    },
+    {
+        \"action\": \"move\",
+        \"tree\": 6,
+        \"parent\": 2,
+        \"at\": 0
+    },
+    {
+        \"action\": \"update\",
+        \"tree\": 0,
+        \"label\": \"Expr\"
+    }
+]");
+        assert_eq!(expected, actions.render_json(0));
+    }
 }
