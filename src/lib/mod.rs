@@ -95,3 +95,6 @@ pub mod sequence;
 ///
 /// Induced, pruning algorithms currently implemented.
 pub mod chawathe98_matcher;
+
+/// A map between character numbers in a file and the AST nodes they represent.
+pub mod character_map;
