@@ -233,7 +233,12 @@ impl<T: Clone + Display> ApplyAction<T> for Delete {
 
 impl<T: Clone + Display> ApplyAction<T> for Insert<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
-        let mut new_id = arena.new_node(self.value.clone(), self.label.clone(), self.indent);
+        // Set line no, char no, token length to `None`.
+        let mut new_id = arena.new_node(self.value.clone(),
+                                        self.label.clone(),
+                                        self.indent,
+                                        None,
+                                        None);
         new_id.make_nth_child_of(self.new_parent, self.nth_child, arena)
     }
 }
@@ -324,14 +329,14 @@ mod test {
 
     fn create_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }

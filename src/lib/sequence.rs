@@ -123,18 +123,18 @@ mod tests {
         let mut base_arena: Arena<T> = Arena::new();
         let mut id: NodeId;
         if !base.is_empty() {
-            let root = base_arena.new_node(Default::default(), String::from("NULL"), 0);
+            let root = base_arena.new_node(Default::default(), String::from("NULL"), 0, None, None);
             for value in base {
-                id = base_arena.new_node(value.clone(), String::from("T"), 0);
+                id = base_arena.new_node(value.clone(), String::from("T"), 0, None, None);
                 id.make_child_of(root, &mut base_arena).unwrap();
 
             }
         }
         let mut diff_arena: Arena<T> = Arena::new();
         if !diff.is_empty() {
-            let root = diff_arena.new_node(Default::default(), String::from("NULL"), 0);
+            let root = diff_arena.new_node(Default::default(), String::from("NULL"), 0, None, None);
             for value in diff {
-                id = diff_arena.new_node(value.clone(), String::from("T"), 0);
+                id = diff_arena.new_node(value.clone(), String::from("T"), 0, None, None);
                 id.make_child_of(root, &mut diff_arena).unwrap();
             }
         }

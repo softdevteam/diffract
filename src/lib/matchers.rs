@@ -579,14 +579,14 @@ mod tests {
 
     fn create_mult_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "Expr +
   INT 1
@@ -600,10 +600,10 @@ mod tests {
 
     fn create_plus_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 3
