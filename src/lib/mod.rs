@@ -45,6 +45,7 @@ extern crate log;
 extern crate lrlex;
 extern crate lrtable;
 extern crate lrpar;
+extern crate term;
 extern crate test;
 
 /// Actions are operations that transform abstract syntax trees.

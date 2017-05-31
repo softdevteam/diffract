@@ -83,7 +83,7 @@ Options:
     --min-height VAL    match only nodes with a height greater than VAL
                         (default: 2). GumTree only.
     -o, --output FMT    select output format. Valid (case sensitive) values for
-                        FMT are: NoOutput (default), JSON.
+                        FMT are: Terminal (default), JSON, None.
     -v, --version       print version information and exit.
 ";
 
@@ -106,8 +106,9 @@ enum Matchers {
 
 #[derive(Debug, Eq, PartialEq, RustcDecodable)]
 enum Output {
-    NoOutput, // Default.
+    Terminal, // Default.
     JSON,
+    None,
 }
 
 #[derive(RustcDecodable, Debug)]
@@ -140,6 +141,8 @@ fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
         let action = match err {
             CouldNotCreateFile => "create",
             CouldNotWriteToFile => "write to",
+            CouldNotOpenFile => "open",
+            CouldNotReadFile => "read from",
         };
         exit_with_message(&format!("Could not {} file {}.", action, filepath));
     }
@@ -346,7 +349,14 @@ fn main() {
     }
 
     // Generate output.
-    if args.flag_output.is_none() || args.flag_output == Some(Output::NoOutput) {
+    if args.flag_output.is_none() || args.flag_output == Some(Output::Terminal) {
+        info!("Writing terminal output to STDOUT.");
+        consume_emitter_err(emitters::write_diff_to_stdout(&mapping,
+                                                           &edit_script,
+                                                           &args.arg_base_file,
+                                                           &args.arg_diff_file),
+                            &args.arg_base_file);
+    } else if args.flag_output == Some(Output::None) {
         info!("No output requested by the user.");
         return;
     } else if args.flag_output == Some(Output::JSON) {
