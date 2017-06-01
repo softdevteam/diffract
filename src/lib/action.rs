@@ -68,11 +68,11 @@ pub struct Delete {
 
 #[derive(Clone, Eq, PartialEq)]
 /// Insert a new node into an AST as the `position`th child of an existing node.
-pub struct Insert<T: Clone> {
+pub struct Insert {
+    /// New node in from-arena, must already exist before applying this trait.
+    node: NodeId,
     nth_child: u16,
-    value: T,
-    label: String,
-    indent: u32,
+    /// New parent in to-arena.
     new_parent: NodeId,
 }
 
@@ -99,15 +99,13 @@ impl Delete {
     }
 }
 
-impl<T: Display + Clone> Insert<T> {
+impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(nth: u16, value: T, label: String, indent: u32, parent: NodeId) -> Insert<T> {
+    pub fn new(node: NodeId, parent: NodeId, nth: u16) -> Insert {
         Insert {
-            nth_child: nth,
-            value: value,
-            label: label,
-            indent: indent,
+            node: node,
             new_parent: parent,
+            nth_child: nth,
         }
     }
 }
@@ -140,14 +138,11 @@ impl Display for Delete {
     }
 }
 
-impl<T: Display + Clone> Display for Insert<T> {
+impl Display for Insert {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let indent = " ".repeat(self.indent as usize);
         write!(f,
-               "INS {}{} {} to {} at {}",
-               indent,
-               self.label,
-               self.value,
+               "INS {} to {} at {}",
+               self.node,
                self.new_parent,
                self.nth_child)
     }
@@ -181,13 +176,13 @@ impl RenderJson for Delete {
     }
 }
 
-impl<T: Clone> RenderJson for Insert<T> {
+impl RenderJson for Insert {
     fn render_json(&self, indent: usize) -> String {
         let ind_s = " ".repeat(indent + 4);
         let mut json = vec![];
         json.push(" ".repeat(indent) + "{");
         json.push(format!("{}\"action\": \"insert\",", ind_s));
-        json.push(format!("{}\"tree\": {},", &ind_s, self.new_parent.id()));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.node.id()));
         json.push(format!("{}\"parent\": {},", &ind_s, self.new_parent.id()));
         json.push(format!("{}\"at\": {}", &ind_s, self.nth_child));
         json.push(" ".repeat(indent) + "}");
@@ -231,15 +226,10 @@ impl<T: Clone + Display> ApplyAction<T> for Delete {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Insert<T> {
+impl<T: Clone + Display> ApplyAction<T> for Insert {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
-        // Set line no, char no, token length to `None`.
-        let mut new_id = arena.new_node(self.value.clone(),
-                                        self.label.clone(),
-                                        self.indent,
-                                        None,
-                                        None);
-        new_id.make_nth_child_of(self.new_parent, self.nth_child, arena)
+        self.node
+            .make_nth_child_of(self.new_parent, self.nth_child, arena)
     }
 }
 
@@ -349,8 +339,8 @@ mod test {
 
     #[test]
     fn fmt_insert() {
-        let ins = Insert::new(0, "100", String::from("INT"), 4, NodeId::new(2));
-        assert_eq!("INS     INT 100 to 2 at 0", format!("{:}", ins));
+        let ins = Insert::new(NodeId::new(3), NodeId::new(2), 0);
+        assert_eq!("INS 3 to 2 at 0", format!("{:}", ins));
     }
 
     #[test]
@@ -404,6 +394,7 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_arena();
+        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
         let format1 = "Expr +
   INT 1
   Expr *
@@ -411,11 +402,7 @@ mod test {
     INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
-        let mut ins = Insert::new(0,
-                                  String::from("100"),
-                                  String::from("INT"),
-                                  4,
-                                  NodeId::new(2));
+        let mut ins = Insert::new(n5, NodeId::new(2), 0);
         ins.apply(&mut arena).unwrap();
         let format2 = "Expr +
   INT 1
@@ -479,21 +466,15 @@ mod test {
     INT 3
     INT 4
 ";
+        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
+        let n6 = arena.new_node(String::from("99"), String::from("INT"), 4, None, None);
         assert_eq!(format1, format!("{}", arena));
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
-        let ins1 = Insert::new(0,
-                               String::from("100"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
-        let ins2 = Insert::new(1,
-                               String::from("99"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
+        let ins1 = Insert::new(n5, NodeId::new(2), 0);
+        let ins2 = Insert::new(n6, NodeId::new(2), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
@@ -524,13 +505,12 @@ mod test {
     INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
+        let n5 = arena.new_node(String::from("2"), String::from("INT"), 4, None, None);
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del = Delete { node: NodeId::new(4) }; // Remove "4".
         let ins = Insert {
-            value: String::from("2"),
-            label: String::from("INT"),
-            indent: 4,
+            node: n5,
             new_parent: NodeId::new(2),
             nth_child: 0,
         };
@@ -559,16 +539,8 @@ mod test {
         let mut actions: EditScript<String> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
-        let ins1 = Insert::new(0,
-                               String::from("100"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
-        let ins2 = Insert::new(1,
-                               String::from("99"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
+        let ins1 = Insert::new(NodeId::new(5), NodeId::new(2), 0);
+        let ins2 = Insert::new(NodeId::new(6), NodeId::new(2), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
@@ -589,13 +561,13 @@ mod test {
     },
     {
         \"action\": \"insert\",
-        \"tree\": 2,
+        \"tree\": 5,
         \"parent\": 2,
         \"at\": 0
     },
     {
         \"action\": \"insert\",
-        \"tree\": 2,
+        \"tree\": 6,
         \"parent\": 2,
         \"at\": 1
     },

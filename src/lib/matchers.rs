@@ -327,7 +327,6 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId> = HashSet::new();
         let mut to_in_order: HashSet<NodeId> = HashSet::new();
-        let mut next_from_id = self.from_arena.size();
         let mut new_mappings = TemporaryMappingStore::new();
         // Copy current mappings over to new_mappings.
         for (key, value) in &self.from {
@@ -350,16 +349,16 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                        self.to_arena[x].value,
                        self.from_arena[z].label,
                        self.from_arena[z].value);
-                let mut ins = Insert::new(k,
-                                          self.to_arena[x].value.clone(),
-                                          self.to_arena[x].label.clone(),
-                                          self.to_arena[x].indent,
-                                          z);
+                w = self.from_arena
+                    .new_node(self.to_arena[x].value.clone(),
+                              self.to_arena[x].label.clone(),
+                              self.to_arena[x].indent,
+                              self.to_arena[x].char_no,
+                              self.to_arena[x].token_len);
+                new_mappings.push(w, x);
+                let mut ins = Insert::new(w, z, k);
                 ins.apply(&mut self.from_arena)?;
                 script.push(ins);
-                w = NodeId::new(next_from_id);
-                new_mappings.push(w, x);
-                next_from_id += 1;
             } else if !x.is_root(&self.to_arena) {
                 // Insertion and update phases.
                 w = new_mappings.get_from(&x).unwrap();
@@ -469,8 +468,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                     debug!("Edit script: MOV {} {} Parent: {} {}",
                            self.from_arena[*a].label,
                            self.from_arena[*a].value,
-                           self.from_arena[w].label,
-                           self.from_arena[w].value);
+                           self.to_arena[w].label,
+                           self.to_arena[w].value);
                     script.push(mov);
                     mov.apply(&mut self.from_arena)?;
                     from_in_order.insert(*a);
