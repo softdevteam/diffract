@@ -43,11 +43,13 @@ use std::fmt::{Formatter, Display, Result};
 
 use ast::{Arena, ArenaError, ArenaResult, NodeId};
 use emitters::RenderJson;
+use matchers::MappingStore;
+use patch::Patch;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 /// Type of action.
 ///
 /// Only used where the information related to actions can safely be discarded.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ActionType {
     /// Delete a node in a 'from' arena.
     DELETE,
@@ -60,10 +62,17 @@ pub enum ActionType {
 }
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone + Display>: Display + RenderJson {
+pub trait ApplyAction<T: Clone + Display>: Display + RenderJson + Patchify<T> {
     /// Apply an action to an AST.
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult;
 }
+
+/// Turn an edit script into a list of patches on the "from" and "to" ASTs.
+pub trait Patchify<T: Clone + Display> {
+    /// Turn object into a `Patch`. Non-terminal nodes are ignored.
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
+}
+
 
 /// A list of actions to be applied.
 ///
@@ -232,7 +241,63 @@ impl<T: Clone> RenderJson for Update<T> {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Delete {
+impl<T: Clone + Display + Eq> Patchify<T> for Delete {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
+        let node = &store.from_arena[self.node];
+        if node.char_no.is_some() {
+            from.push(Patch::new(ActionType::DELETE,
+                                 node.char_no.unwrap(),
+                                 node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> Patchify<T> for Insert {
+    fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let node = &store.from_arena[self.node];
+        if node.char_no.is_some() {
+            to.push(Patch::new(ActionType::INSERT,
+                               node.char_no.unwrap(),
+                               node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq + 'static> Patchify<T> for Move {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::MOVE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::MOVE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq + 'static> Patchify<T> for Update<T> {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::UPDATE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::UPDATE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> ApplyAction<T> for Delete {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
                       "Attempt to delete branch node {}",
@@ -241,21 +306,21 @@ impl<T: Clone + Display> ApplyAction<T> for Delete {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Insert {
+impl<T: Clone + Display + Eq> ApplyAction<T> for Insert {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         self.node
             .make_nth_child_of(self.new_parent, self.nth_child, arena)
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Move {
+impl<T: Clone + Display + Eq + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         self.from_node
             .make_nth_child_of(self.parent, self.pos, arena)
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Update<T> {
+impl<T: Clone + Display + Eq + 'static> ApplyAction<T> for Update<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
@@ -272,7 +337,7 @@ impl<T: Clone> Default for EditScript<T> {
     }
 }
 
-impl<T: Clone + Display> EditScript<T> {
+impl<T: Clone + Display + Eq> EditScript<T> {
     /// Create an empty list of actions.
     pub fn new() -> EditScript<T> {
         Default::default()
@@ -319,7 +384,15 @@ impl<T: Clone> RenderJson for EditScript<T> {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for EditScript<T> {
+impl<T: Clone + Display + Eq> Patchify<T> for EditScript<T> {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        for action in &self.actions {
+            action.patchify(store, from, to);
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> ApplyAction<T> for EditScript<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
