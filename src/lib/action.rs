@@ -44,6 +44,21 @@ use std::fmt::{Formatter, Display, Result};
 use ast::{Arena, ArenaError, ArenaResult, NodeId};
 use emitters::RenderJson;
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+/// Type of action.
+///
+/// Only used where the information related to actions can safely be discarded.
+pub enum ActionType {
+    /// Delete a node in a 'from' arena.
+    DELETE,
+    /// Insert a new node into the 'from' arena.
+    INSERT,
+    /// Move an existing node.
+    MOVE,
+    /// Update the text or label associated with a node.
+    UPDATE,
+}
+
 /// Apply an action to an AST node.
 pub trait ApplyAction<T: Clone + Display>: Display + RenderJson {
     /// Apply an action to an AST.

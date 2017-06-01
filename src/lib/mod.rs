@@ -73,5 +73,10 @@ pub mod myers_matcher;
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
 
+/// A patch represents a diff on a single AST node.
+///
+/// Also deals with turning nearby patches into hunks.
+pub mod patch;
+
 /// Algorithms which act on sequences of values.
 pub mod sequence;
