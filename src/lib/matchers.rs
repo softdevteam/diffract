@@ -348,8 +348,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                 debug!("Edit script: INS {} {} Parent: {} {}",
                        self.to_arena[x].label,
                        self.to_arena[x].value,
-                       self.to_arena[z].label,
-                       self.to_arena[z].value);
+                       self.from_arena[z].label,
+                       self.from_arena[z].value);
                 let mut ins = Insert::new(k,
                                           self.to_arena[x].value.clone(),
                                           self.to_arena[x].label.clone(),
@@ -366,8 +366,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                 let v = self.from_arena[w].parent().unwrap();
                 if self.from_arena[w].value != self.to_arena[x].value {
                     debug!("Edit script: UPD {} {} -> {} {}",
-                           self.to_arena[w].label,
-                           self.to_arena[w].value,
+                           self.from_arena[w].label,
+                           self.from_arena[w].value,
                            self.to_arena[x].label,
                            self.to_arena[x].value);
                     let mut upd = Update::new(w,
@@ -384,8 +384,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                     debug!("Edit script: MOV {} {} Parent: {} {}",
                            self.from_arena[w].label,
                            self.from_arena[w].value,
-                           self.to_arena[z].label,
-                           self.to_arena[z].value);
+                           self.from_arena[z].label,
+                           self.from_arena[z].value);
                     mov.apply(&mut self.from_arena)?;
                     script.push(mov);
                 }
@@ -441,9 +441,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
             from_in_order.remove(&child);
             if new_mappings.contains_from(&child) {
                 let mapped = new_mappings.get_to(&child).unwrap();
-                if x.children(&self.to_arena)
-                       .find(|n| *n == mapped)
-                       .is_some() {
+                if x.children(&self.to_arena).any(|n| n == mapped) {
                     s1.push(child);
                 }
             }
@@ -452,9 +450,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
         for child in x.children(&self.to_arena) {
             if new_mappings.contains_to(&child) {
                 let mapped = new_mappings.get_from(&child).unwrap();
-                if w.children(&self.from_arena)
-                       .find(|n| *n == mapped)
-                       .is_some() {
+                if w.children(&self.from_arena).any(|n| n == mapped) {
                     s1.push(child);
                 }
             }
@@ -473,8 +469,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                     debug!("Edit script: MOV {} {} Parent: {} {}",
                            self.from_arena[*a].label,
                            self.from_arena[*a].value,
-                           self.to_arena[w].label,
-                           self.to_arena[w].value);
+                           self.from_arena[w].label,
+                           self.from_arena[w].value);
                     script.push(mov);
                     mov.apply(&mut self.from_arena)?;
                     from_in_order.insert(*a);
