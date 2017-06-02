@@ -40,17 +40,30 @@
 
 extern crate treediff;
 
+use std::path::Path;
+
 use treediff::ast::parse_file;
 
-fn compare_ast_dump_to_lrpar_output(filepath: &str, expected: &str) {
-    let arena = parse_file(filepath).unwrap();
+fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &str) {
+    let lex = if is_java {
+        Path::new("grammars/java.l")
+    } else {
+        Path::new("grammars/calc.l")
+    };
+    let yacc = if is_java {
+        Path::new("grammars/java.y")
+    } else {
+        Path::new("grammars/calc.y")
+    };
+    let arena = parse_file(filepath, lex, yacc).unwrap();
     let arena_pretty_printed = format!("{:}", arena);
     assert_eq!(expected, arena_pretty_printed);
 }
 
 #[test]
 fn test_empty_calc() {
-    compare_ast_dump_to_lrpar_output("tests/empty.calc",
+    compare_ast_dump_to_lrpar_output(false,
+                                     "tests/empty.calc",
                                      "Expr
  Term
   Factor
@@ -59,7 +72,8 @@ fn test_empty_calc() {
 
 #[test]
 fn test_one_calc() {
-    compare_ast_dump_to_lrpar_output("tests/one.calc",
+    compare_ast_dump_to_lrpar_output(false,
+                                     "tests/one.calc",
                                      "Expr
  Term
   Factor
@@ -69,7 +83,8 @@ fn test_one_calc() {
 
 #[test]
 fn test_add_calc() {
-    compare_ast_dump_to_lrpar_output("tests/add.calc",
+    compare_ast_dump_to_lrpar_output(false,
+                                     "tests/add.calc",
                                      "Expr
  Term
   Factor
@@ -84,7 +99,8 @@ fn test_add_calc() {
 
 #[test]
 fn test_mult_calc() {
-    compare_ast_dump_to_lrpar_output("tests/mult.calc",
+    compare_ast_dump_to_lrpar_output(false,
+                                     "tests/mult.calc",
                                      "Expr
  Term
   Factor
@@ -103,7 +119,8 @@ fn test_mult_calc() {
 
 #[test]
 fn test_hello_java() {
-    compare_ast_dump_to_lrpar_output("tests/Hello.java",
+    compare_ast_dump_to_lrpar_output(true,
+                                     "tests/Hello.java",
                                      "goal
  compilation_unit
   package_declaration_opt
