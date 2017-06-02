@@ -1,4 +1,4 @@
 %start document
 %%
 document : paragraph "END" | paragraph "END" document;
-paragraph : "WORD" | "WORD" "SPACE" paragraph;
+paragraph : "WORD" | "WORD" "SPACE" paragraph | "SPACE" paragraph;

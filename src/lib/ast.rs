@@ -59,6 +59,8 @@ pub enum ParseError {
     Io(io::Error),
     /// File not found.
     FileNotFound,
+    /// Executable not found (used to determine paths of grammar files).
+    ExeNotFound,
     /// File name had no extension (used to determine which lexer/parser to use).
     NoFileExtension,
     /// Lexer could not be built by `lrlex`.
@@ -676,7 +678,7 @@ fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<S
 }
 
 // Read file and return its contents or `ParseError`.
-fn read_file(path: &str) -> Result<String, ParseError> {
+fn read_file(path: &Path) -> Result<String, ParseError> {
     let mut f = match File::open(path) {
         Ok(r) => r,
         Err(e) => return Err(ParseError::Io(e)),
@@ -687,34 +689,23 @@ fn read_file(path: &str) -> Result<String, ParseError> {
 }
 
 /// Parse an individual input file, and return an `Arena` or `ParseError`.
-pub fn parse_file(input_path: &str) -> Result<Arena<String>, ParseError> {
+pub fn parse_file(input_path: &str,
+                  lex_path: &Path,
+                  yacc_path: &Path)
+                  -> Result<Arena<String>, ParseError> {
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
-    let extension = match Path::new(&input_path).extension() {
-        Some(ext) => ext.to_str().unwrap(),
-        None => return Err(ParseError::NoFileExtension),
-    };
-    let lex_l_path = format!("grammars/{}.l", extension);
-    let yacc_y_path = format!("grammars/{}.y", extension);
-    info!("Using lexer: {} and parser: {} for input: {}",
-          &lex_l_path,
-          &yacc_y_path,
-          input_path);
-    if !Path::new(&lex_l_path).exists() || !Path::new(&yacc_y_path).exists() {
-        return Err(ParseError::FileNotFound);
-    }
-
     // Get input files.
-    let lexs = match read_file(&lex_l_path) {
+    let lexs = match read_file(lex_path) {
         Ok(string) => string,
         Err(err) => return Err(err),
     };
-    let grms = match read_file(&yacc_y_path) {
+    let grms = match read_file(yacc_path) {
         Ok(string) => string,
         Err(err) => return Err(err),
     };
-    let input = match read_file(input_path) {
+    let input = match read_file(Path::new(input_path)) {
         Ok(string) => string,
         Err(err) => return Err(err),
     };

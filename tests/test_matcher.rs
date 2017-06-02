@@ -40,13 +40,31 @@
 
 extern crate treediff;
 
+use std::path::Path;
+
 use treediff::ast::{NodeId, parse_file};
 use treediff::myers_matcher::MyersConfig;
 use treediff::matchers::MatchTrees;
 
-fn compare_asts_post_edit_script(base_file: &str, diff_file: &str) {
-    let ast_base = parse_file(base_file).unwrap();
-    let ast_diff = parse_file(diff_file).unwrap();
+enum Filetype {
+    JAVA,
+    TEXT,
+    CALC,
+}
+
+fn compare_asts_post_edit_script(ty: &Filetype, base_file: &str, diff_file: &str) {
+    let lex = match *ty {
+        Filetype::JAVA => Path::new("grammars/java.l"),
+        Filetype::TEXT => Path::new("grammars/txt.l"),
+        Filetype::CALC => Path::new("grammars/calc.l"),
+    };
+    let yacc = match *ty {
+        Filetype::JAVA => Path::new("grammars/java.y"),
+        Filetype::TEXT => Path::new("grammars/txt.y"),
+        Filetype::CALC => Path::new("grammars/calc.y"),
+    };
+    let ast_base = parse_file(base_file, lex, yacc).unwrap();
+    let ast_diff = parse_file(diff_file, lex, yacc).unwrap();
     let size = ast_diff.size();
     // All tests use the Myers matcher.
     let config = MyersConfig::new();
@@ -68,24 +86,24 @@ fn compare_asts_post_edit_script(base_file: &str, diff_file: &str) {
 
 #[test]
 fn test_empty_calc() {
-    compare_asts_post_edit_script("tests/empty.calc", "tests/one.calc");
-    compare_asts_post_edit_script("tests/one.calc", "tests/empty.calc");
+    compare_asts_post_edit_script(&Filetype::CALC, "tests/empty.calc", "tests/one.calc");
+    compare_asts_post_edit_script(&Filetype::CALC, "tests/one.calc", "tests/empty.calc");
 }
 
 
 #[test]
 fn test_gt_example() {
     // Example from the GumTree paper.
-    compare_asts_post_edit_script("tests/Test0.java", "tests/Test1.java");
+    compare_asts_post_edit_script(&Filetype::JAVA, "tests/Test0.java", "tests/Test1.java");
 }
 
 #[test]
 fn test_plain_text() {
-    compare_asts_post_edit_script("tests/lorem1.txt", "tests/lorem2.txt");
+    compare_asts_post_edit_script(&Filetype::TEXT, "tests/lorem1.txt", "tests/lorem2.txt");
 }
 
 #[test]
 fn test_wiki() {
     // Example from wikipedia.
-    compare_asts_post_edit_script("tests/wiki1.txt", "tests/wiki2.txt");
+    compare_asts_post_edit_script(&Filetype::TEXT, "tests/wiki1.txt", "tests/wiki2.txt");
 }

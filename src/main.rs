@@ -42,8 +42,9 @@ extern crate env_logger;
 extern crate rustc_serialize;
 
 use std::{env, process};
+use std::fs::canonicalize;
 use std::io::{stderr, stdout, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use docopt::Docopt;
 
@@ -216,19 +217,20 @@ fn get_matcher_descriptions() -> String {
     descriptions.join("\n")
 }
 
-fn parse_file(filename: &str, lexer_path: &str, yacc_path: &str) -> ast::Arena<String> {
+fn parse_file(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast::Arena<String> {
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {
             FileNotFound => "File not found. Check grammar and input files.".into(),
-            BrokenLexer => format!("Could not build lexer {}.", lexer_path),
-            BrokenParser => format!("Could not build parser {}.", yacc_path),
+            BrokenLexer => format!("Could not build lexer {:?}.", lexer_path),
+            BrokenParser => format!("Could not build parser {:?}.", yacc_path),
             LexicalError => format!("Lexical error in {}.", filename),
             SyntaxError => format!("Syntax error in {}.", filename),
+            ExeNotFound => String::from("Cannot determine which directory the executable is in."),
             _ => format!("Error parsing {}.", filename),
         }
     };
-    ast::parse_file(filename)
+    ast::parse_file(filename, lexer_path, yacc_path)
         .map_err(error_to_str)
         .map_err(|ref msg| exit_with_message(msg))
         .unwrap()
@@ -267,29 +269,41 @@ fn main() {
     // Determine lexer and yacc files by extension. For example if the input
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
-    let extension1 = match Path::new(&args.arg_base_file).extension() {
+    let exe = match env::current_exe() {
+        Ok(p) => p,
+        Err(_) => exit_with_message("Cannot determine which directory the executable is in."),
+    };
+    let dir = exe.parent().unwrap();
+
+    let ext1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file));
         }
     };
-    let lex_l_path1 = format!("grammars/{}.l", extension1);
-    let yacc_y_path1 = format!("grammars/{}.y", extension1);
-    if !Path::new(&lex_l_path1).exists() || !Path::new(&yacc_y_path1).exists() {
-        exit_with_message(&format!("Cannot parse .{} files.", extension1));
-    }
+    let lex_l_path1 = match canonicalize(dir.join(format!("../../grammars/{}.l", ext1))) {
+        Ok(p) => p,
+        Err(_) => canonicalize(dir.join("../../grammars/txt.l")).unwrap(),
+    };
+    let yacc_y_path1 = match canonicalize(dir.join(format!("../../grammars/{}.y", ext1))) {
+        Ok(p) => p,
+        Err(_) => canonicalize(dir.join("../../grammars/txt.y")).unwrap(),
+    };
 
-    let extension2 = match Path::new(&args.arg_diff_file).extension() {
+    let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file));
         }
     };
-    let lex_l_path2 = format!("grammars/{}.l", extension2);
-    let yacc_y_path2 = format!("grammars/{}.y", extension2);
-    if !Path::new(&lex_l_path2).exists() || !Path::new(&yacc_y_path2).exists() {
-        exit_with_message(&format!("Cannot parse .{} files.", extension2));
-    }
+    let lex_l_path2 = match canonicalize(dir.join(format!("../../grammars/{}.l", ext2))) {
+        Ok(p) => p,
+        Err(_) => canonicalize(dir.join("../../grammars/txt.l")).unwrap(),
+    };
+    let yacc_y_path2 = match canonicalize(dir.join(format!("../../grammars/{}.y", ext2))) {
+        Ok(p) => p,
+        Err(_) => canonicalize(dir.join("../../grammars/txt.y")).unwrap(),
+    };
 
     // Parse both input files.
     let ast_base = parse_file(&args.arg_base_file, &lex_l_path1, &yacc_y_path1);
