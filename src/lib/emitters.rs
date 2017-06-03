@@ -38,13 +38,18 @@
 #![warn(missing_docs)]
 
 use std::borrow::Cow::Owned;
+use std::collections::{BTreeMap, HashMap};
+use std::fmt::Display;
 use std::fs::File;
-use std::io::{Error, Write};
+use std::io::{Error, Read, Write};
 
 use dot::{Id, Edges, escape_html, GraphWalk, Labeller, LabelText, Nodes, render};
+use term;
 
+use action::{ActionType, EditScript, Patchify};
 use ast::{Arena, EdgeId, NodeId};
 use matchers::{MappingStore, MappingType};
+use patch::{hunkify, Patch};
 
 /// Errors produced in emitting new data.
 pub enum EmitterError {
@@ -52,6 +57,10 @@ pub enum EmitterError {
     CouldNotCreateFile,
     /// Could not write out to a file.
     CouldNotWriteToFile,
+    /// Could not read from a file.
+    CouldNotReadFile,
+    /// Could not open an existing file.
+    CouldNotOpenFile,
 }
 
 /// Result returned by emitters.
@@ -83,6 +92,151 @@ pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>
                            script.render_json(4))
                            .as_bytes())
         .map_err(|_| EmitterError::CouldNotWriteToFile)
+}
+
+// Map action types to terminal colours.
+fn build_colour_map() -> HashMap<ActionType, term::color::Color> {
+    let mut map: HashMap<ActionType, term::color::Color> = HashMap::new();
+    map.insert(ActionType::DELETE, term::color::BRIGHT_RED);
+    map.insert(ActionType::INSERT, term::color::BRIGHT_GREEN);
+    map.insert(ActionType::MOVE, term::color::BRIGHT_BLUE);
+    map.insert(ActionType::UPDATE, term::color::BRIGHT_YELLOW);
+    map
+}
+
+// Read file and return its contents or `ParseError`.
+fn read_file(path: &str) -> Result<String, EmitterError> {
+    let mut f = match File::open(path) {
+        Ok(r) => r,
+        Err(_) => return Err(EmitterError::CouldNotOpenFile),
+    };
+    let mut s = String::new();
+    f.read_to_string(&mut s).unwrap();
+    Ok(s)
+}
+
+/// Write diff to STDOUT, highlighting actions in the edit script.
+///
+/// This function prints the whole file, rather than just the relevant context.
+/// Patch format is not supported, and hunk headers (e.g. `@@ -1 +1 @@`) are
+/// not printed.
+///
+/// ## Panics
+/// If the terminal foreground cannot be changed or reset by the
+/// [term](https://crates.io/crates/term) crate, this function will panic.
+/// However, `term` is cross-platform so this failure case should be rare.
+pub fn write_diff_to_stdout<T: Clone + Display + Eq>(store: &MappingStore<T>,
+                                                     script: &EditScript<T>,
+                                                     from_path: &str,
+                                                     to_path: &str)
+                                                     -> Result<(), EmitterError> {
+    let colours = build_colour_map();
+    // Turn edit script and mappings into hunks of related patches.
+    let mut from_patches: Vec<Patch> = vec![];
+    let mut to_patches: Vec<Patch> = vec![];
+    script.patchify(store, &mut from_patches, &mut to_patches);
+    // No patches in either AST, so input files must be identical.
+    if from_patches.is_empty() && to_patches.is_empty() {
+        return Ok(());
+    }
+    let to_hunks = hunkify(to_patches);
+    let from_file = read_file(from_path)?;
+    let to_file = read_file(to_path)?;
+    let mut hunks: Vec<_> = to_hunks.keys().collect();
+    hunks.sort();
+    // Process patches on the "from" AST. Only the MOVE and DELETE actions are
+    // useful here, so rather than creating a map of hunks in the file,  which
+    // would be needed for a side-by-side diff, instead we create a map of the
+    // patches that are useful for printing.
+    let mut from_actions: BTreeMap<usize, (usize, ActionType)> = BTreeMap::new();
+    for patch in &from_patches {
+        if *patch.action() == ActionType::DELETE || *patch.action() == ActionType::MOVE {
+            from_actions.insert(patch.start(), (patch.end(), patch.action().clone()));
+        }
+    }
+    debug!("{} hunks in to AST {} patches in from AST.",
+           hunks.len(),
+           from_patches.len());
+    // Write out "header" with input file names, similar to git-diff.
+    let mut stream = term::stdout().unwrap();
+    stream.attr(term::Attr::Bold).unwrap();
+    stream.fg(term::color::BRIGHT_MAGENTA).unwrap();
+    write!(stream, "--- a/{}\n+++ b/{}\n", from_path, to_path).unwrap();
+    stream.reset().unwrap();
+    // Iterate over each hunk and print file with context.
+    let mut ch = 0;
+    for &(start, end) in hunks {
+        if ch < start {
+            stream.reset().unwrap();
+            for i in ch..start {
+                // Look for deletions or moves from the "from" AST.
+                if from_actions.contains_key(&i) {
+                    let (f_end, ref f_ty) = from_actions[&i];
+                    stream.fg(colours[f_ty]).unwrap();
+                    if *f_ty == ActionType::DELETE {
+                        write!(stream, "{}", &from_file[i..f_end]).unwrap();
+                    } else {
+                        write!(stream, "^").unwrap();
+                    }
+                    stream.reset().unwrap();
+                }
+                // Next character from the "to" AST.
+                write!(stream, "{}", &to_file[i..i + 1]).unwrap();
+            }
+        }
+        ch = start;
+        let hunk = &to_hunks[&(start, end)];
+        while ch < end {
+            // Look for deletions or moves from the "from" AST.
+            if from_actions.contains_key(&ch) {
+                let (f_end, ref f_ty) = from_actions[&ch];
+                stream.fg(colours[f_ty]).unwrap();
+                if *f_ty == ActionType::DELETE {
+                    write!(stream, "{}", &from_file[ch..f_end]).unwrap();
+                } else {
+                    write!(stream, "^").unwrap();
+                }
+                stream.reset().unwrap();
+            }
+            // Characters or actions from the "to" AST.
+            let action = hunk.get_action(ch);
+            if action.is_none() {
+                write!(stream, "{}", &to_file[ch..ch + 1]).unwrap();
+                ch += 1;
+            } else {
+                let (ty, len) = action.unwrap();
+                stream.fg(colours[&ty]).unwrap();
+                stream.attr(term::Attr::Bold).unwrap();
+                write!(stream, "{}", &to_file[ch..ch + len]).unwrap();
+                stream.reset().unwrap();
+                ch += len;
+            }
+        }
+    }
+    // Print remainder of file, following the last hunk.
+    if !from_patches.is_empty() && ch < to_file.len() {
+        for i in ch..to_file.len() {
+            // Look for deletions or moves from the "from" AST.
+            if from_actions.contains_key(&i) {
+                let (f_end, ref f_ty) = from_actions[&i];
+                stream.fg(colours[f_ty]).unwrap();
+                if *f_ty == ActionType::DELETE {
+                    write!(stream, "{}", &from_file[i..f_end]).unwrap();
+                } else {
+                    write!(stream, "^").unwrap();
+                }
+                stream.reset().unwrap();
+            }
+            write!(stream, "{}", &to_file[i..i + 1]).unwrap();
+        }
+    }
+    // Ensure the next shell prompt starts on a new line, otherwise the diff is
+    // especially difficult to read.
+    if to_file.len() > 1 && &to_file[to_file.len() - 2..to_file.len()] != "\n" {
+        write!(stream, "\n").unwrap();
+    }
+    stream.reset().unwrap();
+    Ok(())
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.

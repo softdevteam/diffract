@@ -327,7 +327,6 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId> = HashSet::new();
         let mut to_in_order: HashSet<NodeId> = HashSet::new();
-        let mut next_from_id = self.from_arena.size();
         let mut new_mappings = TemporaryMappingStore::new();
         // Copy current mappings over to new_mappings.
         for (key, value) in &self.from {
@@ -350,16 +349,16 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                        self.to_arena[x].value,
                        self.from_arena[z].label,
                        self.from_arena[z].value);
-                let mut ins = Insert::new(k,
-                                          self.to_arena[x].value.clone(),
-                                          self.to_arena[x].label.clone(),
-                                          self.to_arena[x].indent,
-                                          z);
+                w = self.from_arena
+                    .new_node(self.to_arena[x].value.clone(),
+                              self.to_arena[x].label.clone(),
+                              self.to_arena[x].indent,
+                              self.to_arena[x].char_no,
+                              self.to_arena[x].token_len);
+                new_mappings.push(w, x);
+                let mut ins = Insert::new(w, z, k);
                 ins.apply(&mut self.from_arena)?;
                 script.push(ins);
-                w = NodeId::new(next_from_id);
-                new_mappings.push(w, x);
-                next_from_id += 1;
             } else if !x.is_root(&self.to_arena) {
                 // Insertion and update phases.
                 w = new_mappings.get_from(&x).unwrap();
@@ -469,8 +468,8 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                     debug!("Edit script: MOV {} {} Parent: {} {}",
                            self.from_arena[*a].label,
                            self.from_arena[*a].value,
-                           self.from_arena[w].label,
-                           self.from_arena[w].value);
+                           self.to_arena[w].label,
+                           self.to_arena[w].value);
                     script.push(mov);
                     mov.apply(&mut self.from_arena)?;
                     from_in_order.insert(*a);
@@ -579,14 +578,14 @@ mod tests {
 
     fn create_mult_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "Expr +
   INT 1
@@ -600,10 +599,10 @@ mod tests {
 
     fn create_plus_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 3

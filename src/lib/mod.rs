@@ -45,6 +45,7 @@ extern crate log;
 extern crate lrlex;
 extern crate lrtable;
 extern crate lrpar;
+extern crate term;
 extern crate test;
 
 /// Actions are operations that transform abstract syntax trees.
@@ -72,6 +73,11 @@ pub mod myers_matcher;
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
+
+/// A patch represents a diff on a single AST node.
+///
+/// Also deals with turning nearby patches into hunks.
+pub mod patch;
 
 /// Algorithms which act on sequences of values.
 pub mod sequence;

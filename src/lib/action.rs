@@ -43,12 +43,36 @@ use std::fmt::{Formatter, Display, Result};
 
 use ast::{Arena, ArenaError, ArenaResult, NodeId};
 use emitters::RenderJson;
+use matchers::MappingStore;
+use patch::Patch;
+
+/// Type of action.
+///
+/// Only used where the information related to actions can safely be discarded.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum ActionType {
+    /// Delete a node in a 'from' arena.
+    DELETE,
+    /// Insert a new node into the 'from' arena.
+    INSERT,
+    /// Move an existing node.
+    MOVE,
+    /// Update the text or label associated with a node.
+    UPDATE,
+}
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone + Display>: Display + RenderJson {
+pub trait ApplyAction<T: Clone + Display>: Display + RenderJson + Patchify<T> {
     /// Apply an action to an AST.
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult;
 }
+
+/// Turn an edit script into a list of patches on the "from" and "to" ASTs.
+pub trait Patchify<T: Clone + Display> {
+    /// Turn object into a `Patch`. Non-terminal nodes are ignored.
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
+}
+
 
 /// A list of actions to be applied.
 ///
@@ -68,11 +92,11 @@ pub struct Delete {
 
 #[derive(Clone, Eq, PartialEq)]
 /// Insert a new node into an AST as the `position`th child of an existing node.
-pub struct Insert<T: Clone> {
+pub struct Insert {
+    /// New node in from-arena, must already exist before applying this trait.
+    node: NodeId,
     nth_child: u16,
-    value: T,
-    label: String,
-    indent: u32,
+    /// New parent in to-arena.
     new_parent: NodeId,
 }
 
@@ -99,15 +123,13 @@ impl Delete {
     }
 }
 
-impl<T: Display + Clone> Insert<T> {
+impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(nth: u16, value: T, label: String, indent: u32, parent: NodeId) -> Insert<T> {
+    pub fn new(node: NodeId, parent: NodeId, nth: u16) -> Insert {
         Insert {
-            nth_child: nth,
-            value: value,
-            label: label,
-            indent: indent,
+            node: node,
             new_parent: parent,
+            nth_child: nth,
         }
     }
 }
@@ -140,14 +162,11 @@ impl Display for Delete {
     }
 }
 
-impl<T: Display + Clone> Display for Insert<T> {
+impl Display for Insert {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        let indent = " ".repeat(self.indent as usize);
         write!(f,
-               "INS {}{} {} to {} at {}",
-               indent,
-               self.label,
-               self.value,
+               "INS {} to {} at {}",
+               self.node,
                self.new_parent,
                self.nth_child)
     }
@@ -181,13 +200,13 @@ impl RenderJson for Delete {
     }
 }
 
-impl<T: Clone> RenderJson for Insert<T> {
+impl RenderJson for Insert {
     fn render_json(&self, indent: usize) -> String {
         let ind_s = " ".repeat(indent + 4);
         let mut json = vec![];
         json.push(" ".repeat(indent) + "{");
         json.push(format!("{}\"action\": \"insert\",", ind_s));
-        json.push(format!("{}\"tree\": {},", &ind_s, self.new_parent.id()));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.node.id()));
         json.push(format!("{}\"parent\": {},", &ind_s, self.new_parent.id()));
         json.push(format!("{}\"at\": {}", &ind_s, self.nth_child));
         json.push(" ".repeat(indent) + "}");
@@ -222,7 +241,63 @@ impl<T: Clone> RenderJson for Update<T> {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Delete {
+impl<T: Clone + Display + Eq> Patchify<T> for Delete {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
+        let node = &store.from_arena[self.node];
+        if node.char_no.is_some() {
+            from.push(Patch::new(ActionType::DELETE,
+                                 node.char_no.unwrap(),
+                                 node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> Patchify<T> for Insert {
+    fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let node = &store.from_arena[self.node];
+        if node.char_no.is_some() {
+            to.push(Patch::new(ActionType::INSERT,
+                               node.char_no.unwrap(),
+                               node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq + 'static> Patchify<T> for Move {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::MOVE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::MOVE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq + 'static> Patchify<T> for Update<T> {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::UPDATE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::UPDATE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> ApplyAction<T> for Delete {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
                       "Attempt to delete branch node {}",
@@ -231,21 +306,21 @@ impl<T: Clone + Display> ApplyAction<T> for Delete {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Insert<T> {
+impl<T: Clone + Display + Eq> ApplyAction<T> for Insert {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
-        let mut new_id = arena.new_node(self.value.clone(), self.label.clone(), self.indent);
-        new_id.make_nth_child_of(self.new_parent, self.nth_child, arena)
+        self.node
+            .make_nth_child_of(self.new_parent, self.nth_child, arena)
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Move {
+impl<T: Clone + Display + Eq + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         self.from_node
             .make_nth_child_of(self.parent, self.pos, arena)
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for Update<T> {
+impl<T: Clone + Display + Eq + 'static> ApplyAction<T> for Update<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
@@ -262,7 +337,7 @@ impl<T: Clone> Default for EditScript<T> {
     }
 }
 
-impl<T: Clone + Display> EditScript<T> {
+impl<T: Clone + Display + Eq> EditScript<T> {
     /// Create an empty list of actions.
     pub fn new() -> EditScript<T> {
         Default::default()
@@ -309,7 +384,15 @@ impl<T: Clone> RenderJson for EditScript<T> {
     }
 }
 
-impl<T: Clone + Display> ApplyAction<T> for EditScript<T> {
+impl<T: Clone + Display + Eq> Patchify<T> for EditScript<T> {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        for action in &self.actions {
+            action.patchify(store, from, to);
+        }
+    }
+}
+
+impl<T: Clone + Display + Eq> ApplyAction<T> for EditScript<T> {
     fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
@@ -324,14 +407,14 @@ mod test {
 
     fn create_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2);
+        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
+        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2);
+        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4);
+        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4);
+        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }
@@ -344,8 +427,8 @@ mod test {
 
     #[test]
     fn fmt_insert() {
-        let ins = Insert::new(0, "100", String::from("INT"), 4, NodeId::new(2));
-        assert_eq!("INS     INT 100 to 2 at 0", format!("{:}", ins));
+        let ins = Insert::new(NodeId::new(3), NodeId::new(2), 0);
+        assert_eq!("INS 3 to 2 at 0", format!("{:}", ins));
     }
 
     #[test]
@@ -399,6 +482,7 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_arena();
+        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
         let format1 = "Expr +
   INT 1
   Expr *
@@ -406,11 +490,7 @@ mod test {
     INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
-        let mut ins = Insert::new(0,
-                                  String::from("100"),
-                                  String::from("INT"),
-                                  4,
-                                  NodeId::new(2));
+        let mut ins = Insert::new(n5, NodeId::new(2), 0);
         ins.apply(&mut arena).unwrap();
         let format2 = "Expr +
   INT 1
@@ -474,21 +554,15 @@ mod test {
     INT 3
     INT 4
 ";
+        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
+        let n6 = arena.new_node(String::from("99"), String::from("INT"), 4, None, None);
         assert_eq!(format1, format!("{}", arena));
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
-        let ins1 = Insert::new(0,
-                               String::from("100"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
-        let ins2 = Insert::new(1,
-                               String::from("99"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
+        let ins1 = Insert::new(n5, NodeId::new(2), 0);
+        let ins2 = Insert::new(n6, NodeId::new(2), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
@@ -519,13 +593,12 @@ mod test {
     INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
+        let n5 = arena.new_node(String::from("2"), String::from("INT"), 4, None, None);
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del = Delete { node: NodeId::new(4) }; // Remove "4".
         let ins = Insert {
-            value: String::from("2"),
-            label: String::from("INT"),
-            indent: 4,
+            node: n5,
             new_parent: NodeId::new(2),
             nth_child: 0,
         };
@@ -554,16 +627,8 @@ mod test {
         let mut actions: EditScript<String> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
-        let ins1 = Insert::new(0,
-                               String::from("100"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
-        let ins2 = Insert::new(1,
-                               String::from("99"),
-                               String::from("INT"),
-                               4,
-                               NodeId::new(2));
+        let ins1 = Insert::new(NodeId::new(5), NodeId::new(2), 0);
+        let ins2 = Insert::new(NodeId::new(6), NodeId::new(2), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
@@ -584,13 +649,13 @@ mod test {
     },
     {
         \"action\": \"insert\",
-        \"tree\": 2,
+        \"tree\": 5,
         \"parent\": 2,
         \"at\": 0
     },
     {
         \"action\": \"insert\",
-        \"tree\": 2,
+        \"tree\": 6,
         \"parent\": 2,
         \"at\": 1
     },
