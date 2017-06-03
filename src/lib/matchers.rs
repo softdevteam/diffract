@@ -73,7 +73,7 @@ impl Default for MappingType {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
-pub struct MappingStore<T: Clone + Debug> {
+pub struct MappingStore<T: Clone + Debug + ToString> {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `to_map`.
@@ -89,7 +89,7 @@ pub struct MappingStore<T: Clone + Debug> {
     pub to_arena: RefCell<Arena<T, ToNodeId>>,
 }
 
-impl<T: Clone + Debug> RenderJson for MappingStore<T> {
+impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
     fn render_json(&self, indent: usize) -> String {
         let ind_2 = " ".repeat(indent * 2);
         let ind_3 = " ".repeat(indent * 3);
@@ -108,7 +108,7 @@ impl<T: Clone + Debug> RenderJson for MappingStore<T> {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
+impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Create a new mapping store.
     pub fn new(base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         MappingStore { from: RefCell::new(HashMap::new()),
@@ -161,6 +161,19 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
             return false;
         }
         self.get_to(from).map_or(false, |x| x == *to)
+    }
+
+    /// Compute whether two sub-trees are isomorphic, based on their hashes.
+    ///
+    /// Isomorphism in this case is defined has having the same hash and the
+    /// same hash serialization.
+    pub fn is_isomorphic_hash(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
+        let is_isomorphic = from.to_static_hash_string(&self.from_arena.borrow())
+                            == to.to_static_hash_string(&self.to_arena.borrow());
+        debug_assert!(!is_isomorphic
+                      || (self.from_arena.borrow()[from].label == self.to_arena.borrow()[to].label)
+                         && (self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty));
+        is_isomorphic
     }
 
     /// Two sub-trees are isomorphic if they have the same structure.
@@ -269,7 +282,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
 ///
 /// This trait should usually be implemented on configuration objects that
 /// define thresholds and weights for a given algorithm.
-pub trait MatchTrees<T: Clone + Debug> {
+pub trait MatchTrees<T: Clone + Debug + ToString> {
     /// Match two trees and return a store of mappings between them.
     fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T>;
 
@@ -322,6 +335,33 @@ mod tests {
 
     #[test]
     fn is_isomorphic() {
+        let mult = create_mult_arena();
+        let plus = create_plus_arena();
+        let store_p = MappingStore::new(plus.clone(),
+                                        Arena::<&'static str, ToNodeId>::from(plus.clone()));
+        let store_m = MappingStore::new(mult.clone(),
+                                        Arena::<&'static str, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        // Isomorphic.
+        assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(store_p.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(store_m.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(store_m.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(store_m.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(store_m.is_isomorphic(NodeId::new(3), NodeId::new(3)));
+        assert!(store_m.is_isomorphic(NodeId::new(4), NodeId::new(4)));
+        assert!(store.is_isomorphic(NodeId::new(1), NodeId::new(3)));
+        assert!(store.is_isomorphic(NodeId::new(2), NodeId::new(4)));
+        // Not isomorphic.
+        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(!store.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(!store.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(!store.is_isomorphic(NodeId::new(2), NodeId::new(3)));
+    }
+
+    #[test]
+    fn is_isomorphic_hash() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
         let store_p = MappingStore::new(plus.clone(),

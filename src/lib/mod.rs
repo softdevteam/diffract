@@ -39,6 +39,7 @@
 #![feature(try_from)]
 
 extern crate cfgrammar;
+extern crate crypto;
 extern crate dot;
 #[macro_use]
 extern crate log;
@@ -95,3 +96,6 @@ pub mod sequence;
 ///
 /// Induced, pruning algorithms currently implemented.
 pub mod chawathe98_matcher;
+
+/// Fingerprinting algorithms for tree isomorphism tests.
+pub mod fingerprint;

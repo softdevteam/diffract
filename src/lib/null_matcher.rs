@@ -59,15 +59,17 @@ impl NullConfig {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> MatchTrees<T> for NullConfig {
+impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for NullConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
-        let desc = "This matcher performs no matching operations.";
-        String::from(desc)
+        String::from("This matcher performs no matching operations.")
     }
 
     /// Perform no matching operations.
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
+    fn match_trees(&self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
+                   -> MappingStore<T> {
         MappingStore::new(base, diff)
     }
 }
