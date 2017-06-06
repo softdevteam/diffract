@@ -39,7 +39,7 @@
 
 use std::borrow::Cow::Owned;
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::Display;
+use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Error, Read, Write};
 
@@ -125,11 +125,11 @@ fn read_file(path: &str) -> Result<String, EmitterError> {
 /// If the terminal foreground cannot be changed or reset by the
 /// [term](https://crates.io/crates/term) crate, this function will panic.
 /// However, `term` is cross-platform so this failure case should be rare.
-pub fn write_diff_to_stdout<T: Clone + Display + Eq>(store: &MappingStore<T>,
-                                                     script: &EditScript<T>,
-                                                     from_path: &str,
-                                                     to_path: &str)
-                                                     -> Result<(), EmitterError> {
+pub fn write_diff_to_stdout<T: Clone + Debug + Eq>(store: &MappingStore<T>,
+                                                   script: &EditScript<T>,
+                                                   from_path: &str,
+                                                   to_path: &str)
+                                                   -> Result<(), EmitterError> {
     let colours = build_colour_map();
     // Turn edit script and mappings into hunks of related patches.
     let mut from_patches: Vec<Patch> = vec![];

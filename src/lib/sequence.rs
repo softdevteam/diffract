@@ -91,7 +91,7 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId],
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fmt::{Debug, Display};
+    use std::fmt::Debug;
     use matchers::MappingStore;
 
     fn eq<T: Clone + Debug + Eq>(n1: &NodeId,
@@ -117,9 +117,9 @@ mod tests {
         }
     }
 
-    fn create_mapping_store<T: Clone + Default + Display + Eq + 'static>(base: &[T],
-                                                                         diff: &[T])
-                                                                         -> MappingStore<T> {
+    fn create_mapping_store<T: Clone + Default + Debug + Eq + 'static>(base: &[T],
+                                                                       diff: &[T])
+                                                                       -> MappingStore<T> {
         let mut base_arena: Arena<T> = Arena::new();
         let mut id: NodeId;
         if !base.is_empty() {

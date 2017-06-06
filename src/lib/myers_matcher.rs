@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::fmt::Display;
+use std::fmt::Debug;
 
 use ast::{Arena, NodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
@@ -60,7 +60,7 @@ impl MyersConfig {
     }
 }
 
-impl<T: Clone + Display + Eq + 'static> MatchTrees<T> for MyersConfig {
+impl<T: Clone + Debug + Eq + 'static> MatchTrees<T> for MyersConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         let desc = "
@@ -98,10 +98,10 @@ Variations.";
 }
 
 /// Test that two nodes have the same label and value.
-fn eq<T: Clone + Display + Eq>(n1: &NodeId,
-                               arena1: &Arena<T>,
-                               n2: &NodeId,
-                               arena2: &Arena<T>)
-                               -> bool {
+fn eq<T: Clone + Debug + Eq>(n1: &NodeId,
+                             arena1: &Arena<T>,
+                             n2: &NodeId,
+                             arena2: &Arena<T>)
+                             -> bool {
     arena1[*n1].label == arena2[*n2].label && arena1[*n1].value == arena2[*n2].value
 }
