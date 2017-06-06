@@ -39,7 +39,7 @@
 
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
+use std::fmt::Debug;
 
 use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{Arena, ArenaError, NodeId};
@@ -48,10 +48,10 @@ use emitters::RenderJson;
 /// Result type returned by the edit script generator.
 pub type EditScriptResult<T> = Result<EditScript<T>, ArenaError>;
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 /// Type of mapping.
 ///
 /// Not needed by matching algorithms, but useful for debugging.
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub enum MappingType {
     /// Anchor mappings are found by the top-down GumTree matcher.
     ANCHOR,
@@ -134,7 +134,7 @@ impl Default for TemporaryMappingStore {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
-pub struct MappingStore<T: Clone> {
+pub struct MappingStore<T: Clone + Debug> {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `to_map`.
@@ -150,7 +150,7 @@ pub struct MappingStore<T: Clone> {
     pub to_arena: Arena<T>,
 }
 
-impl<T: Clone + Display> RenderJson for MappingStore<T> {
+impl<T: Clone + Debug> RenderJson for MappingStore<T> {
     fn render_json(&self, indent: usize) -> String {
         let ind_2 = " ".repeat(indent * 2);
         let ind_3 = " ".repeat(indent * 3);
@@ -174,7 +174,7 @@ impl<T: Clone + Display> RenderJson for MappingStore<T> {
     }
 }
 
-impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
+impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// Create a new mapping store.
     pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
         MappingStore {
@@ -344,7 +344,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
             if !new_mappings.to.contains_key(&x) {
                 let z = new_mappings.get_from(&y).unwrap();
                 let k = self.find_pos(x, &new_mappings, &to_in_order);
-                debug!("Edit script: INS {} {} Parent: {} {}",
+                debug!("Edit script: INS {} {:?} Parent: {} {:?}",
                        self.to_arena[x].label,
                        self.to_arena[x].value,
                        self.from_arena[z].label,
@@ -364,7 +364,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                 w = new_mappings.get_from(&x).unwrap();
                 let v = self.from_arena[w].parent().unwrap();
                 if self.from_arena[w].value != self.to_arena[x].value {
-                    debug!("Edit script: UPD {} {} -> {} {}",
+                    debug!("Edit script: UPD {} {:?} -> {} {:?}",
                            self.from_arena[w].label,
                            self.from_arena[w].value,
                            self.to_arena[x].label,
@@ -380,7 +380,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                 if z != v {
                     let k = self.find_pos(x, &new_mappings, &to_in_order);
                     let mut mov = Move::new(w, z, k);
-                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                    debug!("Edit script: MOV {} {:?} Parent: {} {:?}",
                            self.from_arena[w].label,
                            self.from_arena[w].value,
                            self.from_arena[z].label,
@@ -403,7 +403,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
         let mut actions = EditScript::new();
         for w in root.post_order_traversal(&self.from_arena) {
             if !new_mappings.contains_from(&w) {
-                debug!("Edit script: DEL {} {}",
+                debug!("Edit script: DEL {} {:?}",
                        self.from_arena[w].label,
                        self.from_arena[w].value);
                 let del = Delete::new(w);
@@ -465,7 +465,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
                    !lcs.contains(&(*a, *b)) {
                     let k = self.find_pos(*b, new_mappings, to_in_order);
                     let mut mov = Move::new(*a, w, k);
-                    debug!("Edit script: MOV {} {} Parent: {} {}",
+                    debug!("Edit script: MOV {} {:?} Parent: {} {:?}",
                            self.from_arena[*a].label,
                            self.from_arena[*a].value,
                            self.to_arena[w].label,
@@ -561,7 +561,7 @@ impl<T: Clone + Display + Eq + 'static> MappingStore<T> {
 ///
 /// This trait should usually be implemented on configuration objects that
 /// define thresholds and weights for a given algorithm.
-pub trait MatchTrees<T: Clone> {
+pub trait MatchTrees<T: Clone + Debug> {
     /// Match two trees and return a store of mappings between them.
     fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
 

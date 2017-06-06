@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::fmt::Display;
+use std::fmt::Debug;
 
 use ast::{Arena, NodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
@@ -72,7 +72,7 @@ impl GumTreeConfig {
     }
 }
 
-impl<T: Clone + Display + Eq + 'static> MatchTrees<T> for GumTreeConfig {
+impl<T: Clone + Debug + Eq + 'static> MatchTrees<T> for GumTreeConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         let desc = "
