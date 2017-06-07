@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::cmp::max;
+use std::cmp::{max, min};
 
 use ast::{Arena, NodeId};
 
@@ -56,12 +56,16 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId],
     if seq1.is_empty() || seq2.is_empty() {
         return lcss;
     }
-    let mut grid = vec![];
+    let mut grid = Vec::with_capacity(seq1.len() + 1);
     for _ in 0..seq1.len() + 1 {
         grid.push(vec![0; seq2.len() + 1]);
     }
-    debug_assert_eq!(seq1.len() + 1, grid.len());
-    debug_assert_eq!(seq2.len() + 1, grid[0].len());
+    debug_assert_eq!(seq1.len() + 1,
+                     grid.len(),
+                     "Cost matrix not sized correctly.");
+    debug_assert_eq!(seq2.len() + 1,
+                     grid[0].len(),
+                     "Cost matrix not sized correctly.");
     for (i, n1) in seq1.iter().enumerate() {
         for (j, n2) in seq2.iter().enumerate() {
             if eq(n1, arena1, n2, arena2) {
@@ -86,6 +90,53 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId],
     }
     lcss.reverse();
     lcss
+}
+
+/// Three-way minimum.
+fn min3<T: Ord>(v1: T, v2: T, v3: T) -> T {
+    min(min(v1, v2), v3)
+}
+
+/// Levenshtein distance with equal weights for deletion, insertion and substitution.
+pub fn levenshtein<T: Eq + PartialEq + ToString>(s1: &T, s2: &T) -> usize {
+    if s1 == s2 {
+        return 0;
+    }
+    let string1 = s1.to_string();
+    let string2 = s2.to_string();
+    if string1.is_empty() {
+        return string2.len();
+    }
+    if string2.is_empty() {
+        return string1.len();
+    }
+    let w1 = string1.chars().collect::<Vec<_>>();
+    let w2 = string2.chars().collect::<Vec<_>>();
+    // Compute action costs.
+    let mut costs = Vec::with_capacity(w2.len() + 1);
+    for j in 0..w2.len() + 1 {
+        costs.push(vec![0 as usize; w1.len() + 1]);
+        costs[j][0] = j;
+    }
+    debug_assert_eq!(w2.len() + 1,
+                     costs.len(),
+                     "Cost matrix not sized correctly.");
+    debug_assert_eq!(w1.len() + 1,
+                     costs[0].len(),
+                     "Cost matrix not sized correctly.");
+    for i in 0..w1.len() + 1 {
+        costs[0][i] = i;
+    }
+    for j in 1..w2.len() + 1 {
+        for i in 1..w1.len() + 1 {
+            let cost = if w1[i - 1] == w2[j - 1] { 0 } else { 1 };
+            let val = min3(costs[j][i - 1] + 1, // Deletion.
+                           costs[j - 1][i] + 1, // Insertion.
+                           costs[j - 1][i - 1] + cost); // Substitution.
+            costs[j][i] = val;
+        }
+    }
+    costs[w2.len()][w1.len()]
 }
 
 #[cfg(test)]
@@ -201,5 +252,42 @@ mod tests {
         let expected = vec!['M', 'J', 'A', 'U'];
         let store = create_mapping_store(&v1, &v2);
         assert_sequence_correct(store, &expected);
+    }
+
+    #[test]
+    fn levenshtein_same() {
+        assert_eq!(0,
+                   levenshtein(&String::from("kitten"), &String::from("kitten")));
+        assert_eq!(0, levenshtein(&String::from("test"), &String::from("test")));
+        assert_eq!(0, levenshtein(&String::from(""), &String::from("")));
+    }
+
+    #[test]
+    fn levenshtein_empty() {
+        assert_eq!(0, levenshtein(&String::from(""), &String::from("")));
+        assert_eq!(7, levenshtein(&String::from(""), &String::from("sitting")));
+        assert_eq!(6, levenshtein(&String::from("kitten"), &String::from("")));
+        assert_eq!(4, levenshtein(&String::from(""), &String::from("test")));
+        assert_eq!(4, levenshtein(&String::from("tent"), &String::from("")));
+        assert_eq!(6, levenshtein(&String::from(""), &String::from("gambol")));
+        assert_eq!(5, levenshtein(&String::from("gumbo"), &String::from("")));
+    }
+
+    #[test]
+    fn levenshtein_non_empty() {
+        assert_eq!(1, levenshtein(&String::from("tent"), &String::from("test")));
+        assert_eq!(2, levenshtein(&String::from("book"), &String::from("back")));
+        assert_eq!(2,
+                   levenshtein(&String::from("gumbo"), &String::from("gambol")));
+        assert_eq!(3,
+                   levenshtein(&String::from("saturday"), &String::from("sunday")));
+        assert_eq!(3,
+                   levenshtein(&String::from("kitten"), &String::from("sitting")));
+        assert_eq!(6,
+                   levenshtein(&String::from("YHCQPGK"), &String::from("LAHYQQKPGKA")));
+        assert_eq!(8,
+                   levenshtein(&String::from("rosettacode"), &String::from("raisethysword")));
+        assert_eq!(8,
+                   levenshtein(&String::from("raisethysword"), &String::from("rosettacode")));
     }
 }
