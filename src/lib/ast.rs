@@ -313,11 +313,6 @@ impl<T: Clone> Node<T> {
     pub fn next_sibling(&self) -> Option<NodeId> {
         self.next_sibling
     }
-
-    /// Return the Id of this node.
-    pub fn index(&self) -> Option<NodeId> {
-        self.index
-    }
 }
 
 impl<T: fmt::Display + Clone> fmt::Display for Node<T> {
