@@ -349,12 +349,11 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
                        self.to_arena[x].value,
                        self.from_arena[z].label,
                        self.from_arena[z].value);
-                w = self.from_arena
-                    .new_node(self.to_arena[x].value.clone(),
-                              self.to_arena[x].label.clone(),
-                              self.to_arena[x].indent,
-                              self.to_arena[x].char_no,
-                              self.to_arena[x].token_len);
+                w = self.from_arena.new_node(self.to_arena[x].value.clone(),
+                                             self.to_arena[x].label.clone(),
+                                             self.to_arena[x].indent,
+                                             self.to_arena[x].char_no,
+                                             self.to_arena[x].token_len);
                 new_mappings.push(w, x);
                 let mut ins = Insert::new(w, z, k);
                 ins.apply(&mut self.from_arena)?;
@@ -674,13 +673,14 @@ mod tests {
         let mult = create_mult_arena();
         let matcher = MyersConfig::new();
         let store = matcher.match_trees(plus, mult);
-        let expected = vec!["\"matches\": [",
-                            "{\n\"src\": 1,\n\"dest\": 3\n}",
-                            "{\n\"src\": 0,\n\"dest\": 0\n}",
-                            "{\n\"src\": 2,\n\"dest\": 4\n}"]
-                .iter()
-                .map(|s| String::from(*s))
-                .collect::<Vec<String>>();
+        let expected_str = vec!["\"matches\": [",
+                                "{\n\"src\": 1,\n\"dest\": 3\n}",
+                                "{\n\"src\": 0,\n\"dest\": 0\n}",
+                                "{\n\"src\": 2,\n\"dest\": 4\n}"];
+        let expected = expected_str
+            .iter()
+            .map(|s| String::from(*s))
+            .collect::<Vec<String>>();
         let got = store.render_json(0);
         for item in expected {
             assert!(got.contains(&item));

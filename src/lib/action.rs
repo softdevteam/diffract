@@ -572,7 +572,8 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
-        let expected = String::from("\"actions\": [
+        let expected = String::from(
+            "\"actions\": [
     {
         \"action\": \"delete\",
         \"tree\": 3
@@ -604,7 +605,8 @@ mod test {
         \"tree\": 0,
         \"label\": \"Expr\"
     }
-]");
+]",
+        );
         assert_eq!(expected, actions.render_json(0));
     }
 }
