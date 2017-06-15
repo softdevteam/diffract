@@ -109,7 +109,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "lrlex"
 version = "0.1.0"
-source = "git+http://github.com/softdevteam/lrlex#47a42d5286d2d8ef8f5bdda2913fdc00ba941822"
+source = "git+http://github.com/softdevteam/lrlex#0b8c91d3a195b093a33a902df6a30a33999a5cf4"
 dependencies = [
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -119,7 +119,7 @@ dependencies = [
 [[package]]
 name = "lrpar"
 version = "0.1.0"
-source = "git+http://github.com/softdevteam/lrpar#ee09e7f1504b03833e3180daa6c75d9164e1197d"
+source = "git+http://github.com/softdevteam/lrpar#0e8a86ec50022fd0250c75fb95941478b7f8b96b"
 dependencies = [
  "cfgrammar 0.1.0 (git+https://github.com/softdevteam/cfgrammar)",
  "getopts 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
