@@ -213,6 +213,8 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
         let node = &store.from_arena[self.node];
         if node.char_no.is_some() {
             from.push(Patch::new(ActionType::DELETE,
+                                 node.line_no.unwrap(),
+                                 node.col_no.unwrap(),
                                  node.char_no.unwrap(),
                                  node.token_len.unwrap()));
         }
@@ -224,6 +226,8 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Insert {
         let node = &store.from_arena[self.node];
         if node.char_no.is_some() {
             to.push(Patch::new(ActionType::INSERT,
+                               node.line_no.unwrap(),
+                               node.col_no.unwrap(),
                                node.char_no.unwrap(),
                                node.token_len.unwrap()));
         }
@@ -235,12 +239,16 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Move {
         let f_node = &store.from_arena[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::MOVE,
+                                 f_node.line_no.unwrap(),
+                                 f_node.col_no.unwrap(),
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
         let t_node = &store.to_arena[store.get_to(&self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::MOVE,
+                               t_node.line_no.unwrap(),
+                               t_node.col_no.unwrap(),
                                t_node.char_no.unwrap(),
                                t_node.token_len.unwrap()));
         }
@@ -252,12 +260,16 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
         let f_node = &store.from_arena[self.node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::UPDATE,
+                                 f_node.line_no.unwrap(),
+                                 f_node.col_no.unwrap(),
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
         let t_node = &store.to_arena[store.get_to(&self.node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::UPDATE,
+                               t_node.line_no.unwrap(),
+                               t_node.col_no.unwrap(),
                                t_node.char_no.unwrap(),
                                t_node.token_len.unwrap()));
         }

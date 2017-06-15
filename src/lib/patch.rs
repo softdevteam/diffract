@@ -52,18 +52,37 @@ const DIST_THRESHOLD: u64 = 3 * 80;
 /// See the `Hunk` struct which aggregates a number of related patches.
 pub struct Patch {
     action: ActionType,
+    line_no: usize,
+    col_no: usize,
     start: usize,
     length: usize,
 }
 
 impl Patch {
     /// Create a new patch.
-    pub fn new(ty: ActionType, start: usize, length: usize) -> Patch {
+    pub fn new(ty: ActionType,
+               line_no: usize,
+               col_no: usize,
+               start: usize,
+               length: usize)
+               -> Patch {
         Patch {
             action: ty,
+            line_no: line_no,
+            col_no: col_no,
             start: start,
             length: length,
         }
+    }
+
+    /// Line number where this patch begins in the original file.
+    pub fn line_no(&self) -> usize {
+        self.line_no
+    }
+
+    /// Column number where this patch begins in the original file.
+    pub fn col_no(&self) -> usize {
+        self.line_no
     }
 
     /// Character number where this patch begins in the original file.
@@ -96,6 +115,8 @@ impl Patch {
 /// Patches inside a hunk are not necessarily contiguous.
 pub struct Hunk {
     patches: Vec<Patch>,
+    line_no: usize,
+    col_no: usize,
     start: usize,
     length: usize,
 }
@@ -105,6 +126,8 @@ impl Hunk {
     pub fn new(patch: Patch) -> Hunk {
         Hunk {
             patches: vec![patch.clone()],
+            line_no: patch.line_no,
+            col_no: patch.col_no,
             start: patch.start,
             length: patch.length,
         }
@@ -185,7 +208,7 @@ mod test {
 
     #[test]
     fn test_patch() {
-        let p = Patch::new(ActionType::DELETE, 27, 6);
+        let p = Patch::new(ActionType::DELETE, 1, 27, 27, 6);
         assert_eq!(&ActionType::DELETE, p.action());
         assert_eq!(27, p.start());
         assert_eq!(33, p.end());
@@ -193,11 +216,11 @@ mod test {
 
     #[test]
     fn test_get_action() {
-        let p0 = Patch::new(ActionType::DELETE, 0, 6);
-        let p1 = Patch::new(ActionType::UPDATE, 7, 6);
+        let p0 = Patch::new(ActionType::DELETE, 1, 0, 0, 6);
+        let p1 = Patch::new(ActionType::UPDATE, 1, 7, 7, 6);
         let mut hunk = Hunk::new(p0);
-        let p2 = Patch::new(ActionType::MOVE, 20, 6);
-        let p3 = Patch::new(ActionType::INSERT, 27, 10);
+        let p2 = Patch::new(ActionType::MOVE, 1, 20, 20, 6);
+        let p3 = Patch::new(ActionType::INSERT, 1, 27, 27, 10);
         hunk.add_patch(p1.clone());
         hunk.add_patch(p2.clone());
         hunk.add_patch(p3.clone());
@@ -223,10 +246,10 @@ mod test {
 
     #[test]
     fn test_is_close() {
-        let p0 = Patch::new(ActionType::DELETE, 0, 6);
-        let p1 = Patch::new(ActionType::UPDATE, 7, 6);
-        let p2 = Patch::new(ActionType::MOVE, 20, 6);
-        let p3 = Patch::new(ActionType::INSERT, 507, 10);
+        let p0 = Patch::new(ActionType::DELETE, 1, 0, 0, 6);
+        let p1 = Patch::new(ActionType::UPDATE, 1, 7, 7, 6);
+        let p2 = Patch::new(ActionType::MOVE, 1, 20, 20, 6);
+        let p3 = Patch::new(ActionType::INSERT, 1, 507, 507, 10);
         let hunk = Hunk::new(p0);
         assert!(hunk.is_patch_related(&p1));
         assert!(hunk.is_patch_related(&p2));
@@ -235,10 +258,10 @@ mod test {
 
     #[test]
     fn test_hunkify() {
-        let patches = vec![Patch::new(ActionType::DELETE, 0, 6),
-                           Patch::new(ActionType::UPDATE, 7, 6),
-                           Patch::new(ActionType::MOVE, 20, 6),
-                           Patch::new(ActionType::INSERT, 507, 10)];
+        let patches = vec![Patch::new(ActionType::DELETE, 1, 0, 0, 6),
+                           Patch::new(ActionType::UPDATE, 1, 7, 7, 6),
+                           Patch::new(ActionType::MOVE, 1, 20, 20, 6),
+                           Patch::new(ActionType::INSERT, 1, 507, 507, 10)];
 
         let hunks = hunkify(patches);
         assert_eq!(2, hunks.len());
@@ -248,12 +271,12 @@ mod test {
 
     #[test]
     fn test_header() {
-        let p0 = Patch::new(ActionType::DELETE, 0, 6);
-        let p1 = Patch::new(ActionType::UPDATE, 7, 6);
+        let p0 = Patch::new(ActionType::DELETE, 1, 0, 0, 6);
+        let p1 = Patch::new(ActionType::UPDATE, 1, 7, 7, 6);
         let mut hunk_from = Hunk::new(p0);
         hunk_from.add_patch(p1);
-        let p2 = Patch::new(ActionType::MOVE, 20, 6);
-        let p3 = Patch::new(ActionType::INSERT, 27, 10);
+        let p2 = Patch::new(ActionType::MOVE, 1, 20, 20, 6);
+        let p3 = Patch::new(ActionType::INSERT, 1, 27, 27, 10);
         let mut hunk_to = Hunk::new(p2);
         hunk_to.add_patch(p3);
         assert_eq!(String::from("@@ -0,13 +20,17 @@"),
