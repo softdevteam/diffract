@@ -38,6 +38,7 @@
 #![feature(test)]
 #![feature(try_from)]
 
+extern crate cfgrammar;
 extern crate dot;
 extern crate env_logger;
 #[macro_use]

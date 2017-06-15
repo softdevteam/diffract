@@ -46,9 +46,11 @@ use std::io::Read;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
+use cfgrammar::TIdx;
+use cfgrammar::yacc::YaccGrammar;
 use lrlex::{build_lex, Lexeme};
 use lrpar::parser;
-use lrtable::{Grammar, Minimiser, TIdx, yacc_to_statetable};
+use lrtable::{Minimiser, yacc_to_statetable};
 
 use hqueue::HeightQueue;
 
@@ -645,7 +647,7 @@ impl<'a, T: Clone> Iterator for PreOrderTraversal<'a, T> {
 }
 
 // Turn a grammar, parser and input string into an AST arena.
-fn parse_into_ast(pt: &parser::Node<u16>, grm: &Grammar, input: &str) -> Arena<String> {
+fn parse_into_ast(pt: &parser::Node<u16>, grm: &YaccGrammar, input: &str) -> Arena<String> {
     let mut arena = Arena::new();
     let mut st = vec![(0, pt)]; // Stack of (indent level, node) pairs
     // Stack of `Option<NodeId>`s which are parents of nodes on the `st` stack.
@@ -756,7 +758,7 @@ pub fn parse_file(input_path: &str,
         Ok(tokens) => tokens,
         Err(_) => return Err(ParseError::LexicalError),
     };
-    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.end_term)).unwrap(),
+    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.end_term_idx())).unwrap(),
                              input.len(),
                              0));
 

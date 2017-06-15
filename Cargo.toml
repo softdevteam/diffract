@@ -23,6 +23,7 @@ docopt = "0.7.0"
 log = "0.3.7"
 rustc-serialize = "0.3"
 term = "0.4.5"
+cfgrammar = { git = "https://github.com/softdevteam/cfgrammar" }
 lrlex = { git = "http://github.com/softdevteam/lrlex" }
 lrpar = { git = "http://github.com/softdevteam/lrpar" }
 lrtable = { git = "http://github.com/softdevteam/lrtable" }
