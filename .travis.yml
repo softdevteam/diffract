@@ -3,9 +3,7 @@ rust: nightly
 cache: cargo
 before_script:
 - export PATH="$PATH:$HOME/.cargo/bin"
-- which rustfmt || cargo install rustfmt
 script:
-- cargo fmt -- --write-mode=diff
 - cargo build
 - cargo doc --no-deps --lib
 - cargo doc --no-deps --bins

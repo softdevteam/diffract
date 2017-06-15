@@ -90,7 +90,7 @@ pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>
         .write_all(format!("{{\n{},\n{}\n}}\n",
                            store.render_json(4),
                            script.render_json(4))
-                           .as_bytes())
+                       .as_bytes())
         .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 

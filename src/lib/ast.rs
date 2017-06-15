@@ -1164,18 +1164,14 @@ INT 2
                                           NodeId::new(2),
                                           NodeId::new(3),
                                           NodeId::new(4)];
-        let descendants1 = NodeId::new(0)
-            .descendants(&arena)
-            .collect::<Vec<NodeId>>();
+        let descendants1 = NodeId::new(0).descendants(&arena).collect::<Vec<NodeId>>();
         assert_eq!(expected1.len(), descendants1.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
         let expected2: Vec<NodeId> = vec![NodeId::new(3), NodeId::new(4)];
-        let descendants2 = NodeId::new(2)
-            .descendants(&arena)
-            .collect::<Vec<NodeId>>();
+        let descendants2 = NodeId::new(2).descendants(&arena).collect::<Vec<NodeId>>();
         assert_eq!(expected2.len(), descendants2.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], descendants2[index]);

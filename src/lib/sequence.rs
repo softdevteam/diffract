@@ -213,18 +213,14 @@ mod tests {
 
     #[test]
     fn lcss_same() {
-        let same = "THE VERY SAME TWO STRINGS."
-            .chars()
-            .collect::<Vec<char>>();
+        let same = "THE VERY SAME TWO STRINGS.".chars().collect::<Vec<char>>();
         let store = create_mapping_store(&same, &same);
         assert_sequence_correct(store, &same);
     }
 
     #[test]
     fn lcss_dna() {
-        let v1 = "AAACCGTGAGTTATTCGTTCTAGAA"
-            .chars()
-            .collect::<Vec<char>>();
+        let v1 = "AAACCGTGAGTTATTCGTTCTAGAA".chars().collect::<Vec<char>>();
         let v2 = "CACCCCTAAGGTACCTTTGGTTC".chars().collect::<Vec<char>>();
         let expected = "ACCTAGTATTGTTC".chars().collect::<Vec<char>>();
         let store1 = create_mapping_store(&v1, &v2);

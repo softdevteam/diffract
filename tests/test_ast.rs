@@ -62,30 +62,35 @@ fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &st
 
 #[test]
 fn test_empty_calc() {
-    compare_ast_dump_to_lrpar_output(false,
-                                     "tests/empty.calc",
-                                     "Expr
+    compare_ast_dump_to_lrpar_output(
+        false,
+        "tests/empty.calc",
+        "Expr
  Term
   Factor
-");
+",
+    );
 }
 
 #[test]
 fn test_one_calc() {
-    compare_ast_dump_to_lrpar_output(false,
-                                     "tests/one.calc",
-                                     "Expr
+    compare_ast_dump_to_lrpar_output(
+        false,
+        "tests/one.calc",
+        "Expr
  Term
   Factor
    INT 1
-");
+",
+    );
 }
 
 #[test]
 fn test_add_calc() {
-    compare_ast_dump_to_lrpar_output(false,
-                                     "tests/add.calc",
-                                     "Expr
+    compare_ast_dump_to_lrpar_output(
+        false,
+        "tests/add.calc",
+        "Expr
  Term
   Factor
    INT 1
@@ -94,14 +99,16 @@ fn test_add_calc() {
   Term
    Factor
     INT 2
-");
+",
+    );
 }
 
 #[test]
 fn test_mult_calc() {
-    compare_ast_dump_to_lrpar_output(false,
-                                     "tests/mult.calc",
-                                     "Expr
+    compare_ast_dump_to_lrpar_output(
+        false,
+        "tests/mult.calc",
+        "Expr
  Term
   Factor
    INT 3
@@ -114,14 +121,16 @@ fn test_mult_calc() {
   Term
    Factor
     INT 2
-");
+",
+    );
 }
 
 #[test]
 fn test_hello_java() {
-    compare_ast_dump_to_lrpar_output(true,
-                                     "tests/Hello.java",
-                                     "goal
+    compare_ast_dump_to_lrpar_output(
+        true,
+        "tests/Hello.java",
+        "goal
  compilation_unit
   package_declaration_opt
   import_declarations_opt
@@ -222,5 +231,6 @@ fn test_hello_java() {
                     SEMICOLON ;
               RBRACE }
        RBRACE }
-");
+",
+    );
 }
