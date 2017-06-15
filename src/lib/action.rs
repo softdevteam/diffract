@@ -365,14 +365,44 @@ mod test {
 
     fn create_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
+        let root = arena.new_node(String::from("+"),
+                                  String::from("Expr"),
+                                  0,
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node(String::from("1"),
+                                String::from("INT"),
+                                2,
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
+        let n2 = arena.new_node(String::from("*"),
+                                String::from("Expr"),
+                                2,
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
+        let n3 = arena.new_node(String::from("3"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
+        let n4 = arena.new_node(String::from("4"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }
@@ -416,7 +446,13 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_arena();
-        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
+        let n5 = arena.new_node(String::from("100"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         let format1 = "Expr +
   INT 1
   Expr *
@@ -488,8 +524,20 @@ mod test {
     INT 3
     INT 4
 ";
-        let n5 = arena.new_node(String::from("100"), String::from("INT"), 4, None, None);
-        let n6 = arena.new_node(String::from("99"), String::from("INT"), 4, None, None);
+        let n5 = arena.new_node(String::from("100"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
+        let n6 = arena.new_node(String::from("99"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         assert_eq!(format1, format!("{}", arena));
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
@@ -527,7 +575,13 @@ mod test {
     INT 4
 ";
         assert_eq!(format1, format!("{}", arena));
-        let n5 = arena.new_node(String::from("2"), String::from("INT"), 4, None, None);
+        let n5 = arena.new_node(String::from("2"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del = Delete { node: NodeId::new(4) }; // Remove "4".

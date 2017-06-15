@@ -352,6 +352,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
                 w = self.from_arena.new_node(self.to_arena[x].value.clone(),
                                              self.to_arena[x].label.clone(),
                                              self.to_arena[x].indent,
+                                             self.to_arena[x].col_no,
+                                             self.to_arena[x].line_no,
                                              self.to_arena[x].char_no,
                                              self.to_arena[x].token_len);
                 new_mappings.push(w, x);
@@ -577,14 +579,44 @@ mod tests {
 
     fn create_mult_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
-        let n1 = arena.new_node(String::from("1"), String::from("INT"), 2, None, None);
+        let root = arena.new_node(String::from("+"),
+                                  String::from("Expr"),
+                                  0,
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node(String::from("1"),
+                                String::from("INT"),
+                                2,
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"), String::from("Expr"), 2, None, None);
+        let n2 = arena.new_node(String::from("*"),
+                                String::from("Expr"),
+                                2,
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
+        let n3 = arena.new_node(String::from("3"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
+        let n4 = arena.new_node(String::from("4"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "Expr +
   INT 1
@@ -598,10 +630,28 @@ mod tests {
 
     fn create_plus_arena() -> Arena<String> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"), String::from("Expr"), 0, None, None);
-        let n1 = arena.new_node(String::from("3"), String::from("INT"), 4, None, None);
+        let root = arena.new_node(String::from("+"),
+                                  String::from("Expr"),
+                                  0,
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node(String::from("3"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("4"), String::from("INT"), 4, None, None);
+        let n2 = arena.new_node(String::from("4"),
+                                String::from("INT"),
+                                4,
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
         let format1 = "Expr +
     INT 3
