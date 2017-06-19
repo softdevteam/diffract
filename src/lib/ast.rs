@@ -47,7 +47,7 @@ use std::ops::{Index, IndexMut};
 use std::path::Path;
 
 use cfgrammar::TIdx;
-use cfgrammar::yacc::YaccGrammar;
+use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
 use lrlex::{build_lex, Lexeme, Lexer};
 use lrpar::parser;
 use lrtable::{Minimiser, yacc_to_statetable};
@@ -765,7 +765,11 @@ pub fn parse_file(input_path: &str,
     };
 
     // Create parser.
-    let (grm, stable) = match yacc_to_statetable(&grms, Minimiser::Pager) {
+    let grm = match yacc_grm(YaccKind::Original, &grms) {
+        Ok(x) => x,
+        Err(_) => return Err(ParseError::BrokenParser),
+    };
+    let stable = match yacc_to_statetable(&grm, Minimiser::Pager) {
         Ok(x) => x,
         Err(_) => return Err(ParseError::BrokenParser),
     };
