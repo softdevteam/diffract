@@ -224,12 +224,11 @@ fn parse_file(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast:
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {
-            FileNotFound => "File not found. Check grammar and input files.".into(),
+            FileNotFound(path) => format!("File {} not found.", path),
             BrokenLexer => format!("Could not build lexer {:?}.", lexer_path),
             BrokenParser => format!("Could not build parser {:?}.", yacc_path),
             LexicalError => format!("Lexical error in {}.", filename),
             SyntaxError => format!("Syntax error in {}.", filename),
-            ExeNotFound => String::from("Cannot determine which directory the executable is in."),
             _ => format!("Error parsing {}.", filename),
         }
     };

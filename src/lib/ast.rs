@@ -41,7 +41,6 @@ use std::collections::{HashMap, VecDeque};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
-use std::io;
 use std::io::Read;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
@@ -58,13 +57,9 @@ use hqueue::HeightQueue;
 /// Errors raised when parsing a source file.
 pub enum ParseError {
     /// Io error returned from standard library routines.
-    Io(io::Error),
+    Io(String),
     /// File not found.
-    FileNotFound,
-    /// Executable not found (used to determine paths of grammar files).
-    ExeNotFound,
-    /// File name had no extension (used to determine which lexer/parser to use).
-    NoFileExtension,
+    FileNotFound(String),
     /// Lexer could not be built by `lrlex`.
     BrokenLexer,
     /// Parser could not be built by `lrpar`.
@@ -727,9 +722,12 @@ fn parse_into_ast(pt: &parser::Node<u16>,
 
 // Read file and return its contents or `ParseError`.
 fn read_file(path: &Path) -> Result<String, ParseError> {
+    if !Path::new(path).exists() {
+        return Err(ParseError::FileNotFound(path.to_str().unwrap().into()));
+    }
     let mut f = match File::open(path) {
         Ok(r) => r,
-        Err(e) => return Err(ParseError::Io(e)),
+        Err(e) => return Err(ParseError::Io(e.to_string())),
     };
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
