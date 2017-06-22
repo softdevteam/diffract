@@ -42,7 +42,7 @@ extern crate treediff;
 
 use std::path::Path;
 
-use treediff::ast::parse_file;
+use treediff::ast::{ParseError, parse_file};
 
 fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &str) {
     let lex = if is_java {
@@ -233,4 +233,92 @@ fn test_hello_java() {
        RBRACE }
 ",
     );
+}
+
+#[test]
+fn test_non_existant_input() {
+    let lex = Path::new("grammars/calc.l");
+    let yacc = Path::new("grammars/calc.y");
+    let ast_result = parse_file("nosuchfileexists.calc", lex, yacc);
+    match ast_result {
+        Err(ParseError::FileNotFound(s)) => assert_eq!(s, String::from("nosuchfileexists.calc")),
+        Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_non_existant_lex() {
+    let lex = Path::new("grammars/nosuchfileexists.l");
+    let yacc = Path::new("grammars/calc.y");
+    let ast_result = parse_file("tets/one.calc", lex, yacc);
+    match ast_result {
+        Err(ParseError::FileNotFound(s)) => {
+            assert_eq!(s, String::from("grammars/nosuchfileexists.l"))
+        }
+        Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_non_existant_grm() {
+    let lex = Path::new("grammars/calc.l");
+    let yacc = Path::new("grammars/nosuchfileexists.y");
+    let ast_result = parse_file("tests/one.calc", lex, yacc);
+    match ast_result {
+        Err(ParseError::FileNotFound(s)) => {
+            assert_eq!(s, String::from("grammars/nosuchfileexists.y"))
+        }
+        Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_lexical_err() {
+    let lex = Path::new("grammars/calc.l");
+    let yacc = Path::new("grammars/calc.y");
+    let ast_result = parse_file("tests/calc_lexical_err.calc", lex, yacc);
+    match ast_result {
+        Err(ParseError::LexicalError) => assert!(true),
+        Err(e) => panic!("Expected LexicalError error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_syntax_err() {
+    let lex = Path::new("grammars/calc.l");
+    let yacc = Path::new("grammars/calc.y");
+    let ast_result = parse_file("tests/calc_syntax_err.calc", lex, yacc);
+    match ast_result {
+        Err(ParseError::SyntaxError) => assert!(true),
+        Err(e) => panic!("Expected SyntaxError error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_broken_lex() {
+    let lex = Path::new("tests/grammars/broken.l");
+    let yacc = Path::new("grammars/txt.y");
+    let ast_result = parse_file("tests/lorem1.txt", lex, yacc);
+    match ast_result {
+        Err(ParseError::BrokenLexer) => assert!(true),
+        Err(e) => panic!("Expected BrokenLexer error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
+}
+
+#[test]
+fn test_broken_grm() {
+    let lex = Path::new("grammars/txt.l");
+    let yacc = Path::new("tests/grammars/broken.y");
+    let ast_result = parse_file("tests/lorem1.txt", lex, yacc);
+    match ast_result {
+        Err(ParseError::BrokenParser) => assert!(true),
+        Err(e) => panic!("Expected BrokenParser error, got: {:?}", e),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+    }
 }
