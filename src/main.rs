@@ -283,14 +283,10 @@ fn main() {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file));
         }
     };
-    let lex_l_path1 = match canonicalize(dir.join(format!("../../grammars/{}.l", ext1))) {
-        Ok(p) => p,
-        Err(_) => canonicalize(dir.join("../../grammars/txt.l")).unwrap(),
-    };
-    let yacc_y_path1 = match canonicalize(dir.join(format!("../../grammars/{}.y", ext1))) {
-        Ok(p) => p,
-        Err(_) => canonicalize(dir.join("../../grammars/txt.y")).unwrap(),
-    };
+    let lex_l_path1 = canonicalize(dir.join(format!("../../grammars/{}.l", ext1)))
+                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap());
+    let yacc_y_path1 = canonicalize(dir.join(format!("../../grammars/{}.y", ext1)))
+                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap());
 
     let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
@@ -298,14 +294,10 @@ fn main() {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file));
         }
     };
-    let lex_l_path2 = match canonicalize(dir.join(format!("../../grammars/{}.l", ext2))) {
-        Ok(p) => p,
-        Err(_) => canonicalize(dir.join("../../grammars/txt.l")).unwrap(),
-    };
-    let yacc_y_path2 = match canonicalize(dir.join(format!("../../grammars/{}.y", ext2))) {
-        Ok(p) => p,
-        Err(_) => canonicalize(dir.join("../../grammars/txt.y")).unwrap(),
-    };
+    let lex_l_path2 = canonicalize(dir.join(format!("../../grammars/{}.l", ext2)))
+                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap());
+    let yacc_y_path2 = canonicalize(dir.join(format!("../../grammars/{}.y", ext2)))
+                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap());
 
     // Parse both input files.
     let ast_base = parse_file(&args.arg_base_file, &lex_l_path1, &yacc_y_path1);

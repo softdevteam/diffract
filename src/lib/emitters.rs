@@ -106,10 +106,7 @@ fn build_colour_map() -> HashMap<ActionType, term::color::Color> {
 
 // Read file and return its contents or `ParseError`.
 fn read_file(path: &str) -> Result<String, EmitterError> {
-    let mut f = match File::open(path) {
-        Ok(r) => r,
-        Err(_) => return Err(EmitterError::CouldNotOpenFile),
-    };
+    let mut f = File::open(path).map_err(|_| EmitterError::CouldNotOpenFile)?;
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
     Ok(s)

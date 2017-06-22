@@ -725,10 +725,7 @@ fn read_file(path: &Path) -> Result<String, ParseError> {
     if !Path::new(path).exists() {
         return Err(ParseError::FileNotFound(path.to_str().unwrap().into()));
     }
-    let mut f = match File::open(path) {
-        Ok(r) => r,
-        Err(e) => return Err(ParseError::Io(e.to_string())),
-    };
+    let mut f = File::open(path).map_err(|e| ParseError::Io(e.to_string()))?;
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
     Ok(s)
@@ -743,34 +740,13 @@ pub fn parse_file(input_path: &str,
     // file is named Foo.java, the lexer should be grammars/java.l.
     // TODO: create a HashMap of file extensions -> lex/yacc files.
     // Get input files.
-    let lexs = match read_file(lex_path) {
-        Ok(string) => string,
-        Err(err) => return Err(err),
-    };
-    let grms = match read_file(yacc_path) {
-        Ok(string) => string,
-        Err(err) => return Err(err),
-    };
-    let input = match read_file(Path::new(input_path)) {
-        Ok(string) => string,
-        Err(err) => return Err(err),
-    };
+    let lexs = read_file(lex_path)?;
+    let grms = read_file(yacc_path)?;
+    let input = read_file(Path::new(input_path))?;
 
-    // Create lexer.
-    let mut lexerdef = match build_lex::<u16>(&lexs) {
-        Ok(def) => def,
-        Err(_) => return Err(ParseError::BrokenLexer),
-    };
-
-    // Create parser.
-    let grm = match yacc_grm(YaccKind::Original, &grms) {
-        Ok(x) => x,
-        Err(_) => return Err(ParseError::BrokenParser),
-    };
-    let stable = match yacc_to_statetable(&grm, Minimiser::Pager) {
-        Ok(x) => x,
-        Err(_) => return Err(ParseError::BrokenParser),
-    };
+    let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
+    let grm = yacc_grm(YaccKind::Original, &grms).map_err(|_| ParseError::BrokenParser)?;
+    let stable = yacc_to_statetable(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
     let mut rule_ids = HashMap::<&str, u16>::new();
@@ -782,19 +758,13 @@ pub fn parse_file(input_path: &str,
 
     // Lex input file.
     let lexer = lexerdef.lexer(&input);
-    let mut lexemes = match lexer.lexemes() {
-        Ok(tokens) => tokens,
-        Err(_) => return Err(ParseError::LexicalError),
-    };
+    let mut lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
     lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.end_term_idx())).unwrap(),
                              input.len(),
                              0));
 
     // Return parse tree.
-    let pt = match parser::parse::<u16>(&grm, &stable, &lexemes) {
-        Ok(tree) => tree,
-        Err(_) => return Err(ParseError::SyntaxError),
-    };
+    let pt = parser::parse::<u16>(&grm, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
     Ok(parse_into_ast(&pt, &lexer, &grm, &input))
 }
 
