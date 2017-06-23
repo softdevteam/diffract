@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
@@ -193,6 +193,33 @@ impl<T: Clone> Arena<T> {
             }
         }
         edges
+    }
+
+    /// Return a map of `NodeId`s relating to each line of the original input file.
+    ///
+    /// Note: vectors may not be sorted by column number.
+    pub fn get_lines(&self) -> BTreeMap<usize, Vec<NodeId>> {
+        let mut terminals = vec![];
+        for i in 0..self.nodes.len() {
+            let id = NodeId::new(i);
+            // Ignore nodes that have been detached.
+            if (self[id].parent.is_some() || self[id].first_child.is_some()) &&
+               id.is_terminal(self) {
+                terminals.push(id);
+            }
+        }
+        let mut lines = BTreeMap::new();
+        for leaf in terminals {
+            let line = self[leaf].line_no.unwrap();
+            if !lines.contains_key(&line) {
+                lines.insert(line, vec![]);
+            }
+            // Note: may not be sorted.
+            if let Some(nodes) = lines.get_mut(&line) {
+                nodes.push(leaf);
+            }
+        }
+        lines
     }
 }
 
@@ -354,7 +381,12 @@ impl NodeId {
 
     /// `true` if this node has no children.
     pub fn is_leaf<T: Clone>(&self, arena: &Arena<T>) -> bool {
-        arena[*self].first_child.is_none()
+        arena[*self].first_child.is_none() && arena[*self].last_child.is_none()
+    }
+
+    /// `true` if this node represents a terminal node in the AST.
+    pub fn is_terminal<T: Clone>(&self, arena: &Arena<T>) -> bool {
+        arena[*self].line_no.is_some() && arena[*self].col_no.is_some()
     }
 
     /// `true` if this node has no parent.

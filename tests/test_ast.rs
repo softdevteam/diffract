@@ -412,6 +412,57 @@ fn test_nested_comment_java() {
 }
 
 #[test]
+fn test_get_lines() {
+    let lex = Path::new("grammars/java.l");
+    let yacc = Path::new("grammars/java.y");
+    let ast = parse_file("tests/Hello.java", lex, yacc).unwrap();
+    let lines = ast.get_lines();
+    assert_eq!(5, lines.len());
+    for i in 1..6 as usize {
+        assert!(lines.contains_key(&i));
+    }
+    // Input file contents:
+    // -------------------
+    // public class Hello {
+    //     public static void main(String[] args) {
+    //         System.out.println("Hello, world!");
+    //     }
+    // }
+    let expected_1 = vec!["public", " ", "class", " ", "Hello", " ", "{", "\n    "]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let expected_2 = vec!["public", " ", "static", " ", "void", " ", "main", "(",
+                          "String", "[", "]", " ", "args", ")", " ", "{", "\n        "]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let expected_3 = vec!["System",
+                          ".",
+                          "out",
+                          ".",
+                          "println",
+                          "(",
+                          "\"Hello, world!\"",
+                          ")",
+                          ";",
+                          "\n    "]
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let expected_4 = vec![String::from("}"), String::from("\n")];
+    let expected_5 = vec![String::from("}"), String::from("\n")];
+    let expected = vec![expected_1, expected_2, expected_3, expected_4, expected_5];
+    for line_no in 1..6 {
+        let labels = lines[&line_no]
+            .iter()
+            .map(|id| ast[*id].value.clone())
+            .collect::<Vec<String>>();
+        assert_eq!(expected[line_no - 1], labels);
+    }
+}
+
+#[test]
 fn test_non_existant_input() {
     let lex = Path::new("grammars/calc.l");
     let yacc = Path::new("grammars/calc.y");
