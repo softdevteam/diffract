@@ -1,19 +1,19 @@
 [package]
-name = "rstreediff"
+name = "diffract"
 version = "0.1.0"
 authors = ["Sarah Mount <sarah.mount@kcl.ac.uk>"]
 include = ["src/**/*", "grammars/*", "Cargo.toml"]
-repository = "https://github.com/softdevteam/rstreediff"
-homepage = "https://github.com/softdevteam/rstreediff.git"
+repository = "https://github.com/softdevteam/diffract"
+homepage = "https://github.com/softdevteam/diffract.git"
 license = "UPL"
 description = "Generate source code diffs based on ASTs."
 
 [[bin]]
 doc = false
-name = "rstreediff"
+name = "diffract"
 
 [lib]
-name = "treediff"
+name = "diffract"
 path = "src/lib/mod.rs"
 
 [dependencies]

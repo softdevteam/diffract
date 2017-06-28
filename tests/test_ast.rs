@@ -38,11 +38,11 @@
 //! Integration tests for ast module.
 //! All file paths are relative to the root of the repository.
 
-extern crate treediff;
+extern crate diffract;
 
 use std::path::Path;
 
-use treediff::ast::{ParseError, parse_file};
+use diffract::ast::{ParseError, parse_file};
 
 fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &str) {
     let lex = if is_java {
