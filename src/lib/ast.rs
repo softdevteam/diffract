@@ -672,7 +672,7 @@ fn parse_into_ast(pt: &parser::Node<u16>,
     while !st.is_empty() {
         let (indent, e) = st.pop().unwrap();
         match *e {
-            parser::Node::Terminal { lexeme } => {
+            parser::Node::Term { lexeme } => {
                 let token_id: usize = lexeme.tok_id().try_into().ok().unwrap();
                 let term_name = grm.term_name(TIdx::from(token_id)).unwrap();
                 let lexeme_string = &input[lexeme.start()..lexeme.start() + lexeme.len()];
@@ -691,7 +691,7 @@ fn parse_into_ast(pt: &parser::Node<u16>,
                     }
                 };
             }
-            parser::Node::Nonterminal {
+            parser::Node::Nonterm {
                 nonterm_idx,
                 ref nodes,
             } => {
@@ -757,7 +757,7 @@ pub fn parse_file(input_path: &str,
     // Lex input file.
     let lexer = lexerdef.lexer(&input);
     let mut lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
-    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.end_term_idx())).unwrap(),
+    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.eof_term_idx())).unwrap(),
                              input.len(),
                              0));
 
