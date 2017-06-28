@@ -48,17 +48,17 @@ use std::path::{Path, PathBuf};
 
 use docopt::Docopt;
 
-extern crate treediff;
-use treediff::ast;
-use treediff::emitters;
-use treediff::gt_matcher;
-use treediff::myers_matcher;
-use treediff::matchers::MatchTrees;
+extern crate diffract;
+use diffract::ast;
+use diffract::emitters;
+use diffract::gt_matcher;
+use diffract::myers_matcher;
+use diffract::matchers::MatchTrees;
 
 const USAGE: &'static str = "
-Usage: rstreediff [options] <base-file> <diff-file>
-       rstreediff [options] <base-file> <diff-file> -d <file> ...
-       rstreediff (--help | --list | --version)
+Usage: diffract [options] <base-file> <diff-file>
+       diffract [options] <base-file> <diff-file> -d <file> ...
+       diffract (--help | --list | --version)
 
 Diff two input files.
 
@@ -164,7 +164,7 @@ fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
     exit_with_message(message);
 }
 
-fn write_dotfile_to_disk<T: treediff::emitters::RenderDotfile>(filepath: &str, object: &T) {
+fn write_dotfile_to_disk<T: diffract::emitters::RenderDotfile>(filepath: &str, object: &T) {
     consume_emitter_err(emitters::write_dotfile_to_disk(filepath, object), filepath);
 }
 

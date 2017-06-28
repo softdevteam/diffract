@@ -40,12 +40,12 @@
 
 #[cfg(test)]
 
-extern crate treediff;
+extern crate diffract;
 
 use std::path::Path;
 
-use treediff::ast::{Arena, NodeId, parse_file};
-use treediff::hqueue::HeightQueue;
+use diffract::ast::{Arena, NodeId, parse_file};
+use diffract::hqueue::HeightQueue;
 
 // Assert that `queue` is in sorted order and has the same size `arena`.
 fn assert_sorted<T: Clone>(queue: &HeightQueue, arena: &Arena<T>) {

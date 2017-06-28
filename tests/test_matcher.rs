@@ -38,13 +38,13 @@
 //! Integration tests for matcher module, testing the edit script generator.
 //! All file paths are relative to the root of the repository.
 
-extern crate treediff;
+extern crate diffract;
 
 use std::path::Path;
 
-use treediff::ast::{NodeId, parse_file};
-use treediff::myers_matcher::MyersConfig;
-use treediff::matchers::MatchTrees;
+use diffract::ast::{NodeId, parse_file};
+use diffract::myers_matcher::MyersConfig;
+use diffract::matchers::MatchTrees;
 
 enum Filetype {
     JAVA,
