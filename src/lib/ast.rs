@@ -37,7 +37,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::fs::File;
@@ -749,11 +749,9 @@ pub fn parse_file(input_path: &str,
     let stable = yacc_to_statetable(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let mut rule_ids = HashMap::<&str, u16>::new();
-    for term_idx in grm.iter_term_idxs() {
-        rule_ids.insert(grm.term_name(term_idx).unwrap(),
-                        u16::try_from(usize::from(term_idx)).unwrap());
-    }
+    let rule_ids = grm.lexer_map().iter()
+                                  .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
+                                  .collect();
     lexerdef.set_rule_ids(&rule_ids);
 
     // Lex input file.
