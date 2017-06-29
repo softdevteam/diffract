@@ -47,7 +47,7 @@ use std::path::Path;
 
 use cfgrammar::TIdx;
 use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
-use lrlex::{build_lex, Lexeme, Lexer};
+use lrlex::{build_lex, Lexer};
 use lrpar::parser;
 use lrtable::{Minimiser, yacc_to_statetable};
 
@@ -749,17 +749,14 @@ pub fn parse_file(input_path: &str,
     let stable = yacc_to_statetable(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.lexer_map().iter()
+    let rule_ids = grm.terms_map().iter()
                                   .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
                                   .collect();
     lexerdef.set_rule_ids(&rule_ids);
 
     // Lex input file.
     let lexer = lexerdef.lexer(&input);
-    let mut lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
-    lexemes.push(Lexeme::new(u16::try_from(usize::from(grm.eof_term_idx())).unwrap(),
-                             input.len(),
-                             0));
+    let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
     let pt = parser::parse::<u16>(&grm, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
