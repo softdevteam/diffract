@@ -49,7 +49,7 @@ use cfgrammar::TIdx;
 use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
 use lrlex::{build_lex, Lexer};
 use lrpar::parser;
-use lrtable::{Minimiser, yacc_to_statetable};
+use lrtable::{Minimiser, from_yacc};
 
 use hqueue::HeightQueue;
 
@@ -746,7 +746,7 @@ pub fn parse_file(input_path: &str,
 
     let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
     let grm = yacc_grm(YaccKind::Original, &grms).map_err(|_| ParseError::BrokenParser)?;
-    let stable = yacc_to_statetable(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
+    let (_, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
     let rule_ids = grm.terms_map().iter()
