@@ -1,4 +1,5 @@
 %start goal
+%implicit_tokens WHITESPACE
 %%
 goal : compilation_unit;
 

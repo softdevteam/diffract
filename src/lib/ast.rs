@@ -745,7 +745,7 @@ pub fn parse_file(input_path: &str,
     let input = read_file(Path::new(input_path))?;
 
     let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Original, &grms).map_err(|_| ParseError::BrokenParser)?;
+    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
     let (_, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
