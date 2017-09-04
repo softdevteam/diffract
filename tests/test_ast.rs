@@ -65,9 +65,12 @@ fn test_empty_calc() {
     compare_ast_dump_to_lrpar_output(
         false,
         "tests/empty.calc",
-        "Expr
- Term
-  Factor
+        "^~
+ ~
+  WHITESPACE  \n
+ Expr
+  Term
+   Factor
 ",
     );
 }
@@ -77,11 +80,14 @@ fn test_one_calc() {
     compare_ast_dump_to_lrpar_output(
         false,
         "tests/one.calc",
-        "Expr
- Term
-  Factor
-   INT 1
-",
+        "^~
+ ~
+ Expr
+  Term
+   Factor
+    INT 1
+    ~
+     WHITESPACE \n\n",
     );
 }
 
@@ -90,16 +96,21 @@ fn test_add_calc() {
     compare_ast_dump_to_lrpar_output(
         false,
         "tests/add.calc",
-        "Expr
- Term
-  Factor
-   INT 1
- PLUS +
+        "^~
+ ~
  Expr
   Term
    Factor
-    INT 2
-",
+    INT 1
+    ~
+  PLUS +
+  ~
+  Expr
+   Term
+    Factor
+     INT 2
+     ~
+      WHITESPACE \n\n",
     );
 }
 
@@ -108,20 +119,27 @@ fn test_mult_calc() {
     compare_ast_dump_to_lrpar_output(
         false,
         "tests/mult.calc",
-        "Expr
- Term
-  Factor
-   INT 3
-  MULT *
-  Term
-   Factor
-    INT 1
- PLUS +
+        "^~
+ ~
  Expr
   Term
    Factor
-    INT 2
-",
+    INT 3
+    ~
+   MULT *
+   ~
+   Term
+    Factor
+     INT 1
+     ~
+  PLUS +
+  ~
+  Expr
+   Term
+    Factor
+     INT 2
+     ~
+      WHITESPACE \n\n",
     );
 }
 
@@ -130,107 +148,137 @@ fn test_hello_java() {
     compare_ast_dump_to_lrpar_output(
         true,
         "tests/Hello.java",
-        "goal
- compilation_unit
-  package_declaration_opt
-  import_declarations_opt
-  type_declarations_opt
-   type_declarations
-    type_declaration
-     class_declaration
-      modifiers_opt
-       modifiers
-        modifier
-         PUBLIC public
-      CLASS class
-      IDENTIFIER Hello
-      type_parameters_opt
-      super_opt
-      interfaces_opt
-      class_body
-       LBRACE {
-       class_body_declarations_opt
-        class_body_declarations
-         class_body_declaration
-          class_member_declaration
-           method_declaration
-            method_header
-             modifiers_opt
-              modifiers
+       "^~
+ ~
+ goal
+  compilation_unit
+   package_declaration_opt
+   import_declarations_opt
+   type_declarations_opt
+    type_declarations
+     type_declaration
+      class_declaration
+       modifiers_opt
+        modifiers
+         modifier
+          PUBLIC public
+          ~
+           WHITESPACE  \n       CLASS class
+       ~
+        WHITESPACE  \n       IDENTIFIER Hello
+       ~
+        WHITESPACE  \n       type_parameters_opt
+       super_opt
+       interfaces_opt
+       class_body
+        LBRACE {
+        ~
+         WHITESPACE \n    \n        class_body_declarations_opt
+         class_body_declarations
+          class_body_declaration
+           class_member_declaration
+            method_declaration
+             method_header
+              modifiers_opt
                modifiers
-                modifier
-                 PUBLIC public
-               modifier
-                STATIC static
-             VOID void
-             method_declarator
-              IDENTIFIER main
-              LPAREN (
-              formal_parameter_list_opt
-               formal_parameter_list
-                formal_parameter
-                 type
-                  reference_type
-                   array_type
-                    name
-                     simple_name
-                      IDENTIFIER String
-                    dims
-                     LBRACK [
-                     RBRACK ]
-                 variable_declarator_id
-                  IDENTIFIER args
-              RPAREN )
-             throws_opt
-            method_body
-             block
-              LBRACE {
-              block_statements_opt
-               block_statements
-                block_statement
-                 statement
-                  statement_without_trailing_substatement
-                   expression_statement
-                    statement_expression
-                     method_invocation
-                      qualified_name
-                       name
-                        qualified_name
-                         name
-                          simple_name
-                           IDENTIFIER System
-                         DOT .
-                         IDENTIFIER out
-                       DOT .
-                       IDENTIFIER println
-                      LPAREN (
-                      argument_list_opt
-                       argument_list
-                        expression
-                         assignment_expression
-                          conditional_expression
-                           conditional_or_expression
-                            conditional_and_expression
-                             inclusive_or_expression
-                              exclusive_or_expression
-                               and_expression
-                                equality_expression
-                                 instanceof_expression
-                                  relational_expression
-                                   shift_expression
-                                    additive_expression
-                                     multiplicative_expression
-                                      unary_expression
-                                       unary_expression_not_plus_minus
-                                        postfix_expression
-                                         primary
-                                          primary_no_new_array
-                                           literal
-                                            STRING_LITERAL \"Hello, world!\"
-                      RPAREN )
-                    SEMICOLON ;
-              RBRACE }
-       RBRACE }
+                modifiers
+                 modifier
+                  PUBLIC public
+                  ~
+                   WHITESPACE  \n                modifier
+                 STATIC static
+                 ~
+                  WHITESPACE  \n              VOID void
+              ~
+               WHITESPACE  \n              method_declarator
+               IDENTIFIER main
+               ~
+               LPAREN (
+               ~
+               formal_parameter_list_opt
+                formal_parameter_list
+                 formal_parameter
+                  type
+                   reference_type
+                    array_type
+                     name
+                      simple_name
+                       IDENTIFIER String
+                       ~
+                     dims
+                      LBRACK [
+                      ~
+                      RBRACK ]
+                      ~
+                       WHITESPACE  \n                  variable_declarator_id
+                   IDENTIFIER args
+                   ~
+               RPAREN )
+               ~
+                WHITESPACE  \n              throws_opt
+             method_body
+              block
+               LBRACE {
+               ~
+                WHITESPACE \n        \n               block_statements_opt
+                block_statements
+                 block_statement
+                  statement
+                   statement_without_trailing_substatement
+                    expression_statement
+                     statement_expression
+                      method_invocation
+                       qualified_name
+                        name
+                         qualified_name
+                          name
+                           simple_name
+                            IDENTIFIER System
+                            ~
+                          DOT .
+                          ~
+                          IDENTIFIER out
+                          ~
+                        DOT .
+                        ~
+                        IDENTIFIER println
+                        ~
+                       LPAREN (
+                       ~
+                       argument_list_opt
+                        argument_list
+                         expression
+                          assignment_expression
+                           conditional_expression
+                            conditional_or_expression
+                             conditional_and_expression
+                              inclusive_or_expression
+                               exclusive_or_expression
+                                and_expression
+                                 equality_expression
+                                  instanceof_expression
+                                   relational_expression
+                                    shift_expression
+                                     additive_expression
+                                      multiplicative_expression
+                                       unary_expression
+                                        unary_expression_not_plus_minus
+                                         postfix_expression
+                                          primary
+                                           primary_no_new_array
+                                            literal
+                                             STRING_LITERAL \"Hello, world!\"
+                                             ~
+                       RPAREN )
+                       ~
+                     SEMICOLON ;
+                     ~
+                      WHITESPACE \n    \n               RBRACE }
+               ~
+                WHITESPACE \n
+        RBRACE }
+        ~
+         WHITESPACE \n
 ",
     );
 }
