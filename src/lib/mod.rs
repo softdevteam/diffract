@@ -40,7 +40,6 @@
 
 extern crate cfgrammar;
 extern crate dot;
-extern crate env_logger;
 #[macro_use]
 extern crate log;
 extern crate lrlex;
