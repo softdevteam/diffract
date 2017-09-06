@@ -776,14 +776,18 @@ pub fn parse_file(input_path: &str,
     let grms = read_file(yacc_path)?;
     let input = read_file(Path::new(input_path))?;
 
-    let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
-    let (_, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
+    let mut lexerdef = build_lex::<u16>(&lexs)
+        .map_err(|_| ParseError::BrokenLexer)?;
+    let grm = yacc_grm(YaccKind::Eco, &grms)
+        .map_err(|_| ParseError::BrokenParser)?;
+    let (_, stable) = from_yacc(&grm, Minimiser::Pager)
+        .map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map().iter()
-                                  .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
-                                  .collect();
+    let rule_ids = grm.terms_map()
+        .iter()
+        .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
+        .collect();
     lexerdef.set_rule_ids(&rule_ids);
 
     // Lex input file.
@@ -791,7 +795,8 @@ pub fn parse_file(input_path: &str,
     let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
+    let pt = parser::parse::<u16>(&grm, &stable, &lexemes)
+        .map_err(|_| ParseError::SyntaxError)?;
     Ok(parse_into_ast(&pt, &lexer, &grm, &input))
 }
 

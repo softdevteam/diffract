@@ -152,7 +152,7 @@ fn test_hello_java() {
     compare_ast_dump_to_lrpar_output(
         true,
         "tests/Hello.java",
-       "^~
+        "^~
  ~
  goal
   compilation_unit
@@ -432,8 +432,23 @@ fn test_get_lines() {
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
-    let expected_2 = vec!["public", " ", "static", " ", "void", " ", "main", "(",
-                          "String", "[", "]", " ", "args", ")", " ", "{", "\n        "]
+    let expected_2 = vec!["public",
+                          " ",
+                          "static",
+                          " ",
+                          "void",
+                          " ",
+                          "main",
+                          "(",
+                          "String",
+                          "[",
+                          "]",
+                          " ",
+                          "args",
+                          ")",
+                          " ",
+                          "{",
+                          "\n        "]
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
