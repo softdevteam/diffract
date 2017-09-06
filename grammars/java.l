@@ -106,6 +106,4 @@ enum ENUM
 '(?:\\'|[^'\n])*' CHARACTER_LITERAL
 "(?:\\"|[^"\n])*" STRING_LITERAL
 [ \t\n\r]+ WHITESPACE
-//.*?$ ;
-/[*].*?[*]/ ;
-
+(//.*?$|/[*].*?[*]/) COMMENT
