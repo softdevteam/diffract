@@ -68,6 +68,7 @@ fn test_empty_calc() {
         "^~
  ~
   WHITESPACE  \n
+  ~
  Expr
   Term
    Factor
@@ -87,7 +88,8 @@ fn test_one_calc() {
    Factor
     INT 1
     ~
-     WHITESPACE \n\n",
+     WHITESPACE \n
+     ~\n",
     );
 }
 
@@ -110,8 +112,9 @@ fn test_add_calc() {
     Factor
      INT 2
      ~
-      WHITESPACE \n\n",
-    );
+      WHITESPACE \n
+      ~\n",
+      );
 }
 
 #[test]
@@ -139,7 +142,8 @@ fn test_mult_calc() {
     Factor
      INT 2
      ~
-      WHITESPACE \n\n",
+      WHITESPACE \n
+      ~\n",
     );
 }
 
@@ -163,17 +167,21 @@ fn test_hello_java() {
          modifier
           PUBLIC public
           ~
-           WHITESPACE  \n       CLASS class
+           WHITESPACE  \n           ~
+       CLASS class
        ~
-        WHITESPACE  \n       IDENTIFIER Hello
+        WHITESPACE  \n        ~
+       IDENTIFIER Hello
        ~
-        WHITESPACE  \n       type_parameters_opt
+        WHITESPACE  \n        ~
+       type_parameters_opt
        super_opt
        interfaces_opt
        class_body
         LBRACE {
         ~
-         WHITESPACE \n    \n        class_body_declarations_opt
+         WHITESPACE \n    \n         ~
+        class_body_declarations_opt
          class_body_declarations
           class_body_declaration
            class_member_declaration
@@ -185,12 +193,15 @@ fn test_hello_java() {
                  modifier
                   PUBLIC public
                   ~
-                   WHITESPACE  \n                modifier
+                   WHITESPACE  \n                   ~
+                modifier
                  STATIC static
                  ~
-                  WHITESPACE  \n              VOID void
+                  WHITESPACE  \n                  ~
+              VOID void
               ~
-               WHITESPACE  \n              method_declarator
+               WHITESPACE  \n               ~
+              method_declarator
                IDENTIFIER main
                ~
                LPAREN (
@@ -210,17 +221,20 @@ fn test_hello_java() {
                       ~
                       RBRACK ]
                       ~
-                       WHITESPACE  \n                  variable_declarator_id
+                       WHITESPACE  \n                       ~
+                  variable_declarator_id
                    IDENTIFIER args
                    ~
                RPAREN )
                ~
-                WHITESPACE  \n              throws_opt
+                WHITESPACE  \n                ~
+              throws_opt
              method_body
               block
                LBRACE {
                ~
-                WHITESPACE \n        \n               block_statements_opt
+                WHITESPACE \n        \n                ~
+               block_statements_opt
                 block_statements
                  block_statement
                   statement
@@ -273,14 +287,128 @@ fn test_hello_java() {
                        ~
                      SEMICOLON ;
                      ~
-                      WHITESPACE \n    \n               RBRACE }
+                      WHITESPACE \n    \n                      ~
+               RBRACE }
                ~
-                WHITESPACE \n
+                WHITESPACE \n\n                ~
+        RBRACE }
+        ~
+         WHITESPACE \n\n         ~
+",
+    );
+}
+
+#[test]
+fn test_comment_java() {
+    compare_ast_dump_to_lrpar_output(
+        true,
+        "tests/Comment.java",
+        "^~
+ ~
+  COMMENT /* Multiline 1 */
+  ~
+   WHITESPACE \n
+   ~
+ goal
+  compilation_unit
+   package_declaration_opt
+   import_declarations_opt
+   type_declarations_opt
+    type_declarations
+     type_declaration
+      class_declaration
+       modifiers_opt
+        modifiers
+         modifier
+          PUBLIC public
+          ~
+           WHITESPACE  \n           ~
+            COMMENT /* Multiline 2 */
+            ~
+             WHITESPACE  \n             ~
+       CLASS class
+       ~
+        WHITESPACE  \n        ~
+         COMMENT /* Multiline 3 */
+         ~
+          WHITESPACE  \n          ~
+       IDENTIFIER Comment
+       ~
+        WHITESPACE  \n        ~
+         COMMENT /* Multiline 4 */
+         ~
+          WHITESPACE  \n          ~
+       type_parameters_opt
+       super_opt
+       interfaces_opt
+       class_body
+        LBRACE {
+        ~
+         WHITESPACE \n    \n         ~
+          COMMENT // Single line comment.
+          ~
+           WHITESPACE \n
+           ~
+        class_body_declarations_opt
+        RBRACE }
+        ~
+         WHITESPACE  \n         ~
+          COMMENT /* Multiline 5
+   *
+   *
+   *
+   */
+          ~
+           WHITESPACE \n
+           ~
+");
+}
+
+#[test]
+fn test_nested_comment_java() {
+    compare_ast_dump_to_lrpar_output(
+        true,
+        "tests/NestedComment.java",
+        "^~
+ ~
+  COMMENT /*
+ * // Single line comment nested in multi-line comment.
+ */
+  ~
+   WHITESPACE \n
+   ~
+ goal
+  compilation_unit
+   package_declaration_opt
+   import_declarations_opt
+   type_declarations_opt
+    type_declarations
+     type_declaration
+      class_declaration
+       modifiers_opt
+        modifiers
+         modifier
+          PUBLIC public
+          ~
+           WHITESPACE  \n           ~
+       CLASS class
+       ~
+        WHITESPACE  \n        ~
+       IDENTIFIER NestedComment
+       ~
+        WHITESPACE  \n        ~
+       type_parameters_opt
+       super_opt
+       interfaces_opt
+       class_body
+        LBRACE {
+        ~
+        class_body_declarations_opt
         RBRACE }
         ~
          WHITESPACE \n
-",
-    );
+         ~
+");
 }
 
 #[test]
