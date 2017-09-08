@@ -412,6 +412,59 @@ fn test_nested_comment_java() {
 }
 
 #[test]
+fn test_javadoc_comment_java() {
+    compare_ast_dump_to_lrpar_output(
+        true,
+        "tests/JavadocComment.java",
+        "^~
+ ~
+  COMMENT /** Javadoc in the right place. */
+  ~
+   WHITESPACE \n
+   ~
+ goal
+  compilation_unit
+   package_declaration_opt
+   import_declarations_opt
+   type_declarations_opt
+    type_declarations
+     type_declaration
+      class_declaration
+       modifiers_opt
+        modifiers
+         modifier
+          PUBLIC public
+          ~
+           WHITESPACE  \n           ~
+       CLASS class
+       ~
+        WHITESPACE  \n        ~
+       IDENTIFIER JavadocComment
+       ~
+        WHITESPACE  \n        ~
+       type_parameters_opt
+       super_opt
+       interfaces_opt
+       class_body
+        LBRACE {
+        ~
+         WHITESPACE \n    \n         ~
+          COMMENT // Single line comment.
+          ~
+           WHITESPACE \n    \n           ~
+            COMMENT /** Javadoc in the wrong place. */
+            ~
+             WHITESPACE \n
+             ~
+        class_body_declarations_opt
+        RBRACE }
+        ~
+         WHITESPACE \n
+         ~
+");
+}
+
+#[test]
 fn test_get_lines() {
     let lex = Path::new("grammars/java.l");
     let yacc = Path::new("grammars/java.y");
