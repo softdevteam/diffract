@@ -57,7 +57,8 @@ use diffract::matchers::MatchTrees;
 
 const USAGE: &'static str = "
 Usage: diffract [options] <base-file> <diff-file>
-       diffract [options] <base-file> <diff-file> -d <file> ...
+       diffract [options] <base-file> <diff-file> -d FILE ...
+       diffract [options] <base-file> <diff-file> -g FILE ...
        diffract (--help | --list | --version)
 
 Diff two input files.
@@ -66,12 +67,17 @@ Options:
     -a, --ast           print AST of input files to STDOUT.
     --debug LEVEL       debug level used by logger. Valid (case sensitive)
                         values are: Debug, Error, Info, Trace, Warn.
-    -d, --dot <file>    write out GraphViz representations of the input file(s).
-    --edit <file>       write a GraphViz representation of the mapping store to
+    -d, --dot FILE      write out GraphViz representations of the input file(s).
+    --edit FILE         write a GraphViz representation of the mapping store to
                         file, after the edit script has been generated.
+    -g, --grammar FILE  specify grammar to use. e.g. -g java would select a
+                        Java lexer called java.l and a parser called java.y.
+                        By default, this option applies to the first input file,
+                        use the option twice to set the grammar for the second
+                        input file, e.g. -g calc -g java.
     -h, --help          print this help menu and exit.
     -l, --list          print information about the available matchers and exit.
-    --map <file>        write out GraphViz representation of the mapping store.
+    --map FILE          write out GraphViz representation of the mapping store.
     -m, --matcher ALGO  use a given matching algorithm. Valid (case sensitive)
                         values for ALGO are: GumTree (default), Myers.
     --max-size VAL      consider subtrees for matching only if they have a size
@@ -117,8 +123,9 @@ struct Args {
     arg_diff_file: String,
     flag_ast: bool,
     flag_debug: Option<DebugLevel>,
-    flag_edit: Option<String>,
     flag_dot: Vec<String>,
+    flag_edit: Option<String>,
+    flag_grammar: Vec<String>,
     flag_help: bool,
     flag_list: bool,
     flag_map: Option<String>,
@@ -283,10 +290,28 @@ fn main() {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file));
         }
     };
-    let lex_l_path1 = canonicalize(dir.join(format!("../../grammars/{}.l", ext1)))
-                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap());
-    let yacc_y_path1 = canonicalize(dir.join(format!("../../grammars/{}.y", ext1)))
-                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap());
+    // Lexer path for first input file.
+    let lexer1 = if !args.flag_grammar.is_empty() {
+        canonicalize(format!("{}.l", &args.flag_grammar[0])).unwrap()
+    } else {
+        canonicalize(dir.join(format!("../../grammars/{}.l", ext1)))
+            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap())
+    };
+    // Parser path for first input file.
+    let parser1 = if !args.flag_grammar.is_empty() {
+        canonicalize(format!("{}.y", &args.flag_grammar[0])).unwrap()
+    } else {
+        canonicalize(dir.join(format!("../../grammars/{}.y", ext1)))
+            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap())
+    };
+    if !args.flag_grammar.is_empty() {
+        if !Path::new(&lexer1).exists() {
+            exit_with_message(&format!("Requested lexer {:?} does not exist.", lexer1));
+        }
+        if !Path::new(&parser1).exists() {
+            exit_with_message(&format!("Requested parser {:?} does not exist.", parser1));
+        }
+    }
 
     let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
@@ -294,14 +319,32 @@ fn main() {
             exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file));
         }
     };
-    let lex_l_path2 = canonicalize(dir.join(format!("../../grammars/{}.l", ext2)))
-                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap());
-    let yacc_y_path2 = canonicalize(dir.join(format!("../../grammars/{}.y", ext2)))
-                        .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap());
+    // Lexer path for second input file.
+    let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
+        canonicalize(format!("{}.l", &args.flag_grammar[1])).unwrap()
+    } else {
+        canonicalize(dir.join(format!("../../grammars/{}.l", ext2)))
+            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap())
+    };
+    // Parser path for second input file.
+    let parser2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
+        canonicalize(format!("{}.y", &args.flag_grammar[1])).unwrap()
+    } else {
+        canonicalize(dir.join(format!("../../grammars/{}.y", ext2)))
+            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap())
+    };
+    if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
+        if !Path::new(&lexer2).exists() {
+            exit_with_message(&format!("Requested lexer {:?} does not exist.", lexer2));
+        }
+        if !Path::new(&parser2).exists() {
+            exit_with_message(&format!("Requested parser {:?} does not exist.", parser2));
+        }
+    }
 
     // Parse both input files.
-    let ast_base = parse_file(&args.arg_base_file, &lex_l_path1, &yacc_y_path1);
-    let ast_diff = parse_file(&args.arg_diff_file, &lex_l_path2, &yacc_y_path2);
+    let ast_base = parse_file(&args.arg_base_file, &lexer1, &parser1);
+    let ast_diff = parse_file(&args.arg_diff_file, &lexer2, &parser2);
 
     // Dump ASTs to STDOUT, if requested.
     if args.flag_ast {
