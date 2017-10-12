@@ -57,7 +57,10 @@ fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &st
     };
     let arena = parse_file(filepath, lex, yacc).unwrap();
     let arena_pretty_printed = format!("{:}", arena);
-    assert_eq!(expected, arena_pretty_printed);
+    // Remove `\r` from pretty printed string, as the 'expected' values all
+    // use UNIX line endings.
+    let pp_unix = arena_pretty_printed.replace("\r", "");
+    assert_eq!(expected, pp_unix);
 }
 
 #[test]
