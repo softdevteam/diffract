@@ -106,7 +106,8 @@ fn build_colour_map() -> HashMap<ActionType, term::color::Color> {
 
 // Read file and return its contents or `ParseError`.
 fn read_file(path: &str) -> Result<String, EmitterError> {
-    let mut f = File::open(path).map_err(|_| EmitterError::CouldNotOpenFile)?;
+    let mut f = File::open(path)
+        .map_err(|_| EmitterError::CouldNotOpenFile)?;
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
     Ok(s)
@@ -236,6 +237,16 @@ pub fn write_diff_to_stdout<T: Clone + Debug + Eq>(store: &MappingStore<T>,
     Ok(())
 }
 
+/// Escape a string so that whitespace is visible inside Graphviz nodes.
+fn escape_string(label: &str) -> String {
+    let mut result = label.to_string();
+    result = result.replace("\t", "\\\\t");
+    result = result.replace("\r\n", "\\\\n");
+    result = result.replace("\n", "\\\\n");
+    result = result.replace(" ", "_");
+    escape_html(&result)
+}
+
 /// Write out a graphviz file (in dot format) to `filepath`.
 pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
     let mut stream = File::create(&filepath)
@@ -260,7 +271,7 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String> {
     fn node_label(&self, id: &NodeId) -> LabelText {
         let label = format!("{} {}",
                             self[*id].label,
-                            escape_html(self[*id].value.as_str()));
+                            escape_string(self[*id].value.as_str()));
         LabelText::LabelStr(label.into())
     }
 }
@@ -296,7 +307,8 @@ impl RenderDotfile for MappingStore<String> {
     // of Falleri et al. (2014).
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         let mut digraph = vec![String::from("digraph MappingStore {\n"),
-                               String::from("\tratio=fill;\n\tfontsize=16;\n")];
+                               String::from("\tratio=fill;\n\tfontsize=16;\n"),
+                               String::from("\tnewrank=true;\n")];
         let mut line: String;
         let mut node: NodeId;
         let mut attrs: &str;
@@ -317,7 +329,7 @@ impl RenderDotfile for MappingStore<String> {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
                                      self.from_arena[node].label,
-                                     escape_html(self.from_arena[node].value.as_str()),
+                                     escape_string(self.from_arena[node].value.as_str()),
                                      attrs));
             }
         }
@@ -337,13 +349,14 @@ impl RenderDotfile for MappingStore<String> {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
                                      self.to_arena[node].label,
-                                     escape_html(self.to_arena[node].value.as_str()),
+                                     escape_string(self.to_arena[node].value.as_str()),
                                      attrs));
             }
         }
         // From AST parent relationships.
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
-        digraph.push(String::from("\t\tcolor=white;\n"));
+        digraph.push(String::from("\t\tcolor=black;\n"));
+        digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.from_arena.get_edges() {
             line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
@@ -353,7 +366,8 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\t}\n"));
         // To AST parent relationships.
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
-        digraph.push(String::from("\t\tcolor=white;\n"));
+        digraph.push(String::from("\t\tcolor=black;\n"));
+        digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.to_arena.get_edges() {
             line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
@@ -378,6 +392,7 @@ impl RenderDotfile for MappingStore<String> {
                            common);
             digraph.push(line);
         }
+        digraph.push(String::from("\t{ rank=same; FROM0; TO0; }\n"));
         digraph.push(String::from("}\n"));
         // Write dotfile to stream.
         buffer.write_all(digraph.join("").as_bytes())
