@@ -73,6 +73,7 @@ impl Default for MappingType {
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
+#[derive(Debug)]
 pub struct TemporaryMappingStore {
     /// Mappings from the source tree to the destination.
     ///
