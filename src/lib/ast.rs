@@ -112,6 +112,7 @@ pub type EdgeId = (NodeId, NodeId);
 /// represent any lexical information (e.g. literals) from the original text.
 pub struct Arena<T: Clone> {
     nodes: Vec<Node<T>>,
+    root: Option<NodeId>,
 }
 
 impl<T: Clone> Index<NodeId> for Arena<T> {
@@ -131,7 +132,10 @@ impl<T: Clone> IndexMut<NodeId> for Arena<T> {
 impl<T: Clone> Arena<T> {
     /// Create an empty `Arena`.
     pub fn new() -> Arena<T> {
-        Arena { nodes: Vec::new() }
+        Arena {
+            nodes: Vec::new(),
+            root: None,
+        }
     }
 
     /// Create a new node from its data.
@@ -144,16 +148,36 @@ impl<T: Clone> Arena<T> {
                     char_no: Option<usize>,
                     token_len: Option<usize>)
                     -> NodeId {
-        let next_index = self.nodes.len();
+        let next_id = NodeId::new(self.nodes.len());
         let mut node = Node::new(value, label, indent, col_no, line_no, char_no, token_len);
-        node.index = Some(NodeId { index: next_index });
+        node.index = Some(next_id);
+        if next_id.index == 0 {
+            self.root = node.index;
+        }
         self.nodes.push(node);
-        NodeId { index: next_index }
+        next_id
+    }
+
+    /// Create a new root node from its data.
+    /// The new root has the previous root as its single child.
+    pub fn new_root(&mut self, new_root: NodeId) -> ArenaResult {
+        if self.root.is_none() {
+            self.root = Some(new_root);
+            return Ok(());
+        }
+        let old_root = self.root.unwrap();
+        self.root = Some(new_root);
+        old_root.make_child_of(new_root, self)
     }
 
     /// Return `true` if the arena is empty, `false` otherwise.
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Return root node.
+    pub fn root(&self) -> Option<NodeId> {
+        self.root
     }
 
     /// Return the size of this arena (i.e. how many nodes are held within it).
@@ -200,10 +224,11 @@ impl<T: Clone> Arena<T> {
 impl<T: fmt::Display + Clone> fmt::Display for Arena<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.nodes.is_empty() {
+            // Case where self.root is None.
             return write!(f, "");
         }
         let mut formatted = String::new();
-        let mut stack: Vec<NodeId> = vec![NodeId { index: 0 }];
+        let mut stack: Vec<NodeId> = vec![self.root.unwrap()];
         while !stack.is_empty() {
             let id = stack.pop().unwrap();
             let node = &self.nodes[id.index];
@@ -744,14 +769,18 @@ pub fn parse_file(input_path: &str,
     let grms = read_file(yacc_path)?;
     let input = read_file(Path::new(input_path))?;
 
-    let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
-    let (_, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
+    let mut lexerdef = build_lex::<u16>(&lexs)
+        .map_err(|_| ParseError::BrokenLexer)?;
+    let grm = yacc_grm(YaccKind::Eco, &grms)
+        .map_err(|_| ParseError::BrokenParser)?;
+    let (_, stable) = from_yacc(&grm, Minimiser::Pager)
+        .map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map().iter()
-                                  .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
-                                  .collect();
+    let rule_ids = grm.terms_map()
+        .iter()
+        .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
+        .collect();
     lexerdef.set_rule_ids(&rule_ids);
 
     // Lex input file.
@@ -759,7 +788,8 @@ pub fn parse_file(input_path: &str,
     let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
+    let pt = parser::parse::<u16>(&grm, &stable, &lexemes)
+        .map_err(|_| ParseError::SyntaxError)?;
     Ok(parse_into_ast(&pt, &lexer, &grm, &input))
 }
 

@@ -158,9 +158,12 @@ mod tests {
             assert!(lcss(&vec![], &store.from_arena, &vec![], &store.to_arena, &eq).is_empty());
             return;
         }
-        let root = NodeId::new(0);
-        let base = root.children(&store.from_arena).collect::<Vec<NodeId>>();
-        let diff = root.children(&store.to_arena).collect::<Vec<NodeId>>();
+        assert!(!store.from_arena.is_empty());
+        assert!(!store.to_arena.is_empty());
+        let base_root = store.from_arena.root().unwrap();
+        let base = base_root.children(&store.from_arena).collect::<Vec<NodeId>>();
+        let diff_root = store.to_arena.root().unwrap();
+        let diff = diff_root.children(&store.to_arena).collect::<Vec<NodeId>>();
         let longest = lcss(&base, &store.from_arena, &diff, &store.to_arena, &eq);
         for (i, value) in longest.iter().enumerate() {
             assert_eq!(expected[i], store.from_arena[value.0].value);

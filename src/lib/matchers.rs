@@ -336,13 +336,26 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         // Combined update, insert, align and move phases.
         let tmp_to_arena = self.to_arena.clone();
         for x in root.breadth_first_traversal(&tmp_to_arena) {
-            if x.is_root(&self.to_arena) {
-                continue;
-            }
-            let y = self.to_arena[x].parent().unwrap(); // x is not a root.
             let mut w = root; // Overwritten later.
             // Insertion phase.
-            if !new_mappings.to.contains_key(&x) {
+            if !new_mappings.to.contains_key(&x) && x.is_root(&self.to_arena) {
+                let k = self.find_pos(x, &new_mappings, &to_in_order);
+                debug!("Edit script: INS {} {:?} No parent",
+                       self.to_arena[x].label,
+                       self.to_arena[x].value);
+                w = self.from_arena.new_node(self.to_arena[x].value.clone(),
+                                             self.to_arena[x].label.clone(),
+                                             self.to_arena[x].indent,
+                                             self.to_arena[x].col_no,
+                                             self.to_arena[x].line_no,
+                                             self.to_arena[x].char_no,
+                                             self.to_arena[x].token_len);
+                new_mappings.push(w, x);
+                let mut ins = Insert::new(w, None, k);
+                ins.apply(&mut self.from_arena)?;
+                script.push(ins);
+            } else if !new_mappings.to.contains_key(&x) {
+                let y = self.to_arena[x].parent().unwrap();
                 let z = new_mappings.get_from(&y).unwrap();
                 let k = self.find_pos(x, &new_mappings, &to_in_order);
                 debug!("Edit script: INS {} {:?} Parent: {} {:?}",
@@ -358,7 +371,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
                                              self.to_arena[x].char_no,
                                              self.to_arena[x].token_len);
                 new_mappings.push(w, x);
-                let mut ins = Insert::new(w, z, k);
+                let mut ins = Insert::new(w, Some(z), k);
                 ins.apply(&mut self.from_arena)?;
                 script.push(ins);
             } else if !x.is_root(&self.to_arena) {
@@ -378,6 +391,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
                     script.push(upd.clone());
                 }
                 // MOVE phase.
+                let y = self.to_arena[x].parent().unwrap();
                 let z = new_mappings.get_from(&y).unwrap();
                 if z != v {
                     let k = self.find_pos(x, &new_mappings, &to_in_order);
@@ -391,9 +405,6 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
                     script.push(mov);
                 }
             }
-            // GumTree code has these lines also?
-            // from_in_order.insert(w);
-            // to_in_order.insert(x);
             self.align_children(w,
                                 x,
                                 &mut script,

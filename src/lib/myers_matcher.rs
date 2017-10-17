@@ -78,10 +78,16 @@ Variations.";
         if store.from_arena.is_empty() || store.to_arena.is_empty() {
             return store;
         }
-        let base_pre = NodeId::new(0)
+        let base_pre = store
+            .from_arena
+            .root()
+            .unwrap()
             .pre_order_traversal(&store.from_arena)
             .collect::<Vec<NodeId>>();
-        let diff_pre = NodeId::new(0)
+        let diff_pre = store
+            .to_arena
+            .root()
+            .unwrap()
             .pre_order_traversal(&store.to_arena)
             .collect::<Vec<NodeId>>();
 
