@@ -50,6 +50,7 @@ use docopt::Docopt;
 
 extern crate diffract;
 use diffract::ast;
+use diffract::edit_script;
 use diffract::emitters;
 use diffract::gt_matcher;
 use diffract::myers_matcher;
@@ -68,8 +69,8 @@ Options:
     --debug LEVEL       debug level used by logger. Valid (case sensitive)
                         values are: Debug, Error, Info, Trace, Warn.
     -d, --dot FILE      write out GraphViz representations of the input file(s).
-    --edit FILE         write a GraphViz representation of the mapping store to
-                        file, after the edit script has been generated.
+    -e, --edit ALGO     use a given edit script generation algorithm. Valid
+                        (case sensitive) values for ALGO are Chawathe96 (default).
     -g, --grammar FILE  specify grammar to use. e.g. -g java would select a
                         Java lexer called java.l and a parser called java.y.
                         By default, this option applies to the first input file,
@@ -90,6 +91,8 @@ Options:
                         (default: 2). GumTree only.
     -o, --output FMT    select output format. Valid (case sensitive) values for
                         FMT are: Terminal (default), JSON, None.
+    --store FILE        write a GraphViz representation of the mapping store to
+                        file, after the edit script has been generated.
     -v, --version       print version information and exit.
 ";
 
@@ -102,6 +105,11 @@ enum DebugLevel {
     Info,
     Trace,
     Warn,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
+enum EditScriptGenerator {
+    Chawathe96, // Default.
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
@@ -124,7 +132,7 @@ struct Args {
     flag_ast: bool,
     flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
-    flag_edit: Option<String>,
+    flag_edit: Option<EditScriptGenerator>,
     flag_grammar: Vec<String>,
     flag_help: bool,
     flag_list: bool,
@@ -134,6 +142,7 @@ struct Args {
     flag_min_dice: Option<f32>,
     flag_min_height: Option<u16>,
     flag_output: Option<Output>,
+    flag_store: Option<String>,
     flag_version: bool,
 }
 
@@ -177,7 +186,7 @@ fn write_dotfile_to_disk<T: diffract::emitters::RenderDotfile>(filepath: &str, o
 
 // Set any global constants requested by the user.
 // This should be the ONLY block of code that mutates these values.
-fn process_configs(args: &Args) -> Box<MatchTrees<String>> {
+fn process_matcher_configs(args: &Args) -> Box<MatchTrees<String>> {
     let config: Box<MatchTrees<String>>;
     if args.flag_matcher != None && args.flag_matcher != Some(Matchers::GumTree) {
         if args.flag_max_size.is_some() {
@@ -270,7 +279,7 @@ fn main() {
     }
 
     // Matcher configuration object.
-    let config: Box<MatchTrees<String>> = process_configs(&args);
+    let matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
 
     // This function duplicates some checks that are performed by the
     // treediff::ast::parse_file in order to give better error messages.
@@ -362,21 +371,26 @@ fn main() {
     }
 
     // Generate mappings between ASTs.
-    let mut mapping = config.match_trees(ast_base, ast_diff);
+    let mut mapping = matcher_config.match_trees(ast_base, ast_diff);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("Creating dot representation of mapping {:?}.", map_file);
         write_dotfile_to_disk(&map_file, &mapping);
     }
 
-    // Generate edit script. By convention, the parser will generate an AST
-    // whose root is in the 0th element of its arena.
-    let edit_script = match mapping.generate_edit_script(ast::NodeId::new(0)) {
+    // Generate edit script.
+    // For now we ignore the content of args.flag_edit because we only
+    // implement one edit script generation algorithm.
+    info!("Selecting the Chawathe et al. (1996) edit script generator.");
+    // Edit script generator configuration object.
+    let generator_config: Box<edit_script::EditScriptGenerator<String>> = Box::new(edit_script::Chawathe96Config::new());
+
+    let edit_script = match generator_config.generate_script(&mut mapping) {
         Ok(script) => script,
         Err(err) => consume_edit_script_err(&err),
     };
-    if args.flag_edit.is_some() {
-        let edit_file = args.flag_edit.unwrap();
+    if args.flag_store.is_some() {
+        let edit_file = args.flag_store.unwrap();
         info!("Creating dot representation of edit script {:?}.",
               edit_file);
         write_dotfile_to_disk(&edit_file, &mapping);
