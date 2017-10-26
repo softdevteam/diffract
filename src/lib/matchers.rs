@@ -268,7 +268,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
+        let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
     }
@@ -281,7 +281,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let common = self.num_common_descendants(from, to) as f64;
+        let common = f64::from(self.num_common_descendants(from, to));
         let jaccard = common / (n_from + n_to - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
         jaccard
@@ -295,7 +295,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let common = self.num_common_descendants(from, to) as f64;
+        let common = f64::from(self.num_common_descendants(from, to));
         let chawathe = common / n_from.max(n_to);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
         chawathe
