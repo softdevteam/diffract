@@ -115,12 +115,12 @@ impl TemporaryMappingStore {
 
     /// Get the `NodeId` that `to` is mapped from.
     pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
-        self.to.get(to).map_or(None, |x| Some(*x))
+        self.to.get(to).and_then(|x| Some(*x))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
-        self.from.get(from).map_or(None, |x| Some(*x))
+        self.from.get(from).and_then(|x| Some(*x))
     }
 }
 
@@ -210,12 +210,12 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
 
     /// Get the `NodeId` that `to` is mapped from.
     pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
-        self.to.get(to).map_or(None, |x| Some(x.0))
+        self.to.get(to).and_then(|x| Some(x.0))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
-        self.from.get(from).map_or(None, |x| Some(x.0))
+        self.from.get(from).and_then(|x| Some(x.0))
     }
 
     /// Two sub-trees are isomorphic if they have the same structure.
@@ -268,7 +268,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let dice = 2.0 * self.num_common_descendants(from, to) as f64 / (n_from + n_to);
+        let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
     }
@@ -281,7 +281,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let common = self.num_common_descendants(from, to) as f64;
+        let common = f64::from(self.num_common_descendants(from, to));
         let jaccard = common / (n_from + n_to - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
         jaccard
@@ -295,7 +295,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         let n_to = to.breadth_first_traversal(&self.to_arena)
             .collect::<Vec<NodeId>>()
             .len() as f64;
-        let common = self.num_common_descendants(from, to) as f64;
+        let common = f64::from(self.num_common_descendants(from, to));
         let chawathe = common / n_from.max(n_to);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
         chawathe

@@ -287,7 +287,7 @@ fn main() {
     let ext1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file));
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
         }
     };
     // Lexer path for first input file.
@@ -316,7 +316,7 @@ fn main() {
     let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file));
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
         }
     };
     // Lexer path for second input file.
