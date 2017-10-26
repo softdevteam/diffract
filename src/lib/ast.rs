@@ -115,6 +115,15 @@ pub struct Arena<T: Clone> {
     root: Option<NodeId>,
 }
 
+impl<T: Clone> Default for Arena<T> {
+    fn default() -> Arena<T> {
+        Arena {
+            nodes: Vec::new(),
+            root: None,
+        }
+    }
+}
+
 impl<T: Clone> Index<NodeId> for Arena<T> {
     type Output = Node<T>;
 
@@ -132,10 +141,7 @@ impl<T: Clone> IndexMut<NodeId> for Arena<T> {
 impl<T: Clone> Arena<T> {
     /// Create an empty `Arena`.
     pub fn new() -> Arena<T> {
-        Arena {
-            nodes: Vec::new(),
-            root: None,
-        }
+        Default::default()
     }
 
     /// Create a new node from its data.
