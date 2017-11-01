@@ -385,14 +385,13 @@ impl RenderDotfile for MappingStore<String> {
                 MappingType::RECOVERY => "[style=dotted, color=green, ",
                 MappingType::EDIT => "[style=dotted, color=indigo, ",
             };
-            line = format!("\tFROM{} -> TO{}{}{}];\n",
+            line = format!("\t{{ rank=same FROM{} -> TO{}{}{}]; }}\n",
                            from.id(),
                            to.id(),
                            attrs,
                            common);
             digraph.push(line);
         }
-        digraph.push(String::from("\t{ rank=same; FROM0; TO0; }\n"));
         digraph.push(String::from("}\n"));
         // Write dotfile to stream.
         buffer.write_all(digraph.join("").as_bytes())
