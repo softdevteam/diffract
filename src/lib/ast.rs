@@ -779,7 +779,7 @@ pub fn parse_file(input_path: &str,
         .map_err(|_| ParseError::BrokenLexer)?;
     let grm = yacc_grm(YaccKind::Eco, &grms)
         .map_err(|_| ParseError::BrokenParser)?;
-    let (_, stable) = from_yacc(&grm, Minimiser::Pager)
+    let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager)
         .map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
@@ -794,7 +794,7 @@ pub fn parse_file(input_path: &str,
     let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &stable, &lexemes)
+    let pt = parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes)
         .map_err(|_| ParseError::SyntaxError)?;
     Ok(parse_into_ast(&pt, &lexer, &grm, &input))
 }
