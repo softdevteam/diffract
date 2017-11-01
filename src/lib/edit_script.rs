@@ -80,13 +80,26 @@ impl Chawathe96Config {
                                                        from_in_order: &mut HashSet<NodeId>,
                                                        to_in_order: &mut HashSet<NodeId>)
                                                        -> Result<(), ArenaError> {
+        // Variable key:
+        // a, w in store.from_arena (T_1 in paper).
+        // b, x in store.to_arena (T_2 in paper).
         debug!("align_children({}, {})", w, x);
+        if w.is_leaf(&store.from_arena) && x.is_leaf(&store.to_arena) {
+            debug!("{} and {} both leaf nodes.", w, x);
+            return Ok(());
+        }
+        // 1. Mark all children of w and all children of x "out of order".
+        for child in w.children(&store.from_arena) {
+            from_in_order.remove(&child);
+        }
         for child in x.children(&store.to_arena) {
             to_in_order.remove(&child);
         }
+        // 2. Let s1 be the sequence of children of w whose partners are
+        // children of x and let s2 be the sequence of children of x whose
+        // partners are children of w.
         let mut s1: Vec<NodeId> = vec![];
         for child in w.children(&store.from_arena) {
-            from_in_order.remove(&child);
             if new_mappings.contains_from(&child) {
                 let mapped = new_mappings.get_to(&child).unwrap();
                 if x.children(&store.to_arena).any(|n| n == mapped) {
@@ -94,31 +107,38 @@ impl Chawathe96Config {
                 }
             }
         }
-        let s2: Vec<NodeId> = vec![];
+        let mut s2: Vec<NodeId> = vec![];
         for child in x.children(&store.to_arena) {
             if new_mappings.contains_to(&child) {
                 let mapped = new_mappings.get_from(&child).unwrap();
                 if w.children(&store.from_arena).any(|n| n == mapped) {
-                    s1.push(child);
+                    s2.push(child);
                 }
             }
         }
-        let lcs = self.lcss(store, &s1, &s2);
-        for &(from, to) in &lcs {
-            from_in_order.insert(from);
-            to_in_order.insert(to);
+        // 3. Let equal(a, b) iff (a, b) in store.
+        // 4. Let lcs be lcss(s1, s2, equal).
+        let lcs = self.lcss(new_mappings, &s1, &s2);
+        // 5. For each (a, b) in lcs mark nodes a and b "in order".
+        for &(a, b) in &lcs {
+            from_in_order.insert(a);
+            to_in_order.insert(b);
         }
+        // 6. For each a in s1, b in s2 such that (a, b) in new_mappings but
+        // (a, b) not in lcs: (i) let k = find_pos(b); (ii) append MOV(a, w, k)
+        // to the script and apply MOV(a, w, k) to T_1; (iii) Mark a, b as "in
+        // order".
         for a in &s1 {
             for b in &s2 {
-                if new_mappings.contains_from(a) && new_mappings.get_to(a).unwrap() == *b &&
-                   !lcs.contains(&(*a, *b)) {
-                    let k = self.find_pos(store, *b, new_mappings, to_in_order);
+                if store.is_mapped(a, b) && !lcs.contains(&(*a, *b)) {
+                    let k = self.find_pos(store, *b, new_mappings, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
-                    debug!("Edit script: MOV {} {:?} Parent: {} {:?}",
+                    debug!("Edit script align_children: MOV {} {:?} Parent: {} {:?} Child: {}",
                            store.from_arena[*a].label,
                            store.from_arena[*a].value,
                            store.to_arena[w].label,
-                           store.to_arena[w].value);
+                           store.to_arena[w].value,
+                           k);
                     script.push(mov);
                     mov.apply(&mut store.from_arena)?;
                     from_in_order.insert(*a);
@@ -134,17 +154,19 @@ impl Chawathe96Config {
                                                  store: &MappingStore<T>,
                                                  x: NodeId,
                                                  new_mappings: &TemporaryMappingStore,
+                                                 from_in_order: &HashSet<NodeId>,
                                                  to_in_order: &HashSet<NodeId>)
                                                  -> u16 {
-        debug!("find_pos({})", x);
-        if x.is_root(&store.to_arena) {
-            return 0;
-        }
+        // 1. Let y=p(x) in T_2 and let w be the partner of x in T_1.
+        // N.B. w seems to be unused in the algorithm.
         let y = store.to_arena[x].parent().unwrap();
+        // 2. If x is the leftmost child of y that is marked "in order" return
+        // 0 (the paper says 1 but we count child nodes from 0).
         let siblings = y.children(&store.to_arena).collect::<Vec<NodeId>>();
         for child in &siblings {
             if to_in_order.contains(child) {
                 if x == *child {
+                    debug!("find_pos({}) <- 0. Node in order.", x);
                     return 0;
                 } else {
                     break;
@@ -152,25 +174,37 @@ impl Chawathe96Config {
             }
         }
         let x_pos = x.get_child_position(&store.to_arena).unwrap();
-        // Find v in T2, where v is the rightmost sibling of x that is to the
-        // left of x and is marked "in order".
+        // 3. Find v in T_2, where v is the rightmost sibling of x that is to
+        // the left of x and is marked "in order".
         let v = x.children(&store.to_arena)
-            .take(x_pos)
-            .filter(|c| to_in_order.contains(&c))
-            .last();
+                 .take(x_pos)
+                 .filter(|c| to_in_order.contains(&c))
+                 .last();
         if v.is_none() {
-            return 0; // No right-most sibling in order.
+            debug!("find_pos({}) <- 0. No right-most sibling in order.", x);
+            return 0;
         }
-        let u = new_mappings.get_from(&v.unwrap()).unwrap();
-        let u_pos = u.get_child_position(&store.to_arena).unwrap();
-        u_pos as u16 + 1
+        // 4. Let u be the partner of v in T_1.
+        let u_opt = new_mappings.get_from(&v.unwrap());
+        assert!(u_opt.is_some(), "find_pos() could not find a partner for v");
+        let u = u_opt.unwrap();
+        // 5. Suppose u is the i'th child of its parent that is marked
+        // "in order". Return i + 1.
+        let u_p = store.from_arena[u].parent().unwrap();
+        let u_pos = u.get_child_position(&store.from_arena).unwrap();
+        let ret = u_p.children(&store.from_arena)
+                     .take(u_pos)
+                     .filter(|c| from_in_order.contains(&c))
+                     .count() as u16 + 1;
+        debug!("find_pos({}) <- {}", x, ret);
+        ret
     }
 
-    fn lcss<T: Clone + Debug + Eq + 'static>(&self,
-                                             store: &MappingStore<T>,
-                                             seq1: &[NodeId],
-                                             seq2: &[NodeId])
-                                             -> Vec<(NodeId, NodeId)> {
+    fn lcss(&self,
+            store: &TemporaryMappingStore,
+            seq1: &[NodeId],
+            seq2: &[NodeId])
+            -> Vec<(NodeId, NodeId)> {
         let mut lcss: Vec<(NodeId, NodeId)> = vec![];
         if seq1.is_empty() || seq2.is_empty() {
             return lcss;
@@ -183,7 +217,7 @@ impl Chawathe96Config {
         debug_assert_eq!(seq2.len() + 1, grid[0].len());
         for (i, n1) in seq1.iter().enumerate() {
             for (j, n2) in seq2.iter().enumerate() {
-                if store.contains_from(n1) && store.get_to(n1).unwrap() == *n2 {
+                if store.is_mapped(n1, n2) {
                     grid[i + 1][j + 1] = 1 + grid[i][j];
                 } else {
                     grid[i + 1][j + 1] = max(grid[i + 1][j], grid[i][j + 1]);
@@ -212,6 +246,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
     fn generate_script(&self, store: &mut MappingStore<T>) -> EditScriptResult<T> {
+        // 1. E <- e, M' <- M.
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId> = HashSet::new();
         let mut to_in_order: HashSet<NodeId> = HashSet::new();
@@ -221,13 +256,19 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
             new_mappings.push(*key, value.0);
         }
         // Combined update, insert, align and move phases.
+        // 2. Visit the nodes of T_2 in breadth-first order.
         let tmp_to_arena = store.to_arena.clone();
         let root = tmp_to_arena.root().unwrap_or_else(|| NodeId::new(0));
+        // (a) Let x be the current node in the breadth-first search of T_2
+        // and let y be the parent of x. Let z be the partner of y in M'.
         for x in root.breadth_first_traversal(&tmp_to_arena) {
             let mut w = root; // Overwritten later.
             // Insertion phase.
-            if !new_mappings.to.contains_key(&x) && x.is_root(&store.to_arena) {
-                let k = self.find_pos(store, x, &new_mappings, &to_in_order);
+            if !new_mappings.contains_to(&x) && x.is_root(&store.to_arena) {
+                // Handle root nodes separately. This branch is most likely to
+                // be used when the "from" and "to" ASTs have been parsed
+                // into different grammars.
+                let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
                 debug!("Edit script: INS {} {:?} No parent",
                        store.to_arena[x].label,
                        store.to_arena[x].value);
@@ -242,10 +283,11 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 let mut ins = Insert::new(w, None, k);
                 ins.apply(&mut store.from_arena)?;
                 script.push(ins);
-            } else if !new_mappings.to.contains_key(&x) {
+            } else if !new_mappings.contains_to(&x) {
                 let y = store.to_arena[x].parent().unwrap();
                 let z = new_mappings.get_from(&y).unwrap();
-                let k = self.find_pos(store, x, &new_mappings, &to_in_order);
+                // (b) if x has no partner in M': i. let k<-find_pos(x),
+                let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
                 debug!("Edit script: INS {} {:?} Parent: {} {:?}",
                        store.to_arena[x].label,
                        store.to_arena[x].value,
@@ -258,14 +300,20 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                                               store.to_arena[x].line_no,
                                               store.to_arena[x].char_no,
                                               store.to_arena[x].token_len);
+                // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
                 new_mappings.push(w, x);
+                // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
                 let mut ins = Insert::new(w, Some(z), k);
                 ins.apply(&mut store.from_arena)?;
                 script.push(ins);
             } else if !x.is_root(&store.to_arena) {
                 // Insertion and update phases.
+                // (c) else if x is not a root (x has a partner in M').
+                // i. Let w be the partner of x in M' and let v be the parent
+                // of w in T_1.
                 w = new_mappings.get_from(&x).unwrap();
                 let v = store.from_arena[w].parent().unwrap();
+                // ii. if value_of(w) != value_of(x):
                 if store.from_arena[w].value != store.to_arena[x].value {
                     debug!("Edit script: UPD {} {:?} -> {} {:?}",
                            store.from_arena[w].label,
@@ -275,24 +323,33 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     let mut upd = Update::new(w,
                                               store.to_arena[x].value.clone(),
                                               store.to_arena[x].label.clone());
+                    // B. Apply UPD(w, v(x)) to T_1.
                     upd.apply(&mut store.from_arena)?;
+                    // A. Append UPD(w, v(x)) to E.
                     script.push(upd.clone());
                 }
                 // MOVE phase.
+                // iii. If (y, v) not in M':
                 let y = store.to_arena[x].parent().unwrap();
+                // A. Let z be the partner of y in M'.
                 let z = new_mappings.get_from(&y).unwrap();
                 if z != v {
-                    let k = self.find_pos(store, x, &new_mappings, &to_in_order);
+                    // B. Let k<-find_pos(x).
+                    let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
                     let mut mov = Move::new(w, z, k);
-                    debug!("Edit script: MOV {} {:?} Parent: {} {:?}",
+                    debug!("Edit script: MOV {} {:?} Parent: {} {:?} Child: {}",
                            store.from_arena[w].label,
                            store.from_arena[w].value,
                            store.from_arena[z].label,
-                           store.from_arena[z].value);
+                           store.from_arena[z].value,
+                           k);
+                    // D. Apply MOV(w, z, k) to T_1.
                     mov.apply(&mut store.from_arena)?;
+                    // C. Append MOV(w, z, k) to E.
                     script.push(mov);
                 }
             }
+            // (d) align_children(w, x).
             self.align_children(store,
                                 w,
                                 x,
@@ -302,8 +359,12 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                                 &mut to_in_order)?;
         }
         // Delete phase.
+        // 3. Perform a post-order traversal of T_1.
         let mut actions = EditScript::new();
+        // (a) Let w be the current node in the post-order traversal of T_1.
         for w in root.post_order_traversal(&store.from_arena) {
+            // (b) If w has no partner in M' then append DEL(w) to E and apply
+            // DEL(w) to T_1.
             if !new_mappings.contains_from(&w) {
                 debug!("Edit script: DEL {} {:?}",
                        store.from_arena[w].label,
