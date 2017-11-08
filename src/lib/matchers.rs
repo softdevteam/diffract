@@ -227,7 +227,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     pub fn is_isomorphic(&self, from: NodeId, to: NodeId) -> bool {
         // Case 1: both nodes are leaves.
         if from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) &&
-           self.from_arena[from].label == self.to_arena[to].label {
+           self.from_arena[from].label == self.to_arena[to].label &&
+           self.from_arena[from].value == self.to_arena[to].value {
             return true;
         }
         // Case 2: one node is a leaf and the other is a branch.
@@ -237,6 +238,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         }
         // Case 3: both nodes are branches.
         if self.from_arena[from].label != self.to_arena[to].label ||
+           self.from_arena[from].value != self.to_arena[to].value ||
            from.height(&self.from_arena) != to.height(&self.to_arena) {
             return false;
         }
@@ -427,17 +429,25 @@ mod tests {
     fn is_isomorphic() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
+        let store_p = MappingStore::new(plus.clone(), plus.clone());
+        let store_m = MappingStore::new(mult.clone(), mult.clone());
         let store = MappingStore::new(plus, mult);
-        assert!(store.is_isomorphic(NodeId::new(0), NodeId::new(2)));
+        // Isomorphic.
+        assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(store_p.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(store_m.is_isomorphic(NodeId::new(0), NodeId::new(0)));
+        assert!(store_m.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(store_m.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(store_m.is_isomorphic(NodeId::new(3), NodeId::new(3)));
+        assert!(store_m.is_isomorphic(NodeId::new(4), NodeId::new(4)));
         assert!(store.is_isomorphic(NodeId::new(1), NodeId::new(3)));
         assert!(store.is_isomorphic(NodeId::new(2), NodeId::new(4)));
-        assert!(store.is_isomorphic(NodeId::new(1), NodeId::new(4)));
-        assert!(store.is_isomorphic(NodeId::new(2), NodeId::new(3)));
         // Not isomorphic.
         assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(0)));
-        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(1)));
-        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(3)));
-        assert!(!store.is_isomorphic(NodeId::new(0), NodeId::new(4)));
+        assert!(!store.is_isomorphic(NodeId::new(1), NodeId::new(1)));
+        assert!(!store.is_isomorphic(NodeId::new(2), NodeId::new(2)));
+        assert!(!store.is_isomorphic(NodeId::new(2), NodeId::new(3)));
     }
 
     #[test]
