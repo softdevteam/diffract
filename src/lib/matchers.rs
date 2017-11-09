@@ -121,6 +121,14 @@ impl TemporaryMappingStore {
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
         self.from.get(from).and_then(|x| Some(*x))
     }
+
+    /// Test whether `n1` is mapped to `n2` in this store.
+    pub fn is_mapped(&self, from: &NodeId, to: &NodeId) -> bool {
+        if !self.contains_from(from) {
+            return false;
+        }
+        self.get_to(from).map_or(false, |x| x == *to)
+    }
 }
 
 impl Default for TemporaryMappingStore {
@@ -215,6 +223,14 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// Get the `NodeId` that `from` is mapped to.
     pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
         self.from.get(from).and_then(|x| Some(x.0))
+    }
+
+    /// Test whether `n1` is mapped to `n2` in this store.
+    pub fn is_mapped(&self, from: &NodeId, to: &NodeId) -> bool {
+        if !self.contains_from(from) {
+            return false;
+        }
+        self.get_to(from).map_or(false, |x| x == *to)
     }
 
     /// Two sub-trees are isomorphic if they have the same structure.
