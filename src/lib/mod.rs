@@ -57,6 +57,9 @@ pub mod action;
 /// into an AST.
 pub mod ast;
 
+/// Algorithms to generate edit scripts, based on an existing AST matching.
+pub mod edit_script;
+
 /// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
 pub mod emitters;
 

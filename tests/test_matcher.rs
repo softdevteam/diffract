@@ -42,7 +42,8 @@ extern crate diffract;
 
 use std::path::Path;
 
-use diffract::ast::{NodeId, parse_file};
+use diffract::ast::parse_file;
+use diffract::edit_script::{Chawathe96Config, EditScriptGenerator};
 use diffract::myers_matcher::MyersConfig;
 use diffract::matchers::MatchTrees;
 
@@ -70,9 +71,11 @@ fn compare_asts_post_edit_script(ty: &Filetype, base_file: &str, diff_file: &str
     let config = MyersConfig::new();
     // Generate mappings between ASTs.
     let mut mapping = config.match_trees(ast_base, ast_diff);
-    // Generate edit script. By convention, the parser will generate an AST
-    // whose root is in the 0th element of its arena.
-    let _ = mapping.generate_edit_script(NodeId::new(0));
+    // Generate edit script. All tests use the Chawathe et al. (1996) algorithm.
+    // let _ = chawathe96(&mut mapping);
+    let generator_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
+    let _ = generator_config.generate_script(&mut mapping);
+
     // Once the edit script has been generated, the mapping between the base
     // and diff ASTs should be a total mapping.
     assert_eq!(size, mapping.from.len());
