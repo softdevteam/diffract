@@ -43,7 +43,7 @@ use std::fmt::Debug;
 
 use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{ArenaError, NodeId};
-use matchers::{EditScriptResult, MappingStore, TemporaryMappingStore, MappingType};
+use matchers::{EditScriptResult, MappingStore, MappingType};
 
 
 /// Given a matching between two ASTs, generate a complete edit script.
@@ -102,7 +102,6 @@ impl Chawathe96Config {
         w: NodeId,
         x: NodeId,
         script: &mut EditScript<T>,
-        new_mappings: &TemporaryMappingStore,
         from_in_order: &mut HashSet<NodeId>,
         to_in_order: &mut HashSet<NodeId>,
     ) -> Result<(), ArenaError> {
@@ -126,8 +125,8 @@ impl Chawathe96Config {
         // partners are children of w.
         let mut s1: Vec<NodeId> = vec![];
         for child in w.children(&store.from_arena) {
-            if new_mappings.contains_from(&child) {
-                let mapped = new_mappings.get_to(&child).unwrap();
+            if store.contains_from(&child) {
+                let mapped = store.get_to(&child).unwrap();
                 if x.children(&store.to_arena).any(|n| n == mapped) {
                     s1.push(child);
                 }
@@ -135,8 +134,8 @@ impl Chawathe96Config {
         }
         let mut s2: Vec<NodeId> = vec![];
         for child in x.children(&store.to_arena) {
-            if new_mappings.contains_to(&child) {
-                let mapped = new_mappings.get_from(&child).unwrap();
+            if store.contains_to(&child) {
+                let mapped = store.get_from(&child).unwrap();
                 if w.children(&store.from_arena).any(|n| n == mapped) {
                     s2.push(child);
                 }
@@ -144,7 +143,7 @@ impl Chawathe96Config {
         }
         // 3. Let equal(a, b) iff (a, b) in store.
         // 4. Let lcs be lcss(s1, s2, equal).
-        let lcs = self.lcss(new_mappings, &s1, &s2);
+        let lcs = self.lcss(store, &s1, &s2);
         // 5. For each (a, b) in lcs mark nodes a and b "in order".
         for &(a, b) in &lcs {
             from_in_order.insert(a);
@@ -157,7 +156,7 @@ impl Chawathe96Config {
         for a in &s1 {
             for b in &s2 {
                 if store.is_mapped(a, b) && !lcs.contains(&(*a, *b)) {
-                    let k = self.find_pos(store, *b, new_mappings, from_in_order, to_in_order);
+                    let k = self.find_pos(store, *b, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
                     debug!(
                         "Edit script align_children: MOV {} {:?} Parent: {} {:?} Child: {}",
@@ -182,7 +181,6 @@ impl Chawathe96Config {
         &self,
         store: &MappingStore<T>,
         x: NodeId,
-        new_mappings: &TemporaryMappingStore,
         from_in_order: &HashSet<NodeId>,
         to_in_order: &HashSet<NodeId>,
     ) -> u16 {
@@ -214,7 +212,7 @@ impl Chawathe96Config {
             return 0;
         }
         // 4. Let u be the partner of v in T_1.
-        let u_opt = new_mappings.get_from(&v.unwrap());
+        let u_opt = store.get_from(&v.unwrap());
         assert!(u_opt.is_some(), "find_pos() could not find a partner for v");
         let u = u_opt.unwrap();
         // 5. Suppose u is the i'th child of its parent that is marked
@@ -229,9 +227,9 @@ impl Chawathe96Config {
         ret
     }
 
-    fn lcss(
+    fn lcss<T: Clone + Debug + Eq + 'static>(
         &self,
-        store: &TemporaryMappingStore,
+        store: &MappingStore<T>,
         seq1: &[NodeId],
         seq2: &[NodeId],
     ) -> Vec<(NodeId, NodeId)> {
@@ -280,11 +278,6 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId> = HashSet::new();
         let mut to_in_order: HashSet<NodeId> = HashSet::new();
-        let mut new_mappings = TemporaryMappingStore::new();
-        // Copy current mappings over to new_mappings.
-        for (key, value) in &store.from {
-            new_mappings.push(*key, value.0);
-        }
         // Combined update, insert, align and move phases.
         // 2. Visit the nodes of T_2 in breadth-first order.
         let tmp_to_arena = store.to_arena.clone();
@@ -294,11 +287,11 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         for x in root.breadth_first_traversal(&tmp_to_arena) {
             let mut w = root; // Overwritten later.
             // Insertion phase.
-            if !new_mappings.contains_to(&x) && x.is_root(&store.to_arena) {
+            if !store.contains_to(&x) && x.is_root(&store.to_arena) {
                 // Handle root nodes separately. This branch is most likely to
                 // be used when the "from" and "to" ASTs have been parsed
                 // into different grammars.
-                let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
+                let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                 debug!(
                     "Edit script: INS {} {:?} No parent",
                     store.to_arena[x].label,
@@ -313,15 +306,15 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     store.to_arena[x].char_no,
                     store.to_arena[x].token_len,
                 );
-                new_mappings.push(w, x);
+                store.push(w, x, MappingType::EDIT);
                 let mut ins = Insert::new(w, None, k);
                 ins.apply(&mut store.from_arena)?;
                 script.push(ins);
-            } else if !new_mappings.contains_to(&x) {
+            } else if !store.contains_to(&x) {
                 let y = store.to_arena[x].parent().unwrap();
-                let z = new_mappings.get_from(&y).unwrap();
+                let z = store.get_from(&y).unwrap();
                 // (b) if x has no partner in M': i. let k<-find_pos(x),
-                let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
+                let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                 debug!(
                     "Edit script: INS {} {:?} Parent: {} {:?}",
                     store.to_arena[x].label,
@@ -339,7 +332,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     store.to_arena[x].token_len,
                 );
                 // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
-                new_mappings.push(w, x);
+                store.push(w, x, MappingType::EDIT);
                 // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
                 let mut ins = Insert::new(w, Some(z), k);
                 ins.apply(&mut store.from_arena)?;
@@ -349,7 +342,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 // (c) else if x is not a root (x has a partner in M').
                 // i. Let w be the partner of x in M' and let v be the parent
                 // of w in T_1.
-                w = new_mappings.get_from(&x).unwrap();
+                w = store.get_from(&x).unwrap();
                 let v = store.from_arena[w].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
                 if store.from_arena[w].value != store.to_arena[x].value {
@@ -374,10 +367,10 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 // iii. If (y, v) not in M':
                 let y = store.to_arena[x].parent().unwrap();
                 // A. Let z be the partner of y in M'.
-                let z = new_mappings.get_from(&y).unwrap();
+                let z = store.get_from(&y).unwrap();
                 if z != v {
                     // B. Let k<-find_pos(x).
-                    let k = self.find_pos(store, x, &new_mappings, &from_in_order, &to_in_order);
+                    let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                     let mut mov = Move::new(w, z, k);
                     debug!(
                         "Edit script: MOV {} {:?} Parent: {} {:?} Child: {}",
@@ -399,7 +392,6 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 w,
                 x,
                 &mut script,
-                &new_mappings,
                 &mut from_in_order,
                 &mut to_in_order,
             )?;
@@ -411,7 +403,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         for w in root.post_order_traversal(&store.from_arena) {
             // (b) If w has no partner in M' then append DEL(w) to E and apply
             // DEL(w) to T_1.
-            if !new_mappings.contains_from(&w) {
+            if !store.contains_from(&w) {
                 debug!(
                     "Edit script: DEL {} {:?}",
                     store.from_arena[w].label,
@@ -423,14 +415,6 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
             }
         }
         actions.apply(&mut store.from_arena)?;
-        // Add new mappings to the existing store.
-        debug!("Append new mappings to store.");
-        for (from, to) in new_mappings.from {
-            if !store.contains_from(&from) {
-                debug!("New mapping due to edit script: {} -> {}", from, to);
-                store.push(from, to, MappingType::EDIT);
-            }
-        }
         Ok(script)
     }
 }
