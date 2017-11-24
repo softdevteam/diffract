@@ -149,13 +149,13 @@ impl Chawathe96Config {
             from_in_order.insert(a);
             to_in_order.insert(b);
         }
-        // 6. For each a in s1, b in s2 such that (a, b) in new_mappings but
+        // 6. For each a in s1, b in s2 such that (a, b) in store (M) but
         // (a, b) not in lcs: (i) let k = find_pos(b); (ii) append MOV(a, w, k)
         // to the script and apply MOV(a, w, k) to T_1; (iii) Mark a, b as "in
         // order".
         for a in &s1 {
             for b in &s2 {
-                if store.is_mapped(a, b) && !lcs.contains(&(*a, *b)) {
+                if store.is_mapped_by_matcher(a, b) && !lcs.contains(&(*a, *b)) {
                     let k = self.find_pos(store, *b, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
                     debug!(
