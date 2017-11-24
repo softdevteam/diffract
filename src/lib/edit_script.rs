@@ -205,7 +205,7 @@ impl Chawathe96Config {
         // the left of x and is marked "in order".
         let v = x.children(&store.to_arena)
                  .take(x_pos)
-                 .filter(|c| to_in_order.contains(&c))
+                 .filter(|c| to_in_order.contains(c))
                  .last();
         if v.is_none() {
             debug!("find_pos({}) <- 0. No right-most sibling in order.", x);
@@ -221,7 +221,7 @@ impl Chawathe96Config {
         let u_pos = u.get_child_position(&store.from_arena).unwrap();
         let ret = u_p.children(&store.from_arena)
                      .take(u_pos)
-                     .filter(|c| from_in_order.contains(&c))
+                     .filter(|c| from_in_order.contains(c))
                      .count() as u16 + 1;
         debug!("find_pos({}) <- {}", x, ret);
         ret
@@ -306,7 +306,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     store.to_arena[x].char_no,
                     store.to_arena[x].token_len,
                 );
-                store.push(w, x, MappingType::EDIT);
+                store.push(w, x, &MappingType::EDIT);
                 let mut ins = Insert::new(w, None, k);
                 ins.apply(&mut store.from_arena)?;
                 script.push(ins);
@@ -332,7 +332,7 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     store.to_arena[x].token_len,
                 );
                 // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
-                store.push(w, x, MappingType::EDIT);
+                store.push(w, x, &MappingType::EDIT);
                 // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
                 let mut ins = Insert::new(w, Some(z), k);
                 ins.apply(&mut store.from_arena)?;
