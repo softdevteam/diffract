@@ -56,7 +56,7 @@ use diffract::gt_matcher;
 use diffract::myers_matcher;
 use diffract::matchers::MatchTrees;
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 Usage: diffract [options] <base-file> <diff-file>
        diffract [options] <base-file> <diff-file> -d FILE ...
        diffract [options] <base-file> <diff-file> -g FILE ...
@@ -96,7 +96,7 @@ Options:
     -v, --version       print version information and exit.
 ";
 
-const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone, Copy, Debug, RustcDecodable)]
 enum DebugLevel {
@@ -172,10 +172,8 @@ fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
         EmtpyArena => "Could not create edit script, AST was empty.",
         NodeIdNotFound => "Could not create edit script, NodeId was not found.",
         NodeHasTooFewChildren(n) => {
-            s = format!(
-                "Could not create edit script, NodeId had only {} children.",
-                n
-            );
+            s = format!("Could not create edit script, NodeId had only {} children.",
+                        n);
             &s
         }
         NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical.",
@@ -257,19 +255,8 @@ fn parse_file(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast:
         .unwrap()
 }
 
-
-
-fn main() {
-    let argv: Vec<_> = env::args().collect();
-    let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.argv(argv).decode())
-        .unwrap_or_else(|e| e.exit());
-
-    if let Some(l) = args.flag_debug {
-        env::set_var("RUST_LOG", &format!("{:?}", l).to_lowercase());
-    }
-    env_logger::init().unwrap();
-
+/// Process flags which merely request documentation.
+fn process_doc_flags(args: &Args) {
     if args.flag_help {
         println!("{}", USAGE);
         process::exit(0);
@@ -282,15 +269,14 @@ fn main() {
         println!("{}", get_matcher_descriptions());
         process::exit(0);
     }
+}
 
-    // Matcher configuration object.
-    let matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
-
-    // This function duplicates some checks that are performed by the
-    // treediff::ast::parse_file in order to give better error messages.
-
-    // Determine lexer and yacc files by extension. For example if the input
-    // file is named Foo.java, the lexer should be grammars/java.l.
+/// Determine lexer and yacc files by extension.
+/// For example if the input file is named `Foo.java`, the lexer should be
+/// `grammars/java.l`. This function duplicates some checks that are performed
+/// by the `treediff::ast::parse_file` in order to give better error messages.
+/// Will cause diffract to exit if user-requested lexer / parser does not exist.
+fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     // TODO: create a HashMap of file extensions -> lex/yacc files.
     let exe = match env::current_exe() {
         Ok(p) => p,
@@ -301,10 +287,7 @@ fn main() {
     let ext1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            exit_with_message(&format!(
-                "Cannot determine file type of {}.",
-                args.arg_base_file
-            ))
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
         }
     };
     // Lexer path for first input file.
@@ -333,10 +316,7 @@ fn main() {
     let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => {
-            exit_with_message(&format!(
-                "Cannot determine file type of {}.",
-                args.arg_diff_file
-            ))
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
         }
     };
     // Lexer path for second input file.
@@ -361,6 +341,27 @@ fn main() {
             exit_with_message(&format!("Requested parser {:?} does not exist.", parser2));
         }
     }
+    (lexer1, parser1, lexer2, parser2)
+}
+
+fn main() {
+    let argv: Vec<_> = env::args().collect();
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.argv(argv).decode())
+        .unwrap_or_else(|e| e.exit());
+    // If the user only asked for documentation, provide it and exit.
+    process_doc_flags(&args);
+
+    // Set up logging.
+    if let Some(l) = args.flag_debug {
+        env::set_var("RUST_LOG", &format!("{:?}", l).to_lowercase());
+    }
+    env_logger::init().unwrap();
+
+    // Matcher configuration object.
+    let matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
+
+    let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 
     // Parse both input files.
     let ast_base = parse_file(&args.arg_base_file, &lexer1, &parser1);
@@ -403,20 +404,17 @@ fn main() {
     // 1) Chawathe96Config
     // 2) Chawathe98Config
     //
-    fn generator_script_config(
-        input: Option<EditScriptGenerator>,
-    ) -> Box<edit_script::EditScriptGenerator<String>> {
+    fn generator_script_config(input: Option<EditScriptGenerator>)
+                               -> Box<edit_script::EditScriptGenerator<String>> {
         let config: Box<edit_script::EditScriptGenerator<String>>;
         match input {
 
-            Some(EditScriptGenerator::Chawathe96) => {
+            Some(EditScriptGenerator::Chawathe96) |
+            None => {
                 config = Box::new(edit_script::Chawathe96Config::new());
             }
             Some(EditScriptGenerator::Chawathe98) => {
                 config = Box::new(edit_script::Chawathe98Config::new());
-            }
-            None => {
-                config = Box::new(edit_script::Chawathe96Config::new());
             }
         }
         config
@@ -428,33 +426,27 @@ fn main() {
     };
     if args.flag_store.is_some() {
         let edit_file = args.flag_store.unwrap();
-        info!(
-            "Creating dot representation of edit script {:?}.",
-            edit_file
-        );
+        info!("Creating dot representation of edit script {:?}.",
+              edit_file);
         write_dotfile_to_disk(&edit_file, &mapping);
     }
 
     // Generate output.
     if args.flag_output.is_none() || args.flag_output == Some(Output::Terminal) {
         info!("Writing terminal output to STDOUT.");
-        consume_emitter_err(
-            emitters::write_diff_to_stdout(
-                &mapping,
-                &edit_script,
-                &args.arg_base_file,
-                &args.arg_diff_file,
-            ),
-            &args.arg_base_file,
-        );
+        consume_emitter_err(emitters::write_diff_to_stdout(&mapping,
+                                                           &edit_script,
+                                                           &args.arg_base_file,
+                                                           &args.arg_diff_file),
+                            &args.arg_base_file);
     } else if args.flag_output == Some(Output::None) {
         info!("No output requested by the user.");
         return;
     } else if args.flag_output == Some(Output::JSON) {
         info!("Writing JSON output to STDOUT.");
-        consume_emitter_err(
-            emitters::write_json_to_stream(Box::new(stdout()), &mapping, &edit_script),
-            "STDOUT",
-        );
+        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()),
+                                                           &mapping,
+                                                           &edit_script),
+                            "STDOUT");
     }
 }

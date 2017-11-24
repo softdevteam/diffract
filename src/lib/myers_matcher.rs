@@ -97,7 +97,7 @@ Variations.";
                            &store.to_arena,
                            &eq);
         for &(n1, n2) in &longest {
-            store.push(n1, n2, MappingType::ANCHOR);
+            store.push(n1, n2, &MappingType::ANCHOR);
         }
         store
     }

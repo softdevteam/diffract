@@ -93,7 +93,7 @@ Code Differencing.";
         if store.from_arena.size() == 0 || store.to_arena.size() == 0 {
             return store;
         }
-        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
+        store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store
     }
 }

@@ -124,7 +124,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     }
 
     /// Push a new mapping into the store.
-    pub fn push(&mut self, from: NodeId, to: NodeId, ty: MappingType) {
+    pub fn push(&mut self, from: NodeId, to: NodeId, ty: &MappingType) {
         self.from.insert(from, (to, ty.clone()));
         self.to.insert(to, (from, ty.clone()));
     }
@@ -410,8 +410,8 @@ mod tests {
         assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(3)));
         assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(4)));
         // Mapping already exists.
-        store.push(NodeId::new(0), NodeId::new(0), MappingType::ANCHOR);
-        store.push(NodeId::new(2), NodeId::new(4), MappingType::ANCHOR);
+        store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
+        store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(!store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
@@ -423,9 +423,9 @@ mod tests {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
         let mut store = MappingStore::new(plus, mult);
-        store.push(NodeId::new(0), NodeId::new(2), Default::default());
-        store.push(NodeId::new(1), NodeId::new(3), Default::default());
-        store.push(NodeId::new(2), NodeId::new(4), Default::default());
+        store.push(NodeId::new(0), NodeId::new(2), &Default::default());
+        store.push(NodeId::new(1), NodeId::new(3), &Default::default());
+        store.push(NodeId::new(2), NodeId::new(4), &Default::default());
         assert_eq!(2,
                    store.num_common_descendants(&NodeId::new(0), &NodeId::new(2)));
         assert_eq!(2,
