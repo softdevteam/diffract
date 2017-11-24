@@ -35,7 +35,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-//! Integration tests for edit_script module.
+//! Integration tests for `edit_script` module.
 //! All file paths are relative to the root of the repository.
 
 extern crate diffract;
