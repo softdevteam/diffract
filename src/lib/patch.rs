@@ -102,7 +102,7 @@ pub struct Hunk {
 
 impl Hunk {
     /// Convert a patch into a hunk.
-    pub fn new(patch: Patch) -> Hunk {
+    pub fn new(patch: &Patch) -> Hunk {
         Hunk {
             patches: vec![patch.clone()],
             start: patch.start,
@@ -168,7 +168,7 @@ pub fn hunkify(patches: Vec<Patch>) -> BTreeMap<(usize, usize), Hunk> {
             }
         }
         if !added {
-            hunks.push(Hunk::new(patch.clone()));
+            hunks.push(Hunk::new(&patch));
         }
     }
     // TODO: Could also merge nearby hunks.
@@ -195,7 +195,7 @@ mod test {
     fn test_get_action() {
         let p0 = Patch::new(ActionType::DELETE, 0, 6);
         let p1 = Patch::new(ActionType::UPDATE, 7, 6);
-        let mut hunk = Hunk::new(p0);
+        let mut hunk = Hunk::new(&p0);
         let p2 = Patch::new(ActionType::MOVE, 20, 6);
         let p3 = Patch::new(ActionType::INSERT, 27, 10);
         hunk.add_patch(p1.clone());
@@ -227,7 +227,7 @@ mod test {
         let p1 = Patch::new(ActionType::UPDATE, 7, 6);
         let p2 = Patch::new(ActionType::MOVE, 20, 6);
         let p3 = Patch::new(ActionType::INSERT, 507, 10);
-        let hunk = Hunk::new(p0);
+        let hunk = Hunk::new(&p0);
         assert!(hunk.is_patch_related(&p1));
         assert!(hunk.is_patch_related(&p2));
         assert!(!hunk.is_patch_related(&p3));
@@ -250,11 +250,11 @@ mod test {
     fn test_header() {
         let p0 = Patch::new(ActionType::DELETE, 0, 6);
         let p1 = Patch::new(ActionType::UPDATE, 7, 6);
-        let mut hunk_from = Hunk::new(p0);
+        let mut hunk_from = Hunk::new(&p0);
         hunk_from.add_patch(p1);
         let p2 = Patch::new(ActionType::MOVE, 20, 6);
         let p3 = Patch::new(ActionType::INSERT, 27, 10);
-        let mut hunk_to = Hunk::new(p2);
+        let mut hunk_to = Hunk::new(&p2);
         hunk_to.add_patch(p3);
         assert_eq!(String::from("@@ -0,13 +20,17 @@"),
                    header(&hunk_from, &hunk_to));
