@@ -72,7 +72,7 @@ pub enum ParseError {
 }
 
 /// Errors raised by arenas.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ArenaError {
     /// Arena is unexpectedly empty.
     EmtpyArena,
@@ -82,6 +82,8 @@ pub enum ArenaError {
     NodeHasTooFewChildren(u16),
     /// Two node ids were unexpectedly identical.
     NodeIdsAreIdentical,
+    /// Node has too many children.
+    NodeHasTooManyChildren,
 }
 
 /// Result type returned by AST operations.
@@ -197,7 +199,8 @@ impl<T: Clone, U: PartialEq + Copy> Arena<T, U> {
         next_id
     }
 
-    /// Create a new root node from its data.
+    /// Create a new root node.
+    ///
     /// The new root has the previous root as its single child.
     pub fn new_root(&mut self, new_root: NodeId<U>) -> ArenaResult {
         if self.root.is_none() {
@@ -207,6 +210,30 @@ impl<T: Clone, U: PartialEq + Copy> Arena<T, U> {
         let old_root = self.root.unwrap();
         self.root = Some(new_root);
         old_root.make_child_of(new_root, self)
+    }
+
+    /// Delete the root node.
+    ///
+    /// The new root node is the only child of the old node.
+    /// INVARIANT: `self.root` has exactly one child.
+    pub fn delete_root(&mut self) -> ArenaResult {
+        assert!(self.root.is_some());
+        let root = self.root.unwrap();
+        if root.children(self).collect::<Vec<NodeId<U>>>().is_empty() {
+            return Err(ArenaError::NodeHasTooFewChildren(1));
+        }
+        if root.children(self).collect::<Vec<NodeId<U>>>().len() > 1 {
+            return Err(ArenaError::NodeHasTooManyChildren);
+        }
+        self.root = self[root].first_child;
+        self[root].parent = None;
+        self[root].first_child = None;
+        // Next few assignments should not be necessary.
+        self[root].last_child = None;
+        self[root].previous_sibling = None;
+        self[root].next_sibling = None;
+        self[root].parent = None;
+        Ok(())
     }
 
     /// Return `true` if the arena is empty, `false` otherwise.
@@ -986,6 +1013,160 @@ mod tests {
         assert_eq!(1, n1.index);
         assert_eq!(String::from("foobar"), arena[n1].label);
         assert_eq!("STR", arena[n1].ty);
+    }
+
+    #[test]
+    fn test_new_root() {
+        let mut arena = Arena::<&str, FromNodeId>::new();
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+";
+        assert_eq!(format1, format!("{:?}", arena));
+        let new_root = arena.new_node("INT",
+                                      String::from("2"),
+                                      None,
+                                      None,
+                                      None,
+                                      None);
+        assert!(arena.new_root(new_root).is_ok());
+        let format2 = "\"INT\" 2
+  \"Expr\" +
+    \"INT\" 1
+";
+        assert_eq!(format2, format!("{:?}", arena));
+        assert_eq!(arena.root().unwrap(), new_root);
+        assert_eq!(arena[arena.root().unwrap()].first_child, Some(root));
+        assert_eq!(arena[arena.root().unwrap()].last_child, Some(root));
+        assert_eq!(arena[arena.root().unwrap()].previous_sibling, None);
+        assert_eq!(arena[arena.root().unwrap()].next_sibling, None);
+        assert_eq!(arena[root].parent, Some(new_root));
+    }
+
+    #[test]
+    fn test_delete_root() {
+        let mut arena = Arena::<&str, FromNodeId>::new();
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+";
+        assert_eq!(format1, format!("{:?}", arena));
+        let new_root = arena.new_node("INT",
+                                      String::from("2"),
+                                      None,
+                                      None,
+                                      None,
+                                      None);
+        assert!(arena.new_root(new_root).is_ok());
+        let format2 = "\"INT\" 2
+  \"Expr\" +
+    \"INT\" 1
+";
+        assert_eq!(format2, format!("{:?}", arena));
+        assert!(arena.delete_root().is_ok());
+        assert_eq!(format1, format!("{:?}", arena));
+        assert_eq!(arena.root().unwrap(), root);
+        assert_eq!(arena[arena.root().unwrap()].first_child, Some(n1));
+        assert_eq!(arena[arena.root().unwrap()].last_child, Some(n1));
+        assert_eq!(arena[arena.root().unwrap()].previous_sibling, None);
+        assert_eq!(arena[arena.root().unwrap()].next_sibling, None);
+        assert_eq!(arena[new_root].parent, None);
+    }
+
+    #[test]
+    fn test_delete_root_too_many_children() {
+        let mut arena = Arena::<&str, FromNodeId>::new();
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+";
+        assert_eq!(format1, format!("{:?}", arena));
+        let new_root = arena.new_node("INT",
+                                      String::from("2"),
+                                      None,
+                                      None,
+                                      None,
+                                      None);
+        assert!(arena.new_root(new_root).is_ok());
+        let n2 = arena.new_node("INT",
+                                String::from("100"),
+                                None,
+                                None,
+                                None,
+                                None);
+        n2.make_child_of(new_root, &mut arena).unwrap();
+        let res = arena.delete_root();
+        assert!(res.is_err());
+        assert_eq!(res.err(), Some(ArenaError::NodeHasTooManyChildren));
+    }
+
+    #[test]
+    fn test_delete_root_too_few_children() {
+        let mut arena = Arena::<&str, FromNodeId>::new();
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+";
+        assert_eq!(format1, format!("{:?}", arena));
+        let new_root = arena.new_node("INT",
+                                      String::from("2"),
+                                      None,
+                                      None,
+                                      None,
+                                      None);
+        assert!(arena.new_root(new_root).is_ok());
+        assert!(root.detach(&mut arena).is_ok());
+        let res = arena.delete_root();
+        assert!(res.is_err());
+        assert_eq!(res.err(), Some(ArenaError::NodeHasTooFewChildren(1)));
     }
 
     #[test]
