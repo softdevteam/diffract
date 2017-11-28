@@ -186,14 +186,12 @@ mod tests {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"),
                                   String::from("Expr"),
-                                  0,
                                   None,
                                   None,
                                   None,
                                   None);
         let n1 = arena.new_node(String::from("1"),
                                 String::from("INT"),
-                                2,
                                 None,
                                 None,
                                 None,
@@ -201,7 +199,6 @@ mod tests {
         n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("*"),
                                 String::from("Expr"),
-                                2,
                                 None,
                                 None,
                                 None,
@@ -209,7 +206,6 @@ mod tests {
         n2.make_child_of(root, &mut arena).unwrap();
         let n3 = arena.new_node(String::from("3"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
@@ -217,19 +213,18 @@ mod tests {
         n3.make_child_of(n2, &mut arena).unwrap();
         let n4 = arena.new_node(String::from("4"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
                                 None);
         n4.make_child_of(n2, &mut arena).unwrap();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         arena
     }
 
@@ -364,7 +359,6 @@ mod tests {
         for _ in 0..BENCH_ITER {
             arena.new_node(String::from(""),
                            String::from(""),
-                           0,
                            None,
                            None,
                            None,

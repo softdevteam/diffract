@@ -369,8 +369,8 @@ fn main() {
 
     // Dump ASTs to STDOUT, if requested.
     if args.flag_ast {
-        println!("{}", ast_base);
-        println!("{}", ast_diff);
+        println!("{:?}", ast_base);
+        println!("{:?}", ast_diff);
     }
 
     // Generate graphviz file(s), if requested.
