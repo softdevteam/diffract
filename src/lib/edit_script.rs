@@ -300,7 +300,6 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 w = store.from_arena.new_node(
                     store.to_arena[x].value.clone(),
                     store.to_arena[x].label.clone(),
-                    store.to_arena[x].indent,
                     store.to_arena[x].col_no,
                     store.to_arena[x].line_no,
                     store.to_arena[x].char_no,
@@ -325,7 +324,6 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 w = store.from_arena.new_node(
                     store.to_arena[x].value.clone(),
                     store.to_arena[x].label.clone(),
-                    store.to_arena[x].indent,
                     store.to_arena[x].col_no,
                     store.to_arena[x].line_no,
                     store.to_arena[x].char_no,

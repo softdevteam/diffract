@@ -179,14 +179,13 @@ mod tests {
         if !base.is_empty() {
             let root = base_arena.new_node(Default::default(),
                                            String::from("NULL"),
-                                           0,
                                            None,
                                            None,
                                            None,
                                            None);
             for value in base {
                 id = base_arena
-                    .new_node(value.clone(), String::from("T"), 0, None, None, None, None);
+                    .new_node(value.clone(), String::from("T"), None, None, None, None);
                 id.make_child_of(root, &mut base_arena).unwrap();
 
             }
@@ -195,14 +194,13 @@ mod tests {
         if !diff.is_empty() {
             let root = diff_arena.new_node(Default::default(),
                                            String::from("NULL"),
-                                           0,
                                            None,
                                            None,
                                            None,
                                            None);
             for value in diff {
                 id = diff_arena
-                    .new_node(value.clone(), String::from("T"), 0, None, None, None, None);
+                    .new_node(value.clone(), String::from("T"), None, None, None, None);
                 id.make_child_of(root, &mut diff_arena).unwrap();
             }
         }

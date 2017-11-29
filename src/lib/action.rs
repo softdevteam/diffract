@@ -372,14 +372,12 @@ mod test {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"),
                                   String::from("Expr"),
-                                  0,
                                   None,
                                   None,
                                   None,
                                   None);
         let n1 = arena.new_node(String::from("1"),
                                 String::from("INT"),
-                                2,
                                 None,
                                 None,
                                 None,
@@ -387,7 +385,6 @@ mod test {
         n1.make_child_of(root, &mut arena).unwrap();
         let n2 = arena.new_node(String::from("*"),
                                 String::from("Expr"),
-                                2,
                                 None,
                                 None,
                                 None,
@@ -395,7 +392,6 @@ mod test {
         n2.make_child_of(root, &mut arena).unwrap();
         let n3 = arena.new_node(String::from("3"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
@@ -403,7 +399,6 @@ mod test {
         n3.make_child_of(n2, &mut arena).unwrap();
         let n4 = arena.new_node(String::from("4"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
@@ -415,35 +410,35 @@ mod test {
     #[test]
     fn apply_delete_leaf() {
         let mut arena = create_arena();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut del1 = Delete::new(NodeId::new(3));
         del1.apply(&mut arena).unwrap();
         let mut del2 = Delete::new(NodeId::new(4));
         del2.apply(&mut arena).unwrap();
-        let format2 = "Expr +
-  INT 1
-  Expr *
+        let format2 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     #[should_panic]
     fn apply_delete_branch() {
         let mut arena = create_arena();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut del = Delete::new(NodeId::new(2));
         del.apply(&mut arena).unwrap();
     }
@@ -453,28 +448,27 @@ mod test {
         let mut arena = create_arena();
         let n5 = arena.new_node(String::from("100"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
                                 None);
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, Some(NodeId::new(2)), 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "Expr +
-  INT 1
-  Expr *
-    INT 100
-    INT 3
-    INT 4
+        let format2 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"100\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
@@ -482,97 +476,94 @@ mod test {
         let mut arena = create_arena();
         let n5 = arena.new_node(String::from("-"),
                                 String::from("Expr"),
-                                0,
                                 None,
                                 None,
                                 None,
                                 None);
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, None, 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "Expr -
-Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format2 = "Expr \"-\"
+  Expr \"+\"
+    INT \"1\"
+    Expr \"*\"
+      INT \"3\"
+      INT \"4\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     fn apply_move() {
         let mut arena = create_arena();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut mov = Move::new(NodeId::new(4), NodeId::new(2), 0);
         mov.apply(&mut arena).unwrap();
-        let format2 = "Expr +
-  INT 1
-  Expr *
-    INT 4
-    INT 3
+        let format2 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"4\"
+    INT \"3\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     fn apply_update() {
         let mut arena = create_arena();
         assert_eq!(5, arena.size());
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let mut upd = Update::new(NodeId::new(2), String::from("+"), String::from("Expr"));
         upd.apply(&mut arena).unwrap();
-        let format2 = "Expr +
-  INT 1
-  Expr +
-    INT 3
-    INT 4
+        let format2 = "Expr \"+\"
+  INT \"1\"
+  Expr \"+\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     fn apply_to_list1() {
         let mut arena = create_arena();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
         let n5 = arena.new_node(String::from("100"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
                                 None);
         let n6 = arena.new_node(String::from("99"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
                                 None);
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
@@ -590,28 +581,27 @@ Expr +
         actions.push(upd);
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "Expr *
-  INT 1
-  Expr *
-    INT 99
-    INT 100
+        let format2 = "Expr \"*\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"99\"
+    INT \"100\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     fn apply_to_list2() {
         let mut arena = create_arena();
-        let format1 = "Expr +
-  INT 1
-  Expr *
-    INT 3
-    INT 4
+        let format1 = "Expr \"+\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"3\"
+    INT \"4\"
 ";
-        assert_eq!(format1, format!("{}", arena));
+        assert_eq!(format1, format!("{:?}", arena));
         let n5 = arena.new_node(String::from("2"),
                                 String::from("INT"),
-                                4,
                                 None,
                                 None,
                                 None,
@@ -635,13 +625,13 @@ Expr +
         actions.push(upd);
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "Expr *
-  INT 1
-  Expr *
-    INT 2
-    INT 3
+        let format2 = "Expr \"*\"
+  INT \"1\"
+  Expr \"*\"
+    INT \"2\"
+    INT \"3\"
 ";
-        assert_eq!(format2, format!("{}", arena));
+        assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
