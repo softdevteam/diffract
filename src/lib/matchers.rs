@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
 use action::EditScript;
-use ast::{Arena, ArenaError, NodeId};
+use ast::{Arena, ArenaError, FromNodeId, NodeId, ToNodeId};
 use emitters::RenderJson;
 
 /// Result type returned by the edit script generator.
@@ -76,16 +76,16 @@ pub struct MappingStore<T: Clone + Debug> {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `to_map`.
-    pub from: HashMap<NodeId, (NodeId, MappingType)>,
+    pub from: HashMap<NodeId<FromNodeId>, (NodeId<ToNodeId>, MappingType)>,
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `from_map`.
-    pub to: HashMap<NodeId, (NodeId, MappingType)>,
+    pub to: HashMap<NodeId<ToNodeId>, (NodeId<FromNodeId>, MappingType)>,
 
     /// Source arena (treat as immutable).
-    pub from_arena: Arena<T>,
+    pub from_arena: Arena<T, FromNodeId>,
     /// Destination arena (treat as immutable).
-    pub to_arena: Arena<T>,
+    pub to_arena: Arena<T, ToNodeId>,
 }
 
 impl<T: Clone + Debug> RenderJson for MappingStore<T> {
@@ -114,7 +114,7 @@ impl<T: Clone + Debug> RenderJson for MappingStore<T> {
 
 impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// Create a new mapping store.
-    pub fn new(base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+    pub fn new(base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         MappingStore {
             from: HashMap::new(),
             to: HashMap::new(),
@@ -124,39 +124,39 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     }
 
     /// Push a new mapping into the store.
-    pub fn push(&mut self, from: NodeId, to: NodeId, ty: &MappingType) {
+    pub fn push(&mut self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &MappingType) {
         self.from.insert(from, (to, ty.clone()));
         self.to.insert(to, (from, ty.clone()));
     }
 
     /// Remove mapping from store.
-    pub fn remove(&mut self, from: &NodeId, to: &NodeId) {
+    pub fn remove(&mut self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) {
         self.from.remove(from);
         self.to.remove(to);
     }
 
     /// `true` if the store has a mapping from `from` to another node.
-    pub fn contains_from(&self, from: &NodeId) -> bool {
+    pub fn contains_from(&self, from: &NodeId<FromNodeId>) -> bool {
         self.from.contains_key(from)
     }
 
     /// `true` if the store has a mapping from a node to `to`.
-    pub fn contains_to(&self, to: &NodeId) -> bool {
+    pub fn contains_to(&self, to: &NodeId<ToNodeId>) -> bool {
         self.to.contains_key(to)
     }
 
     /// Get the `NodeId` that `to` is mapped from.
-    pub fn get_from(&self, to: &NodeId) -> Option<NodeId> {
+    pub fn get_from(&self, to: &NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
         self.to.get(to).and_then(|x| Some(x.0))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
-    pub fn get_to(&self, from: &NodeId) -> Option<NodeId> {
+    pub fn get_to(&self, from: &NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
         self.from.get(from).and_then(|x| Some(x.0))
     }
 
     /// Test whether `from` is mapped to `to` in this store.
-    pub fn is_mapped(&self, from: &NodeId, to: &NodeId) -> bool {
+    pub fn is_mapped(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
         if !self.contains_from(from) {
             return false;
         }
@@ -165,13 +165,13 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
 
     /// Test whether `from` is mapped to `to` by the matcher.
     /// As opposed to the edit script generator.
-    pub fn is_mapped_by_matcher(&self, from: &NodeId, to: &NodeId) -> bool {
+    pub fn is_mapped_by_matcher(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
         if !self.contains_from(from) {
             return false;
         }
         match self.from.get(from) {
             None => false,
-            Some(&(val, ref ty)) => val == *to && *ty != MappingType::EDIT
+            Some(&(val, ref ty)) => val == *to && *ty != MappingType::EDIT,
         }
     }
 
@@ -182,7 +182,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// have the same *shape* i.e. the subtrees must have isomorphic children.
     ///
     /// Described in more detail in Chawathe et al. (1996).
-    pub fn is_isomorphic(&self, from: NodeId, to: NodeId) -> bool {
+    pub fn is_isomorphic(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
         // Case 1: both nodes are leaves.
         if from.is_leaf(&self.from_arena) && to.is_leaf(&self.to_arena) &&
            self.from_arena[from].label == self.to_arena[to].label &&
@@ -200,8 +200,10 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
            from.height(&self.from_arena) != to.height(&self.to_arena) {
             return false;
         }
-        let f_children = from.children(&self.from_arena).collect::<Vec<NodeId>>();
-        let t_children = to.children(&self.to_arena).collect::<Vec<NodeId>>();
+        let f_children = from.children(&self.from_arena)
+                             .collect::<Vec<NodeId<FromNodeId>>>();
+        let t_children = to.children(&self.to_arena)
+                           .collect::<Vec<NodeId<ToNodeId>>>();
         if f_children.len() != t_children.len() {
             return false;
         }
@@ -214,32 +216,32 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     }
 
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
-    pub fn is_mapping_allowed(&self, from: &NodeId, to: &NodeId) -> bool {
+    pub fn is_mapping_allowed(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
         self.from_arena[*from].label == self.to_arena[*to].label &&
         !(self.contains_from(from) || self.contains_to(to))
     }
 
     /// Dice measure of similarity between subtrees.
-    pub fn dice_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+    pub fn dice_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                         .collect::<Vec<NodeId<FromNodeId>>>()
+                         .len() as f64;
         let n_to = to.breadth_first_traversal(&self.to_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
     }
 
     /// Jaccard measure of similarity between subtrees.
-    pub fn jaccard_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+    pub fn jaccard_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                         .collect::<Vec<NodeId<FromNodeId>>>()
+                         .len() as f64;
         let n_to = to.breadth_first_traversal(&self.to_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let jaccard = common / (n_from + n_to - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
@@ -247,13 +249,13 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     }
 
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
-    pub fn chawathe_sim(&self, from: &NodeId, to: &NodeId) -> f64 {
+    pub fn chawathe_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                         .collect::<Vec<NodeId<FromNodeId>>>()
+                         .len() as f64;
         let n_to = to.breadth_first_traversal(&self.to_arena)
-            .collect::<Vec<NodeId>>()
-            .len() as f64;
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let chawathe = common / n_from.max(n_to);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
@@ -263,13 +265,13 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// Find the number of "common" descendants in two matched subtrees.
     ///
     /// To nodes are common if they have already been matched.
-    fn num_common_descendants(&self, from: &NodeId, to: &NodeId) -> u32 {
+    fn num_common_descendants(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> u32 {
         let mut dst_desc = HashSet::new();
         for node in to.breadth_first_traversal(&self.to_arena) {
             dst_desc.insert(node);
         }
         let mut common = 0;
-        let mut to: Option<NodeId>;
+        let mut to: Option<NodeId<ToNodeId>>;
         for node in from.descendants(&self.from_arena) {
             to = self.get_to(&node);
             if to.is_some() && dst_desc.contains(&to.unwrap()) {
@@ -286,7 +288,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
 /// define thresholds and weights for a given algorithm.
 pub trait MatchTrees<T: Clone + Debug> {
     /// Match two trees and return a store of mappings between them.
-    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T>;
+    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T>;
 
     /// Describe the matcher for the user.
     ///
@@ -299,7 +301,7 @@ pub trait MatchTrees<T: Clone + Debug> {
 mod tests {
     use super::*;
 
-    fn create_mult_arena() -> Arena<String> {
+    fn create_mult_arena() -> Arena<String, FromNodeId> {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"),
                                   String::from("Expr"),
@@ -345,7 +347,7 @@ mod tests {
         arena
     }
 
-    fn create_plus_arena() -> Arena<String> {
+    fn create_plus_arena() -> Arena<String, FromNodeId> {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"),
                                   String::from("Expr"),
@@ -379,9 +381,11 @@ mod tests {
     fn is_isomorphic() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store_p = MappingStore::new(plus.clone(), plus.clone());
-        let store_m = MappingStore::new(mult.clone(), mult.clone());
-        let store = MappingStore::new(plus, mult);
+        let store_p = MappingStore::new(plus.clone(),
+                                        Arena::<String, ToNodeId>::from(plus.clone()));
+        let store_m = MappingStore::new(mult.clone(),
+                                        Arena::<String, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -404,7 +408,7 @@ mod tests {
     fn is_mapping_allowed() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let mut store = MappingStore::new(plus, mult);
+        let mut store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
@@ -426,7 +430,7 @@ mod tests {
     fn is_mapped() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let mut store = MappingStore::new(plus, mult);
+        let mut store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
@@ -449,7 +453,7 @@ mod tests {
     fn is_mapped_by_matcher() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let mut store = MappingStore::new(plus, mult);
+        let mut store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::CONTAINER);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::EDIT);
         assert!(store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(0)));
@@ -472,7 +476,7 @@ mod tests {
     fn num_common_descendants() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let mut store = MappingStore::new(plus, mult);
+        let mut store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(2), &Default::default());
         store.push(NodeId::new(1), NodeId::new(3), &Default::default());
         store.push(NodeId::new(2), NodeId::new(4), &Default::default());
@@ -490,15 +494,14 @@ mod tests {
         let plus = create_plus_arena();
         let mult = create_mult_arena();
         let matcher = MyersConfig::new();
-        let store = matcher.match_trees(plus, mult);
+        let store = matcher.match_trees(plus, Arena::<String, ToNodeId>::from(mult));
         let expected_str = vec!["\"matches\": [",
                                 "{\n\"src\": 1,\n\"dest\": 3\n}",
                                 "{\n\"src\": 0,\n\"dest\": 0\n}",
                                 "{\n\"src\": 2,\n\"dest\": 4\n}"];
-        let expected = expected_str
-            .iter()
-            .map(|s| String::from(*s))
-            .collect::<Vec<String>>();
+        let expected = expected_str.iter()
+                                   .map(|s| String::from(*s))
+                                   .collect::<Vec<String>>();
         let got = store.render_json(0);
         for item in expected {
             assert!(got.contains(&item));

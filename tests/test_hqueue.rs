@@ -44,18 +44,18 @@ extern crate diffract;
 
 use std::path::Path;
 
-use diffract::ast::{Arena, NodeId, parse_file};
+use diffract::ast::{Arena, FromNodeId, NodeId, parse_file};
 use diffract::hqueue::HeightQueue;
 
 // Assert that `queue` is in sorted order and has the same size `arena`.
-fn assert_sorted<T: Clone>(queue: &HeightQueue, arena: &Arena<T>) {
+fn assert_sorted<T: Clone>(queue: &HeightQueue<FromNodeId>, arena: &Arena<T, FromNodeId>) {
     let mut expected = arena.size();
     if expected == 0 {
         assert!(queue.is_empty());
         return;
     }
     let mut clone = queue.clone();
-    let mut tallest: Vec<NodeId>;
+    let mut tallest: Vec<NodeId<FromNodeId>>;
     loop {
         tallest = clone.pop();
         println!("{:?}", tallest);

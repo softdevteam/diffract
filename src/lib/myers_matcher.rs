@@ -39,7 +39,7 @@
 
 use std::fmt::Debug;
 
-use ast::{Arena, NodeId};
+use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
 use sequence::lcss;
 
@@ -73,23 +73,21 @@ Variations.";
     }
 
     /// Match locations in distinct ASTs.
-    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         let mut store = MappingStore::new(base, diff);
         if store.from_arena.is_empty() || store.to_arena.is_empty() {
             return store;
         }
-        let base_pre = store
-            .from_arena
-            .root()
-            .unwrap()
-            .pre_order_traversal(&store.from_arena)
-            .collect::<Vec<NodeId>>();
-        let diff_pre = store
-            .to_arena
-            .root()
-            .unwrap()
-            .pre_order_traversal(&store.to_arena)
-            .collect::<Vec<NodeId>>();
+        let base_pre = store.from_arena
+                            .root()
+                            .unwrap()
+                            .pre_order_traversal(&store.from_arena)
+                            .collect::<Vec<NodeId<FromNodeId>>>();
+        let diff_pre = store.to_arena
+                            .root()
+                            .unwrap()
+                            .pre_order_traversal(&store.to_arena)
+                            .collect::<Vec<NodeId<ToNodeId>>>();
 
         let longest = lcss(&base_pre,
                            &store.from_arena,
@@ -104,10 +102,10 @@ Variations.";
 }
 
 /// Test that two nodes have the same label and value.
-fn eq<T: Clone + Debug + Eq>(n1: &NodeId,
-                             arena1: &Arena<T>,
-                             n2: &NodeId,
-                             arena2: &Arena<T>)
+fn eq<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
+                             arena1: &Arena<T, FromNodeId>,
+                             n2: &NodeId<ToNodeId>,
+                             arena2: &Arena<T, ToNodeId>)
                              -> bool {
     arena1[*n1].label == arena2[*n2].label && arena1[*n1].value == arena2[*n2].value
 }
