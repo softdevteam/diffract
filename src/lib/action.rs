@@ -59,6 +59,10 @@ pub enum ActionType {
     MOVE,
     /// Update the text or label associated with a node.
     UPDATE,
+    /// Copy takes the node or subtree 'from tree' and and copies it into 'to tree'.
+    COPY,
+    /// GLUE takes a subtree/node 'from tree' and inserts it into 'to tree'
+    GLUE,
 }
 
 /// Apply an action to an AST node.
@@ -115,6 +119,23 @@ pub struct Update<T: Clone> {
     label: String,
 }
 
+
+/// Copy a subtree from one place to another with an AST.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Copy {
+    from_node: NodeId<FromNodeId>,
+    parent: NodeId<FromNodeId>,
+    pos: u16,
+}
+
+
+/// Glue a subtree from one place to another with an AST.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Glue {
+    from_node: NodeId<FromNodeId>,
+    node: NodeId<FromNodeId>,
+}
+
 impl Delete {
     /// Create a new `Delete` object.
     pub fn new(node: NodeId<FromNodeId>) -> Delete {
@@ -151,6 +172,27 @@ impl<T: Clone + Debug> Update<T> {
             node: node,
             ty: ty,
             label: label,
+        }
+    }
+}
+
+impl Copy {
+    /// Create a new `Copy` object.
+    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Copy {
+        Copy {
+            from_node: from,
+            parent: parent,
+            pos: position,
+        }
+    }
+}
+
+impl Glue {
+    /// Create a new `Glue` object.
+    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>) -> Glue {
+        Glue {
+            from_node: from,
+            node: parent,
         }
     }
 }
@@ -211,6 +253,34 @@ impl<T: Clone> RenderJson for Update<T> {
     }
 }
 
+impl RenderJson for Copy {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"copy\",", ind_s));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
+        json.push(format!("{}\"parent\": {},", &ind_s, self.parent));
+        json.push(format!("{}\"at\": {}", &ind_s, self.pos));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}   
+
+
+impl RenderJson for Glue {
+    fn render_json(&self, indent: usize) -> String {
+        let ind_s = " ".repeat(indent + 4);
+        let mut json = vec![];
+        json.push(" ".repeat(indent) + "{");
+        json.push(format!("{}\"action\": \"glue\",", ind_s));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
+        json.push(format!("{}\"from\": {},", &ind_s, self.node));
+        json.push(" ".repeat(indent) + "}");
+        json.join("\n")
+    }
+}   
+
 impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
         let node = &store.from_arena[self.node];
@@ -267,6 +337,40 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
     }
 }
 
+impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy{
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::COPY,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::COPY,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
+impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Glue{
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::GLUE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::GLUE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+}
+
 impl<T: Clone + Debug + Eq> ApplyAction<T> for Delete {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
@@ -300,6 +404,21 @@ impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
         arena[self.node].ty = self.ty.clone();
         arena[self.node].label = self.label.clone();
         Ok(())
+    }
+}
+ 
+impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Copy {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+        if !arena.contains(self.from_node) {
+            return Err(ArenaError::NodeIdNotFound);
+        }
+        self.from_node.copy_subtree(self.parent, self.pos, arena)
+    }
+}
+
+impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Glue {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+        self.from_node.detach_with_children(arena)
     }
 }
 
