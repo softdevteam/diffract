@@ -47,7 +47,7 @@ use dot::{Id, Edges, escape_html, GraphWalk, Labeller, LabelText, Nodes, render}
 use term;
 
 use action::{ActionType, EditScript, Patchify};
-use ast::{Arena, EdgeId, NodeId};
+use ast::{Arena, EdgeId, FromNodeId, NodeId, ToNodeId};
 use matchers::{MappingStore, MappingType};
 use patch::{hunkify, Patch};
 
@@ -86,12 +86,11 @@ pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>
                                                           store: &T,
                                                           script: &U)
                                                           -> EmitterResult {
-    stream
-        .write_all(format!("{{\n{},\n{}\n}}\n",
-                           store.render_json(4),
-                           script.render_json(4))
-                       .as_bytes())
-        .map_err(|_| EmitterError::CouldNotWriteToFile)
+    stream.write_all(format!("{{\n{},\n{}\n}}\n",
+                             store.render_json(4),
+                             script.render_json(4))
+                     .as_bytes())
+          .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 
 // Map action types to terminal colours.
@@ -251,24 +250,23 @@ fn escape_string(label: &str) -> String {
 pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
     let mut stream = File::create(&filepath)
         .map_err(|_| EmitterError::CouldNotCreateFile)?;
-    graph
-        .render_dotfile(&mut stream)
-        .map_err(|_| EmitterError::CouldNotWriteToFile)
+    graph.render_dotfile(&mut stream)
+         .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 
-impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String> {
+impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<String, T> {
     fn graph_id(&self) -> Id {
         Id::new("AST").unwrap()
     }
 
-    fn node_id(&self, id: &NodeId) -> Id {
+    fn node_id(&self, id: &NodeId<T>) -> Id {
         // Node ids must be unique dot identifiers, be non-empty strings made up
         // of alphanumeric or underscore characters, not beginning with a digit
         // (i.e. the regular expression [a-zA-Z_][a-zA-Z_0-9]*).
         Id::new(format!("N{}", id)).unwrap()
     }
 
-    fn node_label(&self, id: &NodeId) -> LabelText {
+    fn node_label(&self, id: &NodeId<T>) -> LabelText {
         let label = format!("{} {}",
                             self[*id].label,
                             escape_string(self[*id].value.as_str()));
@@ -276,25 +274,26 @@ impl<'a> Labeller<'a, NodeId, EdgeId> for Arena<String> {
     }
 }
 
-impl<'a, T: Clone> GraphWalk<'a, NodeId, EdgeId> for Arena<T> {
-    fn nodes(&self) -> Nodes<'a, NodeId> {
+impl<'a, T: Clone, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>>
+    for Arena<T, U> {
+    fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }
 
-    fn edges(&'a self) -> Edges<'a, EdgeId> {
+    fn edges(&'a self) -> Edges<'a, EdgeId<U>> {
         Owned(self.get_edges())
     }
 
-    fn source(&self, e: &EdgeId) -> NodeId {
+    fn source(&self, e: &EdgeId<U>) -> NodeId<U> {
         e.0
     }
 
-    fn target(&self, e: &EdgeId) -> NodeId {
+    fn target(&self, e: &EdgeId<U>) -> NodeId<U> {
         e.1
     }
 }
 
-impl RenderDotfile for Arena<String> {
+impl<T: Clone + PartialEq + Copy> RenderDotfile for Arena<String, T> {
     fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
         render(self, buffer)
     }
@@ -310,46 +309,48 @@ impl RenderDotfile for MappingStore<String> {
                                String::from("\tratio=fill;\n\tfontsize=16;\n"),
                                String::from("\tnewrank=true;\n")];
         let mut line: String;
-        let mut node: NodeId;
+        let mut from_node: NodeId<FromNodeId>;
+        let mut to_node: NodeId<ToNodeId>;
+
         let mut attrs: &str;
         // Node labels for both ASTs.
         for id in 0..self.from_arena.size() {
-            node = NodeId::new(id);
-            if !self.contains_from(&node) {
+            from_node = NodeId::new(id);
+            if !self.contains_from(&from_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.from_arena[node].value.is_empty() {
+            if self.from_arena[from_node].value.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     self.from_arena[node].label,
+                                     self.from_arena[from_node].label,
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.from_arena[node].label,
-                                     escape_string(self.from_arena[node].value.as_str()),
+                                     self.from_arena[from_node].label,
+                                     escape_string(self.from_arena[from_node].value.as_str()),
                                      attrs));
             }
         }
         for id in 0..self.to_arena.size() {
-            node = NodeId::new(id);
-            if !self.contains_to(&node) {
+            to_node = NodeId::new(id);
+            if !self.contains_to(&to_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.to_arena[node].value.is_empty() {
+            if self.to_arena[to_node].value.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
                                      id,
-                                     self.to_arena[node].label,
+                                     self.to_arena[to_node].label,
                                      attrs));
             } else {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.to_arena[node].label,
-                                     escape_string(self.to_arena[node].value.as_str()),
+                                     self.to_arena[to_node].label,
+                                     escape_string(self.to_arena[to_node].value.as_str()),
                                      attrs));
             }
         }

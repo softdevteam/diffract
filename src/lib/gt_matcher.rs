@@ -39,7 +39,7 @@
 
 use std::fmt::Debug;
 
-use ast::{Arena, NodeId};
+use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use matchers::{MappingStore, MappingType, MatchTrees};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,12 +88,14 @@ Code Differencing.";
     }
 
     /// Match locations in distinct ASTs.
-    fn match_trees(&self, base: Arena<T>, diff: Arena<T>) -> MappingStore<T> {
+    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         let mut store = MappingStore::new(base, diff);
         if store.from_arena.size() == 0 || store.to_arena.size() == 0 {
             return store;
         }
-        store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
+        store.push(NodeId::<FromNodeId>::new(0),
+                   NodeId::<ToNodeId>::new(0),
+                   &MappingType::ANCHOR);
         store
     }
 }

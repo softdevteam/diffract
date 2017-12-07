@@ -237,7 +237,10 @@ fn get_matcher_descriptions() -> String {
     descriptions.join("\n")
 }
 
-fn parse_file(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast::Arena<String> {
+fn parse_file<T: Copy + PartialEq>(filename: &str,
+                                   lexer_path: &PathBuf,
+                                   yacc_path: &PathBuf)
+                                   -> ast::Arena<String, T> {
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {
@@ -249,7 +252,7 @@ fn parse_file(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast:
             _ => format!("Error parsing {}.", filename),
         }
     };
-    ast::parse_file(filename, lexer_path, yacc_path)
+    ast::parse_file::<T>(filename, lexer_path, yacc_path)
         .map_err(error_to_str)
         .map_err(|ref msg| exit_with_message(msg))
         .unwrap()
@@ -364,8 +367,8 @@ fn main() {
     let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 
     // Parse both input files.
-    let ast_base = parse_file(&args.arg_base_file, &lexer1, &parser1);
-    let ast_diff = parse_file(&args.arg_diff_file, &lexer2, &parser2);
+    let ast_base = parse_file::<ast::FromNodeId>(&args.arg_base_file, &lexer1, &parser1);
+    let ast_diff = parse_file::<ast::ToNodeId>(&args.arg_diff_file, &lexer2, &parser2);
 
     // Dump ASTs to STDOUT, if requested.
     if args.flag_ast {

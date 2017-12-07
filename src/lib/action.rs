@@ -41,7 +41,7 @@ use std::boxed::Box;
 use std::clone::Clone;
 use std::fmt::Debug;
 
-use ast::{Arena, ArenaError, ArenaResult, NodeId};
+use ast::{Arena, ArenaError, ArenaResult, FromNodeId, NodeId};
 use emitters::RenderJson;
 use matchers::MappingStore;
 use patch::Patch;
@@ -64,7 +64,7 @@ pub enum ActionType {
 /// Apply an action to an AST node.
 pub trait ApplyAction<T: Clone + Debug>: RenderJson + Patchify<T> {
     /// Apply an action to an AST.
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult;
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult;
 }
 
 /// Turn an edit script into a list of patches on the "from" and "to" ASTs.
@@ -81,50 +81,50 @@ pub struct EditScript<T> {
     actions: Vec<Box<ApplyAction<T>>>,
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// Delete a node from a given AST.
 ///
 /// It is only valid to delete leaf nodes.
 pub struct Delete {
-    node: NodeId,
+    node: NodeId<FromNodeId>,
 }
 
 /// Insert a new node into an AST as the `position`th child of an existing node.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Insert {
     /// New node in from-arena, must already exist before applying this trait.
-    node: NodeId,
+    node: NodeId<FromNodeId>,
     nth_child: u16,
     /// New parent in to-arena.
-    new_parent: Option<NodeId>,
+    new_parent: Option<NodeId<FromNodeId>>,
 }
 
 /// Move a node from one place to another within an AST.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Move {
-    from_node: NodeId,
-    parent: NodeId,
+    from_node: NodeId<FromNodeId>,
+    parent: NodeId<FromNodeId>,
     pos: u16,
 }
 
 /// Update the data inside an AST node.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Update<T: Clone> {
-    node: NodeId,
+    node: NodeId<FromNodeId>,
     value: T,
     label: String,
 }
 
 impl Delete {
     /// Create a new `Delete` object.
-    pub fn new(node: NodeId) -> Delete {
+    pub fn new(node: NodeId<FromNodeId>) -> Delete {
         Delete { node: node }
     }
 }
 
 impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(node: NodeId, parent: Option<NodeId>, nth: u16) -> Insert {
+    pub fn new(node: NodeId<FromNodeId>, parent: Option<NodeId<FromNodeId>>, nth: u16) -> Insert {
         Insert {
             node: node,
             new_parent: parent,
@@ -135,7 +135,7 @@ impl Insert {
 
 impl Move {
     /// Create a new `Move` object.
-    pub fn new(from: NodeId, parent: NodeId, position: u16) -> Move {
+    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Move {
         Move {
             from_node: from,
             parent: parent,
@@ -146,7 +146,7 @@ impl Move {
 
 impl<T: Clone + Debug> Update<T> {
     /// Create a new `Update` object.
-    pub fn new(node: NodeId, value: T, label: String) -> Update<T> {
+    pub fn new(node: NodeId<FromNodeId>, value: T, label: String) -> Update<T> {
         Update {
             node: node,
             value: value,
@@ -175,7 +175,7 @@ impl RenderJson for Insert {
         json.push(format!("{}\"action\": \"insert\",", ind_s));
         json.push(format!("{}\"tree\": {},", &ind_s, self.node.id()));
         match self.new_parent {
-            Some(p) => json.push(format!("{}\"parent\": {},", &ind_s, p.id())),
+            Some(ref p) => json.push(format!("{}\"parent\": {},", &ind_s, p.id())),
             None => json.push(format!("{}\"parent\": {},", &ind_s, "")),
         }
         json.push(format!("{}\"at\": {}", &ind_s, self.nth_child));
@@ -268,7 +268,7 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
 }
 
 impl<T: Clone + Debug + Eq> ApplyAction<T> for Delete {
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
                       "Attempt to delete branch node {}",
                       self.node);
@@ -277,7 +277,7 @@ impl<T: Clone + Debug + Eq> ApplyAction<T> for Delete {
 }
 
 impl<T: Clone + Debug + Eq> ApplyAction<T> for Insert {
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         match self.new_parent {
             Some(p) => self.node.make_nth_child_of(p, self.nth_child, arena),
             None => arena.new_root(self.node),
@@ -286,14 +286,14 @@ impl<T: Clone + Debug + Eq> ApplyAction<T> for Insert {
 }
 
 impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Move {
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         self.from_node
             .make_nth_child_of(self.parent, self.pos, arena)
     }
 }
 
 impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -356,7 +356,7 @@ impl<T: Clone + Debug + Eq> Patchify<T> for EditScript<T> {
 }
 
 impl<T: Clone + Debug + Eq> ApplyAction<T> for EditScript<T> {
-    fn apply(&mut self, arena: &mut Arena<T>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
         }
@@ -368,7 +368,7 @@ impl<T: Clone + Debug + Eq> ApplyAction<T> for EditScript<T> {
 mod test {
     use super::*;
 
-    fn create_arena() -> Arena<String> {
+    fn create_arena() -> Arena<String, FromNodeId> {
         let mut arena = Arena::new();
         let root = arena.new_node(String::from("+"),
                                   String::from("Expr"),
