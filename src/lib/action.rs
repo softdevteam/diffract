@@ -111,7 +111,7 @@ pub struct Move {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Update<T: Clone> {
     node: NodeId<FromNodeId>,
-    value: T,
+    ty: T,
     label: String,
 }
 
@@ -146,10 +146,10 @@ impl Move {
 
 impl<T: Clone + Debug> Update<T> {
     /// Create a new `Update` object.
-    pub fn new(node: NodeId<FromNodeId>, value: T, label: String) -> Update<T> {
+    pub fn new(node: NodeId<FromNodeId>, ty: T, label: String) -> Update<T> {
         Update {
             node: node,
-            value: value,
+            ty: ty,
             label: label,
         }
     }
@@ -297,7 +297,7 @@ impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
         }
-        arena[self.node].value = self.value.clone();
+        arena[self.node].ty = self.ty.clone();
         arena[self.node].label = self.label.clone();
         Ok(())
     }
@@ -368,37 +368,37 @@ impl<T: Clone + Debug + Eq> ApplyAction<T> for EditScript<T> {
 mod test {
     use super::*;
 
-    fn create_arena() -> Arena<String, FromNodeId> {
+    fn create_arena() -> Arena<&'static str, FromNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"),
-                                  String::from("Expr"),
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
                                   None,
                                   None,
                                   None,
                                   None);
-        let n1 = arena.new_node(String::from("1"),
-                                String::from("INT"),
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
                                 None,
                                 None,
                                 None,
                                 None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"),
-                                String::from("Expr"),
+        let n2 = arena.new_node("Expr",
+                                String::from("*"),
                                 None,
                                 None,
                                 None,
                                 None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"),
-                                String::from("INT"),
+        let n3 = arena.new_node("INT",
+                                String::from("3"),
                                 None,
                                 None,
                                 None,
                                 None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"),
-                                String::from("INT"),
+        let n4 = arena.new_node("INT",
+                                String::from("4"),
                                 None,
                                 None,
                                 None,
@@ -410,20 +410,20 @@ mod test {
     #[test]
     fn apply_delete_leaf() {
         let mut arena = create_arena();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut del1 = Delete::new(NodeId::new(3));
         del1.apply(&mut arena).unwrap();
         let mut del2 = Delete::new(NodeId::new(4));
         del2.apply(&mut arena).unwrap();
-        let format2 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
+        let format2 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -432,11 +432,11 @@ mod test {
     #[should_panic]
     fn apply_delete_branch() {
         let mut arena = create_arena();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut del = Delete::new(NodeId::new(2));
@@ -446,27 +446,27 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_arena();
-        let n5 = arena.new_node(String::from("100"),
-                                String::from("INT"),
+        let n5 = arena.new_node("INT",
+                                String::from("100"),
                                 None,
                                 None,
                                 None,
                                 None);
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, Some(NodeId::new(2)), 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"100\"
-    INT \"3\"
-    INT \"4\"
+        let format2 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 100
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -474,27 +474,27 @@ mod test {
     #[test]
     fn apply_insert_new_root() {
         let mut arena = create_arena();
-        let n5 = arena.new_node(String::from("-"),
-                                String::from("Expr"),
+        let n5 = arena.new_node("Expr",
+                                String::from("-"),
                                 None,
                                 None,
                                 None,
                                 None);
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, None, 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "Expr \"-\"
-  Expr \"+\"
-    INT \"1\"
-    Expr \"*\"
-      INT \"3\"
-      INT \"4\"
+        let format2 = "\"Expr\" -
+  \"Expr\" +
+    \"INT\" 1
+    \"Expr\" *
+      \"INT\" 3
+      \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -502,20 +502,20 @@ mod test {
     #[test]
     fn apply_move() {
         let mut arena = create_arena();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut mov = Move::new(NodeId::new(4), NodeId::new(2), 0);
         mov.apply(&mut arena).unwrap();
-        let format2 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"4\"
-    INT \"3\"
+        let format2 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 4
+    \"INT\" 3
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -524,20 +524,20 @@ mod test {
     fn apply_update() {
         let mut arena = create_arena();
         assert_eq!(5, arena.size());
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let mut upd = Update::new(NodeId::new(2), String::from("+"), String::from("Expr"));
+        let mut upd = Update::new(NodeId::new(2), "Expr", String::from("+"));
         upd.apply(&mut arena).unwrap();
-        let format2 = "Expr \"+\"
-  INT \"1\"
-  Expr \"+\"
-    INT \"3\"
-    INT \"4\"
+        let format2 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" +
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -545,34 +545,34 @@ mod test {
     #[test]
     fn apply_to_list1() {
         let mut arena = create_arena();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
-        let n5 = arena.new_node(String::from("100"),
-                                String::from("INT"),
+        let n5 = arena.new_node("INT",
+                                String::from("100"),
                                 None,
                                 None,
                                 None,
                                 None);
-        let n6 = arena.new_node(String::from("99"),
-                                String::from("INT"),
+        let n6 = arena.new_node("INT",
+                                String::from("99"),
                                 None,
                                 None,
                                 None,
                                 None);
         assert_eq!(format1, format!("{:?}", arena));
         // Create action list.
-        let mut actions: EditScript<String> = EditScript::new();
+        let mut actions: EditScript<&str> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
         let ins1 = Insert::new(n5, Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(n6, Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
-        let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
+        let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);
         actions.push(ins1);
@@ -581,11 +581,11 @@ mod test {
         actions.push(upd);
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "Expr \"*\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"99\"
-    INT \"100\"
+        let format2 = "\"Expr\" *
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 99
+    \"INT\" 100
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -593,21 +593,21 @@ mod test {
     #[test]
     fn apply_to_list2() {
         let mut arena = create_arena();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let n5 = arena.new_node(String::from("2"),
-                                String::from("INT"),
+        let n5 = arena.new_node("INT",
+                                String::from("2"),
                                 None,
                                 None,
                                 None,
                                 None);
         // Create action list.
-        let mut actions: EditScript<String> = EditScript::new();
+        let mut actions: EditScript<&str> = EditScript::new();
         let del = Delete { node: NodeId::new(4) }; // Remove "4".
         let ins = Insert {
             node: n5,
@@ -617,33 +617,33 @@ mod test {
         let upd = Update {
             // Change "+" to "*".
             node: NodeId::new(0),
-            value: String::from("*"),
-            label: String::from("Expr"),
+            ty: "Expr",
+            label: String::from("*"),
         };
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "Expr \"*\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"2\"
-    INT \"3\"
+        let format2 = "\"Expr\" *
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 2
+    \"INT\" 3
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
 
     #[test]
     fn render_json() {
-        let mut actions: EditScript<String> = EditScript::new();
+        let mut actions: EditScript<&str> = EditScript::new();
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
         let ins1 = Insert::new(NodeId::new(5), Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(NodeId::new(6), Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         // Change "+"" to "*".
-        let upd = Update::new(NodeId::new(0), String::from("*"), String::from("Expr"));
+        let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);
         actions.push(ins1);
@@ -681,7 +681,7 @@ mod test {
     {
         \"action\": \"update\",
         \"tree\": 0,
-        \"label\": \"Expr\"
+        \"label\": \"*\"
     }
 ]",
         );

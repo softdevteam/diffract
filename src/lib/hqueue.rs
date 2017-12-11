@@ -183,47 +183,47 @@ mod tests {
     use ast::FromNodeId;
     use test::Bencher;
 
-    fn create_arena() -> Arena<String, FromNodeId> {
+    fn create_arena() -> Arena<&'static str, FromNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node(String::from("+"),
-                                  String::from("Expr"),
+        let root = arena.new_node("Expr",
+                                  String::from("+"),
                                   None,
                                   None,
                                   None,
                                   None);
-        let n1 = arena.new_node(String::from("1"),
-                                String::from("INT"),
+        let n1 = arena.new_node("INT",
+                                String::from("1"),
                                 None,
                                 None,
                                 None,
                                 None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(String::from("*"),
-                                String::from("Expr"),
+        let n2 = arena.new_node("Expr",
+                                String::from("*"),
                                 None,
                                 None,
                                 None,
                                 None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(String::from("3"),
-                                String::from("INT"),
+        let n3 = arena.new_node("INT",
+                                String::from("3"),
                                 None,
                                 None,
                                 None,
                                 None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(String::from("4"),
-                                String::from("INT"),
+        let n4 = arena.new_node("INT",
+                                String::from("4"),
                                 None,
                                 None,
                                 None,
                                 None);
         n4.make_child_of(n2, &mut arena).unwrap();
-        let format1 = "Expr \"+\"
-  INT \"1\"
-  Expr \"*\"
-    INT \"3\"
-    INT \"4\"
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         arena
@@ -356,9 +356,9 @@ mod tests {
 
     #[bench]
     fn bench_push(bencher: &mut Bencher) {
-        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let mut arena: Arena<&str, FromNodeId> = Arena::new();
         for _ in 0..BENCH_ITER {
-            arena.new_node(String::from(""), String::from(""), None, None, None, None);
+            arena.new_node("", String::from(""), None, None, None, None);
         }
         let mut queue = HeightQueue::new();
         // Because `HeightQueues` are sets, each iteration of this

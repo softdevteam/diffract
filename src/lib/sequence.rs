@@ -154,7 +154,7 @@ mod tests {
                                  n2: &NodeId<ToNodeId>,
                                  arena2: &Arena<T, ToNodeId>)
                                  -> bool {
-        arena1[*n1].label == arena2[*n2].label && arena1[*n1].value == arena2[*n2].value
+        arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
     }
 
     fn assert_sequence_correct<T: Clone + Debug + Eq>(store: MappingStore<T>, expected: &[T]) {
@@ -172,8 +172,8 @@ mod tests {
                             .collect::<Vec<NodeId<ToNodeId>>>();
         let longest = lcss(&base, &store.from_arena, &diff, &store.to_arena, &eq);
         for (i, value) in longest.iter().enumerate() {
-            assert_eq!(expected[i], store.from_arena[value.0].value);
-            assert_eq!(expected[i], store.to_arena[value.1].value);
+            assert_eq!(expected[i], store.from_arena[value.0].ty);
+            assert_eq!(expected[i], store.to_arena[value.1].ty);
         }
     }
 
@@ -190,9 +190,9 @@ mod tests {
                                            None,
                                            None,
                                            None);
-            for value in base {
+            for ty in base {
                 from_id =
-                    base_arena.new_node(value.clone(), String::from("T"), None, None, None, None);
+                    base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
                 from_id.make_child_of(root, &mut base_arena).unwrap();
 
             }
@@ -205,9 +205,9 @@ mod tests {
                                            None,
                                            None,
                                            None);
-            for value in diff {
+            for ty in diff {
                 to_id =
-                    diff_arena.new_node(value.clone(), String::from("T"), None, None, None, None);
+                    diff_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
                 to_id.make_child_of(root, &mut diff_arena).unwrap();
             }
         }

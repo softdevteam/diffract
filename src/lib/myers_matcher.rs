@@ -101,11 +101,11 @@ Variations.";
     }
 }
 
-/// Test that two nodes have the same label and value.
+/// Test that two nodes have the same label and type.
 fn eq<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
                              arena1: &Arena<T, FromNodeId>,
                              n2: &NodeId<ToNodeId>,
                              arena2: &Arena<T, ToNodeId>)
                              -> bool {
-    arena1[*n1].label == arena2[*n2].label && arena1[*n1].value == arena2[*n2].value
+    arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
 }
