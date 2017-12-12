@@ -573,6 +573,50 @@ impl<U: PartialEq + Copy> NodeId<U> {
         Ok(())
     }
 
+    /// Attach children to given node
+    /// This would copy the subtree from the to_node
+    /// And then attach it to the self node.
+    pub fn copy_subtree<T: Clone>(
+        self,
+        _to_node: NodeId<U>,
+        position: u16,
+        _arena: &mut Arena<T, U>,
+    ) -> ArenaResult {
+        let current_node = _arena[_to_node].clone();
+
+        let mut _new_node_made = _arena.new_node(
+            current_node.ty,
+            current_node.label,
+            current_node.col_no,
+            current_node.line_no,
+            current_node.char_no,
+            current_node.token_len,
+        );
+        // Collect all the children
+        let ids = _to_node.children(_arena).collect::<Vec<NodeId<U>>>();
+        let mut counter = 0;
+        for id in ids {
+            let current_child_node = _arena[id].clone();
+
+            let mut _new_child_node = _arena.new_node(
+                current_child_node.ty,
+                current_child_node.label,
+                current_child_node.col_no,
+                current_child_node.line_no,
+                current_child_node.char_no,
+                current_child_node.token_len,
+            );
+            _new_child_node
+                .make_nth_child_of(_new_node_made, counter, _arena)
+                .unwrap();
+            if !id.is_leaf(_arena) {
+                _new_child_node.copy_subtree(id, counter, _arena).unwrap();
+            }
+            counter += 1;
+        }
+        _new_node_made.make_nth_child_of(self, position, _arena)
+    }
+
     /// Make one node the nth child of another.
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
@@ -1194,6 +1238,80 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(expected, format!("{:?}", arena));
+    }
+
+    #[test]
+    fn copy_test() {
+        let mut arena = Arena::<&str, FromNodeId>::new();
+        let root = arena.new_node(
+            "Expr",
+            String::from("+"),
+            None,
+            None,
+            None,
+            None,
+        );
+        assert!(!arena.is_empty());
+        let n1 = arena.new_node(
+            "Expr",
+            String::from("-"),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        assert!(!arena.is_empty());
+        n1.make_child_of(root, &mut arena).unwrap();
+        let n2 = arena.new_node(
+            "Expr",
+            String::from("*"),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        n2.make_child_of(root, &mut arena).unwrap();
+        let n3 = arena.new_node(
+            "INT",
+            String::from("1"),
+            None,
+            None,
+            None,
+            None,
+        );
+
+        n3.make_child_of(n1, &mut arena).unwrap();
+        let n4 = arena.new_node(
+            "INT",
+            String::from("3"),
+            None,
+            None,
+            None,
+            None,
+        );
+        n4.make_child_of(n2, &mut arena).unwrap();
+        let n5 = arena.new_node(
+            "INT",
+            String::from("4"),
+            None,
+            None,
+            None,
+            None,
+        );
+        n5.make_child_of(n2, &mut arena).unwrap();
+        n1.copy_subtree(n2, 1, &mut arena).unwrap();
+        // get the child of n1
+        let children_of_n1 =  n1.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        let n6_children = children_of_n1[1]
+            .children(&arena)
+            .collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(arena[children_of_n1[1]].ty, arena[n2].ty);
+        // The Value Of Children of n6 --> node id 6
+        assert_eq!(arena[n6_children[0]].ty, arena[n4].ty);
+        assert_eq!(arena[n6_children[1]].ty, arena[n5].ty);
+        
     }
 
     #[test]
