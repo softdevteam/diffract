@@ -434,6 +434,11 @@ impl<T: Clone + Debug + Eq> EditScript<T> {
     pub fn clear(&mut self) {
         self.actions.clear();
     }
+
+    /// Return the number of actions in this list.
+    pub fn size(&self) -> usize {
+        self.actions.len()
+    }
 }
 
 impl<T: Clone> RenderJson for EditScript<T> {
@@ -639,6 +644,7 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
+        assert_eq!(6, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
         let format2 = "\"Expr\" *
@@ -674,6 +680,7 @@ mod test {
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
+        assert_eq!(3, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
         let format2 = "\"Expr\" *
@@ -701,6 +708,7 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
+        assert_eq!(6, actions.size());
         let expected = String::from(
             "\"actions\": [
     {
