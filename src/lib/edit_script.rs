@@ -157,11 +157,11 @@ impl Chawathe96Config {
                 if store.is_mapped_by_matcher(a, b) && !lcs.contains(&(*a, *b)) {
                     let k = self.find_pos(store, *b, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
-                    debug!("Edit script align_children: MOV {} {:?} Parent: {} {:?} Child: {}",
+                    debug!("Edit script align_children: MOV {:?} {} Parent: {:?} {} Child: {}",
+                           store.from_arena[*a].ty,
                            store.from_arena[*a].label,
-                           store.from_arena[*a].value,
+                           store.from_arena[w].ty.clone(),
                            store.from_arena[w].label.clone(),
-                           store.from_arena[w].value.clone(),
                            k);
                     script.push(mov.clone());
                     mov.apply(&mut store.from_arena)?;
@@ -292,10 +292,10 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 // be used when the "from" and "to" ASTs have been parsed
                 // into different grammars.
                 let k = self.find_pos(store, x, &from_in_order, &to_in_order);
-                debug!("Edit script: INS {} {:?} No parent",
-                       store.to_arena[x].label,
-                       store.to_arena[x].value);
-                w = store.from_arena.new_node(store.to_arena[x].value.clone(),
+                debug!("Edit script: INS {:?} {} No parent",
+                       store.to_arena[x].ty,
+                       store.to_arena[x].label);
+                w = store.from_arena.new_node(store.to_arena[x].ty.clone(),
                                               store.to_arena[x].label.clone(),
                                               store.to_arena[x].col_no,
                                               store.to_arena[x].line_no,
@@ -310,12 +310,12 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 let z = store.get_from(&y).unwrap();
                 // (b) if x has no partner in M': i. let k<-find_pos(x),
                 let k = self.find_pos(store, x, &from_in_order, &to_in_order);
-                debug!("Edit script: INS {} {:?} Parent: {} {:?}",
+                debug!("Edit script: INS {:?} {} Parent: {:?} {}",
+                       store.to_arena[x].ty,
                        store.to_arena[x].label,
-                       store.to_arena[x].value,
-                       store.from_arena[z].label,
-                       store.from_arena[z].value);
-                w = store.from_arena.new_node(store.to_arena[x].value.clone(),
+                       store.from_arena[z].ty,
+                       store.from_arena[z].label);
+                w = store.from_arena.new_node(store.to_arena[x].ty.clone(),
                                               store.to_arena[x].label.clone(),
                                               store.to_arena[x].col_no,
                                               store.to_arena[x].line_no,
@@ -335,14 +335,14 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 w = store.get_from(&x).unwrap();
                 let v = store.from_arena[w].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
-                if store.from_arena[w].value != store.to_arena[x].value {
-                    debug!("Edit script: UPD {} {:?} -> {} {:?}",
+                if store.from_arena[w].ty != store.to_arena[x].ty {
+                    debug!("Edit script: UPD {:?} {} -> {:?} {}",
+                           store.from_arena[w].ty,
                            store.from_arena[w].label,
-                           store.from_arena[w].value,
-                           store.to_arena[x].label,
-                           store.to_arena[x].value);
+                           store.to_arena[x].ty,
+                           store.to_arena[x].label);
                     let mut upd = Update::new(w,
-                                              store.to_arena[x].value.clone(),
+                                              store.to_arena[x].ty.clone(),
                                               store.to_arena[x].label.clone());
                     // B. Apply UPD(w, v(x)) to T_1.
                     upd.apply(&mut store.from_arena)?;
@@ -358,11 +358,11 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     // B. Let k<-find_pos(x).
                     let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                     let mut mov = Move::new(w, z, k);
-                    debug!("Edit script: MOV {} {:?} Parent: {} {:?} Child: {}",
+                    debug!("Edit script: MOV {:?} {} Parent: {:?} {} Child: {}",
+                           store.from_arena[w].ty,
                            store.from_arena[w].label,
-                           store.from_arena[w].value,
+                           store.from_arena[z].ty,
                            store.from_arena[z].label,
-                           store.from_arena[z].value,
                            k);
                     // D. Apply MOV(w, z, k) to T_1.
                     mov.apply(&mut store.from_arena)?;
@@ -386,9 +386,9 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
             // (b) If w has no partner in M' then append DEL(w) to E and apply
             // DEL(w) to T_1.
             if !store.contains_from(&w) {
-                debug!("Edit script: DEL {} {:?}",
-                       store.from_arena[w].label,
-                       store.from_arena[w].value);
+                debug!("Edit script: DEL {:?} {}",
+                       store.from_arena[w].ty,
+                       store.from_arena[w].label);
                 let del = Delete::new(w);
                 script.push(del.clone());
                 actions.push(del);

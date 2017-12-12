@@ -268,8 +268,8 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
 
     fn node_label(&self, id: &NodeId<T>) -> LabelText {
         let label = format!("{} {}",
-                            self[*id].label,
-                            escape_string(self[*id].value.as_str()));
+                            escape_string(self[*id].ty.as_str()),
+                            self[*id].label);
         LabelText::LabelStr(label.into())
     }
 }
@@ -321,16 +321,16 @@ impl RenderDotfile for MappingStore<String> {
             } else {
                 attrs = "";
             }
-            if self.from_arena[from_node].value.is_empty() {
+            if self.from_arena[from_node].label.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     self.from_arena[from_node].label,
+                                     escape_string(self.from_arena[from_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.from_arena[from_node].label,
-                                     escape_string(self.from_arena[from_node].value.as_str()),
+                                     escape_string(self.from_arena[from_node].ty.as_str()),
+                                     escape_string(self.from_arena[from_node].label.as_str()),
                                      attrs));
             }
         }
@@ -341,16 +341,16 @@ impl RenderDotfile for MappingStore<String> {
             } else {
                 attrs = "";
             }
-            if self.to_arena[to_node].value.is_empty() {
+            if self.to_arena[to_node].label.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
                                      id,
-                                     self.to_arena[to_node].label,
+                                     escape_string(self.to_arena[to_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     self.to_arena[to_node].label,
-                                     escape_string(self.to_arena[to_node].value.as_str()),
+                                     escape_string(self.to_arena[to_node].ty.as_str()),
+                                     escape_string(self.to_arena[to_node].label.as_str()),
                                      attrs));
             }
         }
