@@ -158,25 +158,25 @@ mod tests {
 
     fn assert_sequence_correct<T: Clone + Debug + Eq>(store: MappingStore<T>, expected: &[T]) {
         if expected.is_empty() {
-            assert!(lcss(&vec![], &store.from_arena.borrow(), &vec![], &store.to_arena, &eq).is_empty());
+            assert!(lcss(&vec![], &store.from_arena.borrow(), &vec![], &store.to_arena.borrow(), &eq).is_empty());
             return;
         }
         assert!(!store.from_arena.borrow().is_empty());
-        assert!(!store.to_arena.is_empty());
+        assert!(!store.to_arena.borrow().is_empty());
         let base_root = store.from_arena.borrow().root().unwrap();
         let base = base_root.children(&store.from_arena.borrow())
                             .collect::<Vec<NodeId<FromNodeId>>>();
-        let diff_root = store.to_arena.root().unwrap();
-        let diff = diff_root.children(&store.to_arena)
+        let diff_root = store.to_arena.borrow().root().unwrap();
+        let diff = diff_root.children(&store.to_arena.borrow())
                             .collect::<Vec<NodeId<ToNodeId>>>();
         let longest = lcss(&base,
                            &store.from_arena.borrow(),
                            &diff,
-                           &store.to_arena,
+                           &store.to_arena.borrow(),
                            &eq);
         for (i, value) in longest.iter().enumerate() {
             assert_eq!(expected[i], store.from_arena.borrow()[value.0].ty);
-            assert_eq!(expected[i], store.to_arena[value.1].ty);
+            assert_eq!(expected[i], store.to_arena.borrow()[value.1].ty);
         }
     }
 

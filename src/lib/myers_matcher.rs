@@ -75,7 +75,7 @@ Variations.";
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         let store = MappingStore::new(base, diff);
-        if store.from_arena.borrow().is_empty() || store.to_arena.is_empty() {
+        if store.from_arena.borrow().is_empty() || store.to_arena.borrow().is_empty() {
             return store;
         }
         let base_pre = store.from_arena
@@ -85,15 +85,16 @@ Variations.";
                             .pre_order_traversal(&store.from_arena.borrow())
                             .collect::<Vec<NodeId<FromNodeId>>>();
         let diff_pre = store.to_arena
+                            .borrow()
                             .root()
                             .unwrap()
-                            .pre_order_traversal(&store.to_arena)
+                            .pre_order_traversal(&store.to_arena.borrow())
                             .collect::<Vec<NodeId<ToNodeId>>>();
 
         let longest = lcss(&base_pre,
                            &store.from_arena.borrow(),
                            &diff_pre,
-                           &store.to_arena,
+                           &store.to_arena.borrow(),
                            &eq);
         for &(n1, n2) in &longest {
             store.push(n1, n2, &MappingType::ANCHOR);

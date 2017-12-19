@@ -84,3 +84,5 @@ pub mod patch;
 
 /// Algorithms which act on sequences of values.
 pub mod sequence;
+//Testing
+pub mod chawathe98_matcher;

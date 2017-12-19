@@ -172,8 +172,10 @@ fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
         EmtpyArena => "Could not create edit script, AST was empty.",
         NodeIdNotFound => "Could not create edit script, NodeId was not found.",
         NodeHasTooFewChildren(n) => {
-            s = format!("Could not create edit script, NodeId had only {} children.",
-                        n);
+            s = format!(
+                "Could not create edit script, NodeId had only {} children.",
+                n
+            );
             &s
         }
         NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical.",
@@ -237,7 +239,11 @@ fn get_matcher_descriptions() -> String {
     descriptions.join("\n")
 }
 
-fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast::Arena<String, T> {
+fn parse_file<T: Copy + PartialEq>(
+    filename: &str,
+    lexer_path: &PathBuf,
+    yacc_path: &PathBuf,
+) -> ast::Arena<String, T> {
     let error_to_str = |err| {
         use ast::ParseError::*;
         match err {
@@ -249,9 +255,10 @@ fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_pa
             _ => format!("Error parsing {}.", filename),
         }
     };
-    ast::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
-                                                         .map_err(|ref msg| exit_with_message(msg))
-                                                         .unwrap()
+    ast::parse_file::<T>(filename, lexer_path, yacc_path)
+        .map_err(error_to_str)
+        .map_err(|ref msg| exit_with_message(msg))
+        .unwrap()
 }
 
 /// Process flags which merely request documentation.
@@ -285,7 +292,10 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
     let ext1 = match Path::new(&args.arg_base_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file)),
+        None => exit_with_message(&format!(
+            "Cannot determine file type of {}.",
+            args.arg_base_file
+        )),
     };
     // Lexer path for first input file.
     let lexer1 = if !args.flag_grammar.is_empty() {
@@ -312,7 +322,10 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
     let ext2 = match Path::new(&args.arg_diff_file).extension() {
         Some(ext) => ext.to_str().unwrap(),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file)),
+        None => exit_with_message(&format!(
+            "Cannot determine file type of {}.",
+            args.arg_diff_file
+        )),
     };
     // Lexer path for second input file.
     let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
@@ -341,8 +354,9 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
 fn main() {
     let argv: Vec<_> = env::args().collect();
-    let args: Args = Docopt::new(USAGE).and_then(|d| d.argv(argv).decode())
-                                       .unwrap_or_else(|e| e.exit());
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.argv(argv).decode())
+        .unwrap_or_else(|e| e.exit());
     // If the user only asked for documentation, provide it and exit.
     process_doc_flags(&args);
 
@@ -390,13 +404,16 @@ fn main() {
     info!("Selecting the Chawathe et al. (1996) edit script generator.");
     // Edit script generator configuration object.
 
-    let generator_config: Box<edit_script::EditScriptGenerator<String>> = generator_script_config(args.flag_edit); //  Box::new(edit_script::Chawathe96Config::new());
-                                                                                                                   // This will check the args and compare it with the enum
-                                                                                                                   // There are only 2 enum
-                                                                                                                   // 1) Chawathe96Config
-                                                                                                                   // 2) Chawathe98Config
-                                                                                                                   //
-    fn generator_script_config(input: Option<EditScriptGenerator>) -> Box<edit_script::EditScriptGenerator<String>> {
+    let generator_config: Box<edit_script::EditScriptGenerator<String>> =
+        generator_script_config(args.flag_edit); //  Box::new(edit_script::Chawathe96Config::new());
+    // This will check the args and compare it with the enum
+    // There are only 2 enum
+    // 1) Chawathe96Config
+    // 2) Chawathe98Config
+    //
+    fn generator_script_config(
+        input: Option<EditScriptGenerator>,
+    ) -> Box<edit_script::EditScriptGenerator<String>> {
         let config: Box<edit_script::EditScriptGenerator<String>>;
         match input {
             Some(EditScriptGenerator::Chawathe96) | None => {
@@ -415,25 +432,33 @@ fn main() {
     };
     if args.flag_store.is_some() {
         let edit_file = args.flag_store.unwrap();
-        info!("Creating dot representation of edit script {:?}.",
-              edit_file);
+        info!(
+            "Creating dot representation of edit script {:?}.",
+            edit_file
+        );
         write_dotfile_to_disk(&edit_file, &mapping);
     }
 
     // Generate output.
     if args.flag_output.is_none() || args.flag_output == Some(Output::Terminal) {
         info!("Writing terminal output to STDOUT.");
-        consume_emitter_err(emitters::write_diff_to_stdout(&mapping,
-                                                           &edit_script,
-                                                           &args.arg_base_file,
-                                                           &args.arg_diff_file),
-                            &args.arg_base_file);
+        consume_emitter_err(
+            emitters::write_diff_to_stdout(
+                &mapping,
+                &edit_script,
+                &args.arg_base_file,
+                &args.arg_diff_file,
+            ),
+            &args.arg_base_file,
+        );
     } else if args.flag_output == Some(Output::None) {
         info!("No output requested by the user.");
         return;
     } else if args.flag_output == Some(Output::JSON) {
         info!("Writing JSON output to STDOUT.");
-        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()), &mapping, &edit_script),
-                            "STDOUT");
+        consume_emitter_err(
+            emitters::write_json_to_stream(Box::new(stdout()), &mapping, &edit_script),
+            "STDOUT",
+        );
     }
 }
