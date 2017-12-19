@@ -38,8 +38,6 @@
 //! Integration tests for hqueue module.
 //! All file paths are relative to the root of the repository.
 
-#[cfg(test)]
-
 extern crate diffract;
 
 use std::path::Path;
