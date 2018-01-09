@@ -269,6 +269,7 @@ impl Chawathe96Config {
 impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Config {
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
+    /// Will panic if either `Arena` in `store` is empty (and has no root node).
     fn generate_script(&self, store: &mut MappingStore<T>) -> EditScriptResult<T> {
         // 1. E <- e, M' <- M.
         let mut script: EditScript<T> = EditScript::new();
@@ -277,11 +278,8 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         // Combined update, insert, align and move phases.
         // 2. Visit the nodes of T_2 in breadth-first order.
         let tmp_to_arena = store.to_arena.clone();
-        let root_to = tmp_to_arena.root()
-                                  .unwrap_or_else(|| NodeId::<ToNodeId>::new(0));
-        let root_from = store.from_arena
-                             .root()
-                             .unwrap_or_else(|| NodeId::<FromNodeId>::new(0));
+        let root_to = tmp_to_arena.root().unwrap();
+        let root_from = store.from_arena.root().unwrap();
         // (a) Let x be the current node in the breadth-first search of T_2
         // and let y be the parent of x. Let z be the partner of y in M'.
         for x in root_to.breadth_first_traversal(&tmp_to_arena) {
