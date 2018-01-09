@@ -78,12 +78,12 @@ fn compare_asts_post_edit_script(ty: &Filetype, base_file: &str, diff_file: &str
 
     // Once the edit script has been generated, the mapping between the base
     // and diff ASTs should be a total mapping.
-    assert_eq!(size, mapping.from.len());
-    assert_eq!(size, mapping.to.len());
-    for (key, val) in &mapping.from {
-        assert!(mapping.to.contains_key(&val.0));
-        assert_eq!(*key, mapping.get_from(&val.0).unwrap());
-        assert_eq!(val.0, mapping.get_to(key).unwrap());
+    assert_eq!(size, mapping.from.borrow().len());
+    assert_eq!(size, mapping.to.borrow().len());
+    for (key, val) in mapping.from.borrow().iter() {
+        assert!(mapping.to.borrow().contains_key(&val.0));
+        assert_eq!(key, &mapping.get_from(&val.0).unwrap());
+        assert_eq!(val.0, mapping.get_to(&key).unwrap());
     }
 }
 
@@ -92,7 +92,6 @@ fn test_empty_calc() {
     compare_asts_post_edit_script(&Filetype::CALC, "tests/empty.calc", "tests/one.calc");
     compare_asts_post_edit_script(&Filetype::CALC, "tests/one.calc", "tests/empty.calc");
 }
-
 
 #[test]
 fn test_gt_example() {

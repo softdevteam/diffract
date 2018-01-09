@@ -51,10 +51,9 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId<FromNodeId>],
                            seq2: &[NodeId<ToNodeId>],
                            arena2: &Arena<T, ToNodeId>,
                            eq: &Fn(&NodeId<FromNodeId>,
-                                   &Arena<T, FromNodeId>,
-                                   &NodeId<ToNodeId>,
-                                   &Arena<T, ToNodeId>)
-                                   -> bool)
+                               &Arena<T, FromNodeId>,
+                               &NodeId<ToNodeId>,
+                               &Arena<T, ToNodeId>) -> bool)
                            -> Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> {
     let mut lcss: Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = vec![];
     if seq1.is_empty() || seq2.is_empty() {
@@ -159,27 +158,29 @@ mod tests {
 
     fn assert_sequence_correct<T: Clone + Debug + Eq>(store: MappingStore<T>, expected: &[T]) {
         if expected.is_empty() {
-            assert!(lcss(&vec![], &store.from_arena, &vec![], &store.to_arena, &eq).is_empty());
+            assert!(lcss(&vec![], &store.from_arena.borrow(), &vec![], &store.to_arena, &eq).is_empty());
             return;
         }
-        assert!(!store.from_arena.is_empty());
+        assert!(!store.from_arena.borrow().is_empty());
         assert!(!store.to_arena.is_empty());
-        let base_root = store.from_arena.root().unwrap();
-        let base = base_root.children(&store.from_arena)
+        let base_root = store.from_arena.borrow().root().unwrap();
+        let base = base_root.children(&store.from_arena.borrow())
                             .collect::<Vec<NodeId<FromNodeId>>>();
         let diff_root = store.to_arena.root().unwrap();
         let diff = diff_root.children(&store.to_arena)
                             .collect::<Vec<NodeId<ToNodeId>>>();
-        let longest = lcss(&base, &store.from_arena, &diff, &store.to_arena, &eq);
+        let longest = lcss(&base,
+                           &store.from_arena.borrow(),
+                           &diff,
+                           &store.to_arena,
+                           &eq);
         for (i, value) in longest.iter().enumerate() {
-            assert_eq!(expected[i], store.from_arena[value.0].ty);
+            assert_eq!(expected[i], store.from_arena.borrow()[value.0].ty);
             assert_eq!(expected[i], store.to_arena[value.1].ty);
         }
     }
 
-    fn create_mapping_store<T: Clone + Default + Debug + Eq + 'static>(base: &[T],
-                                                                       diff: &[T])
-                                                                       -> MappingStore<T> {
+    fn create_mapping_store<T: Clone + Default + Debug + Eq + 'static>(base: &[T], diff: &[T]) -> MappingStore<T> {
         let mut base_arena: Arena<T, FromNodeId> = Arena::new();
         let mut from_id: NodeId<FromNodeId>;
         let mut to_id: NodeId<ToNodeId>;
@@ -191,10 +192,8 @@ mod tests {
                                            None,
                                            None);
             for ty in base {
-                from_id =
-                    base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
+                from_id = base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
                 from_id.make_child_of(root, &mut base_arena).unwrap();
-
             }
         }
         let mut diff_arena: Arena<T, ToNodeId> = Arena::new();
@@ -206,8 +205,7 @@ mod tests {
                                            None,
                                            None);
             for ty in diff {
-                to_id =
-                    diff_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
+                to_id = diff_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
                 to_id.make_child_of(root, &mut diff_arena).unwrap();
             }
         }

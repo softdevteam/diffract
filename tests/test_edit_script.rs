@@ -42,7 +42,7 @@ extern crate diffract;
 
 use std::path::Path;
 
-use diffract::ast::{Arena, parse_file};
+use diffract::ast::{parse_file, Arena};
 use diffract::edit_script::{Chawathe96Config, EditScriptGenerator};
 use diffract::matchers::MatchTrees;
 use diffract::myers_matcher::MyersConfig;
@@ -68,16 +68,17 @@ fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
     let edit_script_wrapped = gen_config.generate_script(&mut store);
-    assert!(edit_script_wrapped.is_ok(), "Edit script generator failed to complete.");
+    assert!(edit_script_wrapped.is_ok(),
+            "Edit script generator failed to complete.");
     // Get root nodes.
-    let root_from = store.from_arena.root().unwrap();
+    let root_from = store.from_arena.borrow().root().unwrap();
     let root_to = store.to_arena.root().unwrap();
     // Every reachable node in both ASTs should be mapped. N.B. deleted
     // nodes in the to AST will be in the arena but should not be reachable
     // from the root node.
     let mut count_nodes = 0;
     let mut count_mapped = 0;
-    for node in root_from.breadth_first_traversal(&store.from_arena) {
+    for node in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
         count_nodes += 1;
         assert!(store.contains_from(&node));
         count_mapped += 1;
@@ -99,16 +100,16 @@ fn test_empty_arena() {
     // Lex and parse the input files.
     let lex = Path::new("grammars/calc.l");
     let yacc = Path::new("grammars/calc.y");
-    let ast_from = Arena::new();  // Empty Arena with no root.
+    let ast_from = Arena::new(); // Empty Arena with no root.
     let ast_to = parse_file("tests/empty.calc", lex, yacc).unwrap();
     // Generate mappings between ASTs.
     let matcher_config = MyersConfig::new();
     let mut store = matcher_config.match_trees(ast_from, ast_to);
-    assert!(store.from.is_empty());
-    assert!(store.to.is_empty());
+    assert!(store.from.borrow().is_empty());
+    assert!(store.to.borrow().is_empty());
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
-    let _edit_script_wrapped = gen_config.generate_script(&mut store);  // Panic.
+    let _edit_script_wrapped = gen_config.generate_script(&mut store); // Panic.
 }
 
 #[test]
@@ -133,7 +134,7 @@ fn test_one_empty_calc() {
 
 #[test]
 fn test_add_one_calc() {
-    check_trees(false, "tests/add.calc", "tests/one.calc",)
+    check_trees(false, "tests/add.calc", "tests/one.calc")
 }
 
 #[test]
