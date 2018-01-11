@@ -119,7 +119,6 @@ pub struct Update<T: Clone> {
     label: String,
 }
 
-
 /// Copy a subtree from one place to another with an AST.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Copy {
@@ -127,7 +126,6 @@ pub struct Copy {
     parent: NodeId<FromNodeId>,
     pos: u16,
 }
-
 
 /// Glue a subtree from one place to another with an AST.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -146,54 +144,44 @@ impl Delete {
 impl Insert {
     /// Create a new `Insert` object.
     pub fn new(node: NodeId<FromNodeId>, parent: Option<NodeId<FromNodeId>>, nth: u16) -> Insert {
-        Insert {
-            node: node,
-            new_parent: parent,
-            nth_child: nth,
-        }
+        Insert { node: node,
+                 new_parent: parent,
+                 nth_child: nth, }
     }
 }
 
 impl Move {
     /// Create a new `Move` object.
     pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Move {
-        Move {
-            from_node: from,
-            parent: parent,
-            pos: position,
-        }
+        Move { from_node: from,
+               parent: parent,
+               pos: position, }
     }
 }
 
 impl<T: Clone + Debug> Update<T> {
     /// Create a new `Update` object.
     pub fn new(node: NodeId<FromNodeId>, ty: T, label: String) -> Update<T> {
-        Update {
-            node: node,
-            ty: ty,
-            label: label,
-        }
+        Update { node: node,
+                 ty: ty,
+                 label: label, }
     }
 }
 
 impl Copy {
     /// Create a new `Copy` object.
     pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Copy {
-        Copy {
-            from_node: from,
-            parent: parent,
-            pos: position,
-        }
+        Copy { from_node: from,
+               parent: parent,
+               pos: position, }
     }
 }
 
 impl Glue {
     /// Create a new `Glue` object.
     pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>) -> Glue {
-        Glue {
-            from_node: from,
-            node: parent,
-        }
+        Glue { from_node: from,
+               node: parent, }
     }
 }
 
@@ -265,8 +253,7 @@ impl RenderJson for Copy {
         json.push(" ".repeat(indent) + "}");
         json.join("\n")
     }
-}   
-
+}
 
 impl RenderJson for Glue {
     fn render_json(&self, indent: usize) -> String {
@@ -279,11 +266,11 @@ impl RenderJson for Glue {
         json.push(" ".repeat(indent) + "}");
         json.join("\n")
     }
-}   
+}
 
 impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
-        let node = &store.from_arena[self.node];
+        let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
             from.push(Patch::new(ActionType::DELETE,
                                  node.char_no.unwrap(),
@@ -294,7 +281,7 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
 
 impl<T: Clone + Debug + Eq> Patchify<T> for Insert {
     fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let node = &store.from_arena[self.node];
+        let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
             to.push(Patch::new(ActionType::INSERT,
                                node.char_no.unwrap(),
@@ -305,7 +292,7 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Insert {
 
 impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Move {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena[self.from_node];
+        let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::MOVE,
                                  f_node.char_no.unwrap(),
@@ -322,7 +309,7 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Move {
 
 impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena[self.node];
+        let f_node = &store.from_arena.borrow()[self.node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::UPDATE,
                                  f_node.char_no.unwrap(),
@@ -337,9 +324,9 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy{
+impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena[self.from_node];
+        let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::COPY,
                                  f_node.char_no.unwrap(),
@@ -354,9 +341,9 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy{
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Glue{
+impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Glue {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena[self.from_node];
+        let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::GLUE,
                                  f_node.char_no.unwrap(),
@@ -391,8 +378,7 @@ impl<T: Clone + Debug + Eq> ApplyAction<T> for Insert {
 
 impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
-        self.from_node
-            .make_nth_child_of(self.parent, self.pos, arena)
+        self.from_node.make_nth_child_of(self.parent, self.pos, arena)
     }
 }
 
@@ -406,7 +392,7 @@ impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
         Ok(())
     }
 }
- 
+
 impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Copy {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.from_node) {
@@ -489,39 +475,14 @@ mod test {
 
     fn create_arena() -> Arena<&'static str, FromNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr",
-                                String::from("*"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT",
-                                String::from("3"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT",
-                                String::from("4"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }
@@ -565,12 +526,7 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_arena();
-        let n5 = arena.new_node("INT",
-                                String::from("100"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -593,12 +549,7 @@ mod test {
     #[test]
     fn apply_insert_new_root() {
         let mut arena = create_arena();
-        let n5 = arena.new_node("Expr",
-                                String::from("-"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n5 = arena.new_node("Expr", String::from("-"), None, None, None, None);
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -670,18 +621,8 @@ mod test {
     \"INT\" 3
     \"INT\" 4
 ";
-        let n5 = arena.new_node("INT",
-                                String::from("100"),
-                                None,
-                                None,
-                                None,
-                                None);
-        let n6 = arena.new_node("INT",
-                                String::from("99"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n6 = arena.new_node("INT", String::from("99"), None, None, None, None);
         assert_eq!(format1, format!("{:?}", arena));
         // Create action list.
         let mut actions: EditScript<&str> = EditScript::new();
@@ -690,7 +631,7 @@ mod test {
         let ins1 = Insert::new(n5, Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(n6, Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
-        // Change "+"" to "*".
+                                                                // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);
@@ -719,26 +660,17 @@ mod test {
     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let n5 = arena.new_node("INT",
-                                String::from("2"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n5 = arena.new_node("INT", String::from("2"), None, None, None, None);
         // Create action list.
         let mut actions: EditScript<&str> = EditScript::new();
-        let del = Delete { node: NodeId::new(4) }; // Remove "4".
-        let ins = Insert {
-            node: n5,
-            new_parent: Some(NodeId::new(2)),
-            nth_child: 0,
-        };
-        let upd = Update {
-            // Change "+" to "*".
-            node: NodeId::new(0),
-            ty: "Expr",
-            label: String::from("*"),
-        };
+        let del = Delete { node: NodeId::new(4), }; // Remove "4".
+        let ins = Insert { node: n5,
+                           new_parent: Some(NodeId::new(2)),
+                           nth_child: 0, };
+        let upd = Update { // Change "+" to "*".
+                           node: NodeId::new(0),
+                           ty: "Expr",
+                           label: String::from("*"), };
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
@@ -761,7 +693,7 @@ mod test {
         let ins1 = Insert::new(NodeId::new(5), Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(NodeId::new(6), Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
-        // Change "+"" to "*".
+                                                                // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);

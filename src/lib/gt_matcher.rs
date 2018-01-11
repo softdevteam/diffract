@@ -57,11 +57,9 @@ pub struct GumTreeConfig {
 
 impl Default for GumTreeConfig {
     fn default() -> GumTreeConfig {
-        GumTreeConfig {
-            max_size: 100,
-            min_dice: 0.3,
-            min_height: 2,
-        }
+        GumTreeConfig { max_size: 100,
+                        min_dice: 0.3,
+                        min_height: 2, }
     }
 }
 
@@ -89,8 +87,8 @@ Code Differencing.";
 
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
-        let mut store = MappingStore::new(base, diff);
-        if store.from_arena.size() == 0 || store.to_arena.size() == 0 {
+        let store = MappingStore::new(base, diff);
+        if store.from_arena.borrow().size() == 0 || store.to_arena.size() == 0 {
             return store;
         }
         store.push(NodeId::<FromNodeId>::new(0),

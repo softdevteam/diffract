@@ -45,14 +45,13 @@ use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{ArenaError, FromNodeId, NodeId, ToNodeId};
 use matchers::{EditScriptResult, MappingStore, MappingType};
 
-
 /// Given a matching between two ASTs, generate a complete edit script.
 ///
 /// This trait should usually be implemented on configuration objects that
 /// define thresholds and weights for a given algorithm.
 pub trait EditScriptGenerator<T: Clone + Debug + Eq + 'static> {
     /// Given a matching between two ASTs, generate a complete edit script.
-    fn generate_script(&self, store: &mut MappingStore<T>) -> EditScriptResult<T>;
+    fn generate_script(&self, store: &MappingStore<T>) -> EditScriptResult<T>;
 }
 
 /// The Chawathe et al. (1996) algorithm does not require any configuration.
@@ -71,10 +70,9 @@ impl Chawathe98Config {
     }
 }
 
-
 impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe98Config {
     /// This function should generate the edit script for GLUE and COPY
-    fn generate_script(&self, _store: &mut MappingStore<T>) -> EditScriptResult<T> {
+    fn generate_script(&self, _store: &MappingStore<T>) -> EditScriptResult<T> {
         Ok(EditScript::new())
     }
 }
@@ -95,25 +93,24 @@ impl Chawathe96Config {
         Default::default()
     }
 
-    fn align_children<T: Clone + Debug + Eq + 'static>(
-        &self,
-        store: &mut MappingStore<T>,
-        w: NodeId<FromNodeId>,
-        x: NodeId<ToNodeId>,
-        script: &mut EditScript<T>,
-        from_in_order: &mut HashSet<NodeId<FromNodeId>>,
-        to_in_order: &mut HashSet<NodeId<ToNodeId>>,
-) -> Result<(), ArenaError>{
+    fn align_children<T: Clone + Debug + Eq + 'static>(&self,
+                                                       store: &MappingStore<T>,
+                                                       w: NodeId<FromNodeId>,
+                                                       x: NodeId<ToNodeId>,
+                                                       script: &mut EditScript<T>,
+                                                       from_in_order: &mut HashSet<NodeId<FromNodeId>>,
+                                                       to_in_order: &mut HashSet<NodeId<ToNodeId>>)
+                                                       -> Result<(), ArenaError> {
         // Variable key:
         // a, w in store.from_arena (T_1 in paper).
         // b, x in store.to_arena (T_2 in paper).
         debug!("align_children({}, {})", w, x);
-        if w.is_leaf(&store.from_arena) && x.is_leaf(&store.to_arena) {
+        if w.is_leaf(&store.from_arena.borrow()) && x.is_leaf(&store.to_arena) {
             debug!("{} and {} both leaf nodes.", w, x);
             return Ok(());
         }
         // 1. Mark all children of w and all children of x "out of order".
-        for child in w.children(&store.from_arena) {
+        for child in w.children(&store.from_arena.borrow()) {
             from_in_order.remove(&child);
         }
         for child in x.children(&store.to_arena) {
@@ -123,7 +120,7 @@ impl Chawathe96Config {
         // children of x and let s2 be the sequence of children of x whose
         // partners are children of w.
         let mut s1: Vec<NodeId<FromNodeId>> = vec![];
-        for child in w.children(&store.from_arena) {
+        for child in w.children(&store.from_arena.borrow()) {
             if store.contains_from(&child) {
                 let mapped = store.get_to(&child).unwrap();
                 if x.children(&store.to_arena).any(|n| n == mapped) {
@@ -135,7 +132,7 @@ impl Chawathe96Config {
         for child in x.children(&store.to_arena) {
             if store.contains_to(&child) {
                 let mapped = store.get_from(&child).unwrap();
-                if w.children(&store.from_arena).any(|n| n == mapped) {
+                if w.children(&store.from_arena.borrow()).any(|n| n == mapped) {
                     s2.push(child);
                 }
             }
@@ -158,13 +155,13 @@ impl Chawathe96Config {
                     let k = self.find_pos(store, *b, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
                     debug!("Edit script align_children: MOV {:?} {} Parent: {:?} {} Child: {}",
-                           store.from_arena[*a].ty,
-                           store.from_arena[*a].label,
-                           store.from_arena[w].ty.clone(),
-                           store.from_arena[w].label.clone(),
+                           store.from_arena.borrow()[*a].ty,
+                           store.from_arena.borrow()[*a].label,
+                           store.from_arena.borrow()[w].ty.clone(),
+                           store.from_arena.borrow()[w].label.clone(),
                            k);
                     script.push(mov.clone());
-                    mov.apply(&mut store.from_arena)?;
+                    mov.apply(&mut store.from_arena.borrow_mut())?;
                     from_in_order.insert(*a);
                     to_in_order.insert(*b);
                 }
@@ -185,8 +182,7 @@ impl Chawathe96Config {
         let y = store.to_arena[x].parent().unwrap();
         // 2. If x is the leftmost child of y that is marked "in order" return
         // 0 (the paper says 1 but we count child nodes from 0).
-        let siblings = y.children(&store.to_arena)
-                        .collect::<Vec<NodeId<ToNodeId>>>();
+        let siblings = y.children(&store.to_arena).collect::<Vec<NodeId<ToNodeId>>>();
         for child in &siblings {
             if to_in_order.contains(child) {
                 if x == *child {
@@ -200,8 +196,7 @@ impl Chawathe96Config {
         let x_pos = x.get_child_position(&store.to_arena).unwrap();
         // 3. Find v in T_2, where v is the rightmost sibling of x that is to
         // the left of x and is marked "in order".
-        let v = x.children(&store.to_arena)
-                 .take(x_pos)
+        let v = x.children(&store.to_arena).take(x_pos)
                  .filter(|c| to_in_order.contains(c))
                  .last();
         if v.is_none() {
@@ -214,10 +209,9 @@ impl Chawathe96Config {
         let u = u_opt.unwrap();
         // 5. Suppose u is the i'th child of its parent that is marked
         // "in order". Return i + 1.
-        let u_p = store.from_arena[u].parent().unwrap();
-        let u_pos = u.get_child_position(&store.from_arena).unwrap();
-        let ret = u_p.children(&store.from_arena)
-                     .take(u_pos)
+        let u_p = store.from_arena.borrow()[u].parent().unwrap();
+        let u_pos = u.get_child_position(&store.from_arena.borrow()).unwrap();
+        let ret = u_p.children(&store.from_arena.borrow()).take(u_pos)
                      .filter(|c| from_in_order.contains(c))
                      .count() as u16 + 1;
         debug!("find_pos({}) <- {}", x, ret);
@@ -269,41 +263,39 @@ impl Chawathe96Config {
 impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Config {
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
-    fn generate_script(&self, store: &mut MappingStore<T>) -> EditScriptResult<T> {
+    /// Will panic if either `Arena` in `store` is empty (and has no root node).
+    fn generate_script(&self, store: &MappingStore<T>) -> EditScriptResult<T> {
         // 1. E <- e, M' <- M.
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId<FromNodeId>> = HashSet::new();
         let mut to_in_order: HashSet<NodeId<ToNodeId>> = HashSet::new();
         // Combined update, insert, align and move phases.
         // 2. Visit the nodes of T_2 in breadth-first order.
-        let tmp_to_arena = store.to_arena.clone();
-        let root_to = tmp_to_arena.root()
-                                  .unwrap_or_else(|| NodeId::<ToNodeId>::new(0));
-        let root_from = store.from_arena
-                             .root()
-                             .unwrap_or_else(|| NodeId::<FromNodeId>::new(0));
+        let root_to = store.to_arena.root().unwrap();
+        let root_from = store.from_arena.borrow().root().unwrap();
         // (a) Let x be the current node in the breadth-first search of T_2
         // and let y be the parent of x. Let z be the partner of y in M'.
-        for x in root_to.breadth_first_traversal(&tmp_to_arena) {
+        for x in root_to.breadth_first_traversal(&store.to_arena) {
             let mut w = root_from; // Overwritten later.
-            // Insertion phase.
+                                   // Insertion phase.
             if !store.contains_to(&x) && x.is_root(&store.to_arena) {
                 // Handle root nodes separately. This branch is most likely to
                 // be used when the "from" and "to" ASTs have been parsed
                 // into different grammars.
                 let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                 debug!("Edit script: INS {:?} {} No parent",
-                       store.to_arena[x].ty,
-                       store.to_arena[x].label);
-                w = store.from_arena.new_node(store.to_arena[x].ty.clone(),
-                                              store.to_arena[x].label.clone(),
-                                              store.to_arena[x].col_no,
-                                              store.to_arena[x].line_no,
-                                              store.to_arena[x].char_no,
-                                              store.to_arena[x].token_len);
+                       store.to_arena[x].ty, store.to_arena[x].label);
+                w = store.from_arena
+                         .borrow_mut()
+                         .new_node(store.to_arena[x].ty.clone(),
+                                   store.to_arena[x].label.clone(),
+                                   store.to_arena[x].col_no,
+                                   store.to_arena[x].line_no,
+                                   store.to_arena[x].char_no,
+                                   store.to_arena[x].token_len);
                 store.push(w, x, &MappingType::EDIT);
                 let mut ins = Insert::new(w, None, k);
-                ins.apply(&mut store.from_arena)?;
+                ins.apply(&mut store.from_arena.borrow_mut())?;
                 script.push(ins);
             } else if !store.contains_to(&x) {
                 let y = store.to_arena[x].parent().unwrap();
@@ -313,19 +305,21 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 debug!("Edit script: INS {:?} {} Parent: {:?} {}",
                        store.to_arena[x].ty,
                        store.to_arena[x].label,
-                       store.from_arena[z].ty,
-                       store.from_arena[z].label);
-                w = store.from_arena.new_node(store.to_arena[x].ty.clone(),
-                                              store.to_arena[x].label.clone(),
-                                              store.to_arena[x].col_no,
-                                              store.to_arena[x].line_no,
-                                              store.to_arena[x].char_no,
-                                              store.to_arena[x].token_len);
+                       store.from_arena.borrow()[z].ty,
+                       store.from_arena.borrow()[z].label);
+                w = store.from_arena
+                         .borrow_mut()
+                         .new_node(store.to_arena[x].ty.clone(),
+                                   store.to_arena[x].label.clone(),
+                                   store.to_arena[x].col_no,
+                                   store.to_arena[x].line_no,
+                                   store.to_arena[x].char_no,
+                                   store.to_arena[x].token_len);
                 // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
                 store.push(w, x, &MappingType::EDIT);
                 // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
                 let mut ins = Insert::new(w, Some(z), k);
-                ins.apply(&mut store.from_arena)?;
+                ins.apply(&mut store.from_arena.borrow_mut())?;
                 script.push(ins);
             } else if !x.is_root(&store.to_arena) {
                 // Insertion and update phases.
@@ -333,19 +327,19 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 // i. Let w be the partner of x in M' and let v be the parent
                 // of w in T_1.
                 w = store.get_from(&x).unwrap();
-                let v = store.from_arena[w].parent().unwrap();
+                let v = store.from_arena.borrow()[w].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
-                if store.from_arena[w].ty != store.to_arena[x].ty {
+                if store.from_arena.borrow()[w].ty != store.to_arena[x].ty {
                     debug!("Edit script: UPD {:?} {} -> {:?} {}",
-                           store.from_arena[w].ty,
-                           store.from_arena[w].label,
+                           store.from_arena.borrow()[w].ty,
+                           store.from_arena.borrow()[w].label,
                            store.to_arena[x].ty,
                            store.to_arena[x].label);
                     let mut upd = Update::new(w,
                                               store.to_arena[x].ty.clone(),
                                               store.to_arena[x].label.clone());
                     // B. Apply UPD(w, v(x)) to T_1.
-                    upd.apply(&mut store.from_arena)?;
+                    upd.apply(&mut store.from_arena.borrow_mut())?;
                     // A. Append UPD(w, v(x)) to E.
                     script.push(upd.clone());
                 }
@@ -359,42 +353,42 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                     let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                     let mut mov = Move::new(w, z, k);
                     debug!("Edit script: MOV {:?} {} Parent: {:?} {} Child: {}",
-                           store.from_arena[w].ty,
-                           store.from_arena[w].label,
-                           store.from_arena[z].ty,
-                           store.from_arena[z].label,
+                           store.from_arena.borrow()[w].ty,
+                           store.from_arena.borrow()[w].label,
+                           store.from_arena.borrow()[z].ty,
+                           store.from_arena.borrow()[z].label,
                            k);
                     // D. Apply MOV(w, z, k) to T_1.
-                    mov.apply(&mut store.from_arena)?;
+                    mov.apply(&mut store.from_arena.borrow_mut())?;
                     // C. Append MOV(w, z, k) to E.
                     script.push(mov);
                 }
             }
             // (d) align_children(w, x).
             self.align_children(store,
-                                w,
-                                x,
-                                &mut script,
-                                &mut from_in_order,
-                                &mut to_in_order)?;
+                                 w,
+                                 x,
+                                 &mut script,
+                                 &mut from_in_order,
+                                 &mut to_in_order)?;
         }
         // Delete phase.
         // 3. Perform a post-order traversal of T_1.
         let mut actions = EditScript::new();
         // (a) Let w be the current node in the post-order traversal of T_1.
-        for w in root_from.post_order_traversal(&store.from_arena) {
+        for w in root_from.post_order_traversal(&store.from_arena.borrow()) {
             // (b) If w has no partner in M' then append DEL(w) to E and apply
             // DEL(w) to T_1.
             if !store.contains_from(&w) {
                 debug!("Edit script: DEL {:?} {}",
-                       store.from_arena[w].ty,
-                       store.from_arena[w].label);
+                       store.from_arena.borrow()[w].ty,
+                       store.from_arena.borrow()[w].label);
                 let del = Delete::new(w);
                 script.push(del.clone());
                 actions.push(del);
             }
         }
-        actions.apply(&mut store.from_arena)?;
+        actions.apply(&mut store.from_arena.borrow_mut())?;
         Ok(script)
     }
 }

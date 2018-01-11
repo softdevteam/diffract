@@ -43,7 +43,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Error, Read, Write};
 
-use dot::{Id, Edges, escape_html, GraphWalk, Labeller, LabelText, Nodes, render};
+use dot::{escape_html, render, Edges, GraphWalk, Id, LabelText, Labeller, Nodes};
 use term;
 
 use action::{ActionType, EditScript, Patchify};
@@ -105,8 +105,7 @@ fn build_colour_map() -> HashMap<ActionType, term::color::Color> {
 
 // Read file and return its contents or `ParseError`.
 fn read_file(path: &str) -> Result<String, EmitterError> {
-    let mut f = File::open(path)
-        .map_err(|_| EmitterError::CouldNotOpenFile)?;
+    let mut f = File::open(path).map_err(|_| EmitterError::CouldNotOpenFile)?;
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
     Ok(s)
@@ -248,8 +247,7 @@ fn escape_string(label: &str) -> String {
 
 /// Write out a graphviz file (in dot format) to `filepath`.
 pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
-    let mut stream = File::create(&filepath)
-        .map_err(|_| EmitterError::CouldNotCreateFile)?;
+    let mut stream = File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph.render_dotfile(&mut stream)
          .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
@@ -274,8 +272,7 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
     }
 }
 
-impl<'a, T: Clone, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>>
-    for Arena<T, U> {
+impl<'a, T: Clone, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U> {
     fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }
@@ -314,23 +311,23 @@ impl RenderDotfile for MappingStore<String> {
 
         let mut attrs: &str;
         // Node labels for both ASTs.
-        for id in 0..self.from_arena.size() {
+        for id in 0..self.from_arena.borrow().size() {
             from_node = NodeId::new(id);
             if !self.contains_from(&from_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.from_arena[from_node].label.is_empty() {
+            if self.from_arena.borrow()[from_node].label.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena[from_node].ty.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena[from_node].ty.as_str()),
-                                     escape_string(self.from_arena[from_node].label.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].label.as_str()),
                                      attrs));
             }
         }
@@ -358,7 +355,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.from_arena.get_edges() {
+        for (e0, e1) in self.from_arena.borrow().get_edges() {
             line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
@@ -378,7 +375,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\t}\n"));
         // Mappings between ASTs.
         let common = "dir=both, arrowsize=.75, arrowhead=odot, arrowtail=odot";
-        for (from, val) in &self.from {
+        for (from, val) in self.from.borrow().iter() {
             let &(to, ref ty) = val;
             attrs = match *ty {
                 MappingType::ANCHOR => "[style=dashed, color=blue, ",
