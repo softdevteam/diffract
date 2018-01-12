@@ -50,7 +50,7 @@ use cfgrammar::TIdx;
 use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
 use lrlex::{build_lex, Lexer};
 use lrpar::parser;
-use lrtable::{Minimiser, from_yacc};
+use lrtable::{from_yacc, Minimiser};
 
 use hqueue::HeightQueue;
 
@@ -127,10 +127,8 @@ pub struct Arena<T: Clone, U: PartialEq + Copy> {
 
 impl<T: Clone, U: PartialEq + Copy> Default for Arena<T, U> {
     fn default() -> Arena<T, U> {
-        Arena {
-            nodes: Vec::new(),
-            root: None,
-        }
+        Arena { nodes: Vec::new(),
+                root: None, }
     }
 }
 
@@ -156,10 +154,8 @@ impl<T: Clone> From<Arena<T, ToNodeId>> for Arena<T, FromNodeId> {
                            .cloned()
                            .map(|node| Node::<T, FromNodeId>::from(node))
                            .collect();
-        Arena {
-            nodes: coerced,
-            root: arena.root().map(|id| NodeId::<FromNodeId>::from(id)),
-        }
+        Arena { nodes: coerced,
+                root: arena.root().map(|id| NodeId::<FromNodeId>::from(id)), }
     }
 }
 
@@ -171,10 +167,8 @@ impl<T: Clone> From<Arena<T, FromNodeId>> for Arena<T, ToNodeId> {
                            .cloned()
                            .map(|node| Node::<T, ToNodeId>::from(node))
                            .collect();
-        Arena {
-            nodes: coerced,
-            root: arena.root().map(|id| NodeId::<ToNodeId>::from(id)),
-        }
+        Arena { nodes: coerced,
+                root: arena.root().map(|id| NodeId::<ToNodeId>::from(id)), }
     }
 }
 
@@ -345,42 +339,36 @@ pub struct Node<T: Clone, U: PartialEq + Copy> {
 #[cfg(test)]
 impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
     fn from(node: Node<T, ToNodeId>) -> Self {
-        Node::<T, FromNodeId> {
-            parent: node.parent().map(|id| NodeId::<FromNodeId>::from(id)),
-            previous_sibling: node.previous_sibling()
-                                  .map(|id| NodeId::<FromNodeId>::from(id)),
-            next_sibling: node.next_sibling().map(|id| NodeId::<FromNodeId>::from(id)),
-            first_child: node.first_child().map(|id| NodeId::<FromNodeId>::from(id)),
-            last_child: node.last_child().map(|id| NodeId::<FromNodeId>::from(id)),
-            index: node.index.map(|id| NodeId::<FromNodeId>::from(id)),
-            ty: node.ty,
-            label: node.label,
-            col_no: node.col_no,
-            line_no: node.line_no,
-            char_no: node.char_no,
-            token_len: node.token_len,
-        }
+        Node::<T, FromNodeId> { parent: node.parent().map(|id| NodeId::<FromNodeId>::from(id)),
+                                previous_sibling: node.previous_sibling().map(|id| NodeId::<FromNodeId>::from(id)),
+                                next_sibling: node.next_sibling().map(|id| NodeId::<FromNodeId>::from(id)),
+                                first_child: node.first_child().map(|id| NodeId::<FromNodeId>::from(id)),
+                                last_child: node.last_child().map(|id| NodeId::<FromNodeId>::from(id)),
+                                index: node.index.map(|id| NodeId::<FromNodeId>::from(id)),
+                                ty: node.ty,
+                                label: node.label,
+                                col_no: node.col_no,
+                                line_no: node.line_no,
+                                char_no: node.char_no,
+                                token_len: node.token_len, }
     }
 }
 
 #[cfg(test)]
 impl<T: Clone> From<Node<T, FromNodeId>> for Node<T, ToNodeId> {
     fn from(node: Node<T, FromNodeId>) -> Self {
-        Node::<T, ToNodeId> {
-            parent: node.parent().map(|id| NodeId::<ToNodeId>::from(id)),
-            previous_sibling: node.previous_sibling()
-                                  .map(|id| NodeId::<ToNodeId>::from(id)),
-            next_sibling: node.next_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
-            first_child: node.first_child().map(|id| NodeId::<ToNodeId>::from(id)),
-            last_child: node.last_child().map(|id| NodeId::<ToNodeId>::from(id)),
-            index: node.index.map(|id| NodeId::<ToNodeId>::from(id)),
-            ty: node.ty,
-            label: node.label,
-            col_no: node.col_no,
-            line_no: node.line_no,
-            char_no: node.char_no,
-            token_len: node.token_len,
-        }
+        Node::<T, ToNodeId> { parent: node.parent().map(|id| NodeId::<ToNodeId>::from(id)),
+                              previous_sibling: node.previous_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
+                              next_sibling: node.next_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
+                              first_child: node.first_child().map(|id| NodeId::<ToNodeId>::from(id)),
+                              last_child: node.last_child().map(|id| NodeId::<ToNodeId>::from(id)),
+                              index: node.index.map(|id| NodeId::<ToNodeId>::from(id)),
+                              ty: node.ty,
+                              label: node.label,
+                              col_no: node.col_no,
+                              line_no: node.line_no,
+                              char_no: node.char_no,
+                              token_len: node.token_len, }
     }
 }
 
@@ -393,20 +381,18 @@ impl<T: Clone, U: PartialEq + Copy> Node<T, U> {
                char_no: Option<usize>,
                token_len: Option<usize>)
                -> Node<T, U> {
-        Node {
-            parent: None,
-            previous_sibling: None,
-            next_sibling: None,
-            first_child: None,
-            last_child: None,
-            ty: ty,
-            label: label,
-            index: None,
-            col_no: col_no,
-            line_no: line_no,
-            char_no: char_no,
-            token_len: token_len,
-        }
+        Node { parent: None,
+               previous_sibling: None,
+               next_sibling: None,
+               first_child: None,
+               last_child: None,
+               ty: ty,
+               label: label,
+               index: None,
+               col_no: col_no,
+               line_no: line_no,
+               char_no: char_no,
+               token_len: token_len, }
     }
 
     /// Return the Id of the parent node, if there is one.
@@ -469,10 +455,8 @@ impl From<NodeId<ToNodeId>> for NodeId<FromNodeId> {
 impl<U: PartialEq + Copy> NodeId<U> {
     /// Create a new NodeId with a given index.
     pub fn new(index: usize) -> NodeId<U> {
-        NodeId {
-            index: index,
-            phantom: PhantomData,
-        }
+        NodeId { index: index,
+                 phantom: PhantomData, }
     }
 
     /// Return the index of this Node Id.
@@ -501,8 +485,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
         if self.is_leaf(arena) {
             return 1;
         }
-        self.children(arena)
-            .map(|child| child.height(arena))
+        self.children(arena).map(|child| child.height(arena))
             .max()
             .unwrap() + 1
     }
@@ -550,10 +533,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Make self the next (i.e. last) child of another.
-    pub fn make_child_of<T: Clone>(&self,
-                                   parent: NodeId<U>,
-                                   arena: &mut Arena<T, U>)
-                                   -> ArenaResult {
+    pub fn make_child_of<T: Clone>(&self, parent: NodeId<U>, arena: &mut Arena<T, U>) -> ArenaResult {
         if self.index >= arena.size() || parent.index >= arena.size() {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -576,43 +556,32 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// Attach children to given node
     /// This would copy the subtree from the to_node
     /// And then attach it to the self node.
-    pub fn copy_subtree<T: Clone>(
-        self,
-        _to_node: NodeId<U>,
-        position: u16,
-        _arena: &mut Arena<T, U>,
-    ) -> ArenaResult {
+    pub fn copy_subtree<T: Clone>(self, _to_node: NodeId<U>, position: u16, _arena: &mut Arena<T, U>) -> ArenaResult {
         let current_node = _arena[_to_node].clone();
 
-        let mut _new_node_made = _arena.new_node(
-            current_node.ty,
-            current_node.label,
-            current_node.col_no,
-            current_node.line_no,
-            current_node.char_no,
-            current_node.token_len,
-        );
+        let mut _new_node_made = _arena.new_node(current_node.ty,
+                                                 current_node.label,
+                                                 current_node.col_no,
+                                                 current_node.line_no,
+                                                 current_node.char_no,
+                                                 current_node.token_len);
         // Collect all the children
         let ids = _to_node.children(_arena).collect::<Vec<NodeId<U>>>();
-        let mut counter = 0;
-        for id in ids {
+        for (counter, &id) in ids.iter().enumerate() {
             let current_child_node = _arena[id].clone();
 
-            let mut _new_child_node = _arena.new_node(
-                current_child_node.ty,
-                current_child_node.label,
-                current_child_node.col_no,
-                current_child_node.line_no,
-                current_child_node.char_no,
-                current_child_node.token_len,
-            );
-            _new_child_node
-                .make_nth_child_of(_new_node_made, counter, _arena)
-                .unwrap();
+            let mut _new_child_node = _arena.new_node(current_child_node.ty,
+                                                      current_child_node.label,
+                                                      current_child_node.col_no,
+                                                      current_child_node.line_no,
+                                                      current_child_node.char_no,
+                                                      current_child_node.token_len);
+            _new_child_node.make_nth_child_of(_new_node_made, counter as u16, _arena)
+                           .unwrap();
             if !id.is_leaf(_arena) {
-                _new_child_node.copy_subtree(id, counter, _arena).unwrap();
+                _new_child_node.copy_subtree(id, counter as u16, _arena)
+                               .unwrap();
             }
-            counter += 1;
         }
         _new_node_made.make_nth_child_of(self, position, _arena)
     }
@@ -621,11 +590,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
     /// child of `parent`.
-    pub fn make_nth_child_of<T: Clone>(&mut self,
-                                       parent: NodeId<U>,
-                                       nth: u16,
-                                       arena: &mut Arena<T, U>)
-                                       -> ArenaResult {
+    pub fn make_nth_child_of<T: Clone>(&mut self, parent: NodeId<U>, nth: u16, arena: &mut Arena<T, U>) -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -671,70 +636,55 @@ impl<U: PartialEq + Copy> NodeId<U> {
         if arena[self].parent.is_none() {
             return None;
         }
-        arena[self]
-            .parent
-            .unwrap()
-            .children(arena)
-            .position(|val| val == self)
+        arena[self].parent
+                   .unwrap()
+                   .children(arena)
+                   .position(|val| val == self)
     }
 
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
-        Children {
-            arena: arena,
-            node: arena[self].first_child,
-        }
+        Children { arena: arena,
+                   node: arena[self].first_child, }
     }
 
     /// Return an iterator of references to this node’s children, in reverse order.
     pub fn reverse_children<T: Clone>(self, arena: &Arena<T, U>) -> ReverseChildren<T, U> {
-        ReverseChildren {
-            arena: arena,
-            node: arena[self].last_child,
-        }
+        ReverseChildren { arena: arena,
+                          node: arena[self].last_child, }
     }
 
     /// Return a breadth-first iterator of references to this node's descendants.
-    pub fn breadth_first_traversal<T: Clone>(self,
-                                             arena: &Arena<T, U>)
-                                             -> BreadthFirstTraversal<T, U> {
+    pub fn breadth_first_traversal<T: Clone>(self, arena: &Arena<T, U>) -> BreadthFirstTraversal<T, U> {
         let mut queue = VecDeque::new();
         queue.push_back(self);
-        BreadthFirstTraversal {
-            arena: arena,
-            queue: queue,
-        }
+        BreadthFirstTraversal { arena: arena,
+                                queue: queue, }
     }
 
     /// Return a post-order iterator of references to this node's descendants.
     pub fn post_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PostOrderTraversal<T, U> {
         let mut stack1 = VecDeque::new();
         stack1.push_front(self);
-        PostOrderTraversal {
-            arena: arena,
-            stack1: stack1,
-            stack2: VecDeque::new(),
-        }
+        PostOrderTraversal { arena: arena,
+                             stack1: stack1,
+                             stack2: VecDeque::new(), }
     }
 
     /// Return a pre-order iterator of references to this node's descendants.
     pub fn pre_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        PreOrderTraversal {
-            arena: arena,
-            stack: stack,
-        }
+        PreOrderTraversal { arena: arena,
+                            stack: stack, }
     }
 
     /// Get the descendants of this node, without including the node itself.
     pub fn descendants<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        let mut iterator = PreOrderTraversal {
-            arena: arena,
-            stack: stack,
-        };
+        let mut iterator = PreOrderTraversal { arena: arena,
+                                               stack: stack, };
         iterator.next(); // Consume self.
         iterator
     }
@@ -762,14 +712,18 @@ pub struct Children<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
     node: Option<NodeId<U>>,
 }
-impl_node_iterator!(Children, |node: &Node<T, U>| node.next_sibling);
+impl_node_iterator!(Children, |node: &Node<T, U>| {
+    node.next_sibling
+});
 
 /// An iterator of references to the children of a given node.
 pub struct ReverseChildren<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
     node: Option<NodeId<U>>,
 }
-impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| node.previous_sibling);
+impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| {
+    node.previous_sibling
+});
 
 /// A breadth-first iterator of references to the descendants of a given node.
 pub struct BreadthFirstTraversal<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
@@ -842,8 +796,8 @@ fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16>,
                                        -> Arena<String, T> {
     let mut arena = Arena::new();
     let mut st = vec![pt]; // Stack of nodes.
-    // Stack of `Option<NodeId>`s which are parents of nodes on the `st` stack.
-    // The stack should never be empty, a `None` should be at the bottom of the stack.
+                           // Stack of `Option<NodeId>`s which are parents of nodes on the `st` stack.
+                           // The stack should never be empty, a `None` should be at the bottom of the stack.
     let mut parent = vec![None];
     let mut child_node: NodeId<T>;
     while !st.is_empty() {
@@ -867,10 +821,8 @@ fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16>,
                     }
                 };
             }
-            parser::Node::Nonterm {
-                nonterm_idx,
-                ref nodes,
-            } => {
+            parser::Node::Nonterm { nonterm_idx,
+                                    ref nodes, } => {
                 // A non-terminal has no label of its own, but has a node type.
                 child_node = arena.new_node(grm.nonterm_name(nonterm_idx).to_string(),
                                             "".to_string(),
@@ -919,16 +871,12 @@ pub fn parse_file<T: PartialEq + Copy>(input_path: &str,
     let grms = read_file(yacc_path)?;
     let input = read_file(Path::new(input_path))?;
 
-    let mut lexerdef = build_lex::<u16>(&lexs)
-        .map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Eco, &grms)
-        .map_err(|_| ParseError::BrokenParser)?;
-    let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager)
-        .map_err(|_| ParseError::BrokenParser)?;
+    let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
+    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
+    let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map()
-                      .iter()
+    let rule_ids = grm.terms_map().iter()
                       .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
                       .collect();
     lexerdef.set_rule_ids(&rule_ids);
@@ -938,8 +886,7 @@ pub fn parse_file<T: PartialEq + Copy>(input_path: &str,
     let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes)
-        .map_err(|_| ParseError::SyntaxError)?;
+    let pt = parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
     Ok(parse_into_ast::<T>(&pt, &lexer, &grm, &input))
 }
 
@@ -958,10 +905,8 @@ mod tests {
     #[test]
     fn from_trait_nodes() {
         let mut arena_from = Arena::<&str, FromNodeId>::new();
-        let _root_from =
-            arena_from.new_node("CLASS", String::from("class"), None, None, None, None);
-        let nodeid_from =
-            arena_from.new_node("MODIFIER", String::from("private"), None, None, None, None);
+        let _root_from = arena_from.new_node("CLASS", String::from("class"), None, None, None, None);
+        let nodeid_from = arena_from.new_node("MODIFIER", String::from("private"), None, None, None, None);
         let mut arena_to = Arena::<&str, ToNodeId>::new();
         let _root_to = arena_to.new_node("EXPR", String::from(""), None, None, None, None);
         let nodeid_to = arena_to.new_node("MULT", String::from("*"), None, None, None, None);
@@ -989,39 +934,14 @@ mod tests {
 
     fn create_arena() -> Arena<&'static str, FromNodeId> {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr",
-                                String::from("*"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT",
-                                String::from("3"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT",
-                                String::from("4"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         arena
     }
@@ -1211,16 +1131,10 @@ mod tests {
 
     #[test]
     fn node_fmt() {
-        let n1 = Node::<&str, NodeId<FromNodeId>>::new("MODIFIER",
-                                                       String::from("private"),
-                                                       None,
-                                                       None,
-                                                       None,
-                                                       None);
+        let n1 = Node::<&str, NodeId<FromNodeId>>::new("MODIFIER", String::from("private"), None, None, None, None);
         let expected1 = "\"MODIFIER\" private";
         assert_eq!(expected1, format!("{:?}", n1));
-        let n2 =
-            Node::<&str, NodeId<FromNodeId>>::new("Expr", String::from(""), None, None, None, None);
+        let n2 = Node::<&str, NodeId<FromNodeId>>::new("Expr", String::from(""), None, None, None, None);
         let expected2 = "\"Expr\"";
         assert_eq!(expected2, format!("{:?}", n2));
     }
@@ -1243,75 +1157,31 @@ mod tests {
     #[test]
     fn copy_test() {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node(
-            "Expr",
-            String::from("+"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
         assert!(!arena.is_empty());
-        let n1 = arena.new_node(
-            "Expr",
-            String::from("-"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node("Expr", String::from("-"), None, None, None, None);
 
         assert!(!arena.is_empty());
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(
-            "Expr",
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
 
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            "INT",
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node("INT", String::from("1"), None, None, None, None);
 
         n3.make_child_of(n1, &mut arena).unwrap();
-        let n4 = arena.new_node(
-            "INT",
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node("INT", String::from("3"), None, None, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
-        let n5 = arena.new_node(
-            "INT",
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n5 = arena.new_node("INT", String::from("4"), None, None, None, None);
         n5.make_child_of(n2, &mut arena).unwrap();
         n1.copy_subtree(n2, 1, &mut arena).unwrap();
         // get the child of n1
-        let children_of_n1 =  n1.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
-        let n6_children = children_of_n1[1]
-            .children(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let children_of_n1 = n1.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        let n6_children = children_of_n1[1].children(&arena)
+                                           .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(arena[children_of_n1[1]].ty, arena[n2].ty);
         // The Value Of Children of n6 --> node id 6
         assert_eq!(arena[n6_children[0]].ty, arena[n4].ty);
         assert_eq!(arena[n6_children[1]].ty, arena[n5].ty);
-        
     }
 
     #[test]
@@ -1339,7 +1209,6 @@ mod tests {
                                                   (NodeId::new(2), NodeId::new(4))];
         assert_eq!(edges, arena.get_edges());
     }
-
 
     #[test]
     fn detach_1() {
@@ -1381,28 +1250,20 @@ mod tests {
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
-        let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId {
-                                                          index: 1,
-                                                          phantom: PhantomData,
-                                                      },
-                                                      NodeId {
-                                                          index: 2,
-                                                          phantom: PhantomData,
-                                                      }];
+        let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 1,
+                                                               phantom: PhantomData, },
+                                                      NodeId { index: 2,
+                                                               phantom: PhantomData, }];
         let root_child_ids = root.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], root_child_ids[index]);
         }
         // Children of n2.
-        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId {
-                                                          index: 3,
-                                                          phantom: PhantomData,
-                                                      },
-                                                      NodeId {
-                                                          index: 4,
-                                                          phantom: PhantomData,
-                                                      }];
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
+                                                               phantom: PhantomData, },
+                                                      NodeId { index: 4,
+                                                               phantom: PhantomData, }];
         let n2_child_ids = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
@@ -1416,31 +1277,21 @@ mod tests {
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
-        let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId {
-                                                          index: 2,
-                                                          phantom: PhantomData,
-                                                      },
-                                                      NodeId {
-                                                          index: 1,
-                                                          phantom: PhantomData,
-                                                      }];
-        let root_child_ids = root.reverse_children(&arena)
-                                 .collect::<Vec<NodeId<FromNodeId>>>();
+        let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 2,
+                                                               phantom: PhantomData, },
+                                                      NodeId { index: 1,
+                                                               phantom: PhantomData, }];
+        let root_child_ids = root.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], root_child_ids[index]);
         }
         // Children of n2.
-        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId {
-                                                          index: 4,
-                                                          phantom: PhantomData,
-                                                      },
-                                                      NodeId {
-                                                          index: 3,
-                                                          phantom: PhantomData,
-                                                      }];
-        let n2_child_ids = n2.reverse_children(&arena)
-                             .collect::<Vec<NodeId<FromNodeId>>>();
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 4,
+                                                               phantom: PhantomData, },
+                                                      NodeId { index: 3,
+                                                               phantom: PhantomData, }];
+        let n2_child_ids = n2.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);
@@ -1456,19 +1307,16 @@ mod tests {
                                                       NodeId::new(2),
                                                       NodeId::new(3),
                                                       NodeId::new(4)];
-        let descendants1 = NodeId::new(0)
-            .breadth_first_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants1 = NodeId::new(0).breadth_first_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), descendants1.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> =
-            vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
-        let descendants2 = NodeId::new(2)
-            .breadth_first_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let descendants2 = NodeId::new(2).breadth_first_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], descendants2[index]);
@@ -1484,19 +1332,16 @@ mod tests {
                                                       NodeId::new(4),
                                                       NodeId::new(2),
                                                       NodeId::new(0)];
-        let descendants1 = NodeId::new(0)
-            .post_order_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants1 = NodeId::new(0).post_order_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), descendants1.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> =
-            vec![NodeId::new(3), NodeId::new(4), NodeId::new(2)];
-        let descendants2 = NodeId::new(2)
-            .post_order_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(3), NodeId::new(4), NodeId::new(2)];
+        let descendants2 = NodeId::new(2).post_order_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], descendants2[index]);
@@ -1512,19 +1357,16 @@ mod tests {
                                                       NodeId::new(2),
                                                       NodeId::new(3),
                                                       NodeId::new(4)];
-        let descendants1 = NodeId::new(0)
-            .pre_order_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants1 = NodeId::new(0).pre_order_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), descendants1.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> =
-            vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
-        let descendants2 = NodeId::new(2)
-            .pre_order_traversal(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let descendants2 = NodeId::new(2).pre_order_traversal(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], descendants2[index]);
@@ -1539,18 +1381,16 @@ mod tests {
                                                       NodeId::new(2),
                                                       NodeId::new(3),
                                                       NodeId::new(4)];
-        let descendants1 = NodeId::new(0)
-            .descendants(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants1 = NodeId::new(0).descendants(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), descendants1.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
         let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(3), NodeId::new(4)];
-        let descendants2 = NodeId::new(2)
-            .descendants(&arena)
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants2 = NodeId::new(2).descendants(&arena)
+                                         .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], descendants2[index]);
@@ -1562,10 +1402,8 @@ mod tests {
         let arena = &mut Arena::<&str, FromNodeId>::new();
         let n1 = arena.new_node("1", String::from("INT"), None, None, None, None);
         assert!(arena.contains(n1));
-        assert!(!arena.contains(NodeId {
-                                    index: 1,
-                                    phantom: PhantomData,
-                                }));
+        assert!(!arena.contains(NodeId { index: 1,
+                                         phantom: PhantomData, }));
     }
 
     #[test]
