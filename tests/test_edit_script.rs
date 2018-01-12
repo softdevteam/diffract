@@ -64,10 +64,10 @@ fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
     // Generate mappings between ASTs. For these tests we don't care what the
     // mapping is.
     let matcher_config = MyersConfig::new();
-    let mut store = matcher_config.match_trees(ast_from, ast_to);
+    let store = matcher_config.match_trees(ast_from, ast_to);
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
-    let edit_script_wrapped = gen_config.generate_script(&mut store);
+    let edit_script_wrapped = gen_config.generate_script(&store);
     assert!(edit_script_wrapped.is_ok(),
             "Edit script generator failed to complete.");
     // Get root nodes.
@@ -104,12 +104,12 @@ fn test_empty_arena() {
     let ast_to = parse_file("tests/empty.calc", lex, yacc).unwrap();
     // Generate mappings between ASTs.
     let matcher_config = MyersConfig::new();
-    let mut store = matcher_config.match_trees(ast_from, ast_to);
+    let store = matcher_config.match_trees(ast_from, ast_to);
     assert!(store.from.borrow().is_empty());
     assert!(store.to.borrow().is_empty());
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
-    let _edit_script_wrapped = gen_config.generate_script(&mut store); // Panic.
+    let _edit_script_wrapped = gen_config.generate_script(&store); // Panic.
 }
 
 #[test]

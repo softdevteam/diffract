@@ -70,12 +70,10 @@ fn compare_asts_post_edit_script(ty: &Filetype, base_file: &str, diff_file: &str
     // All tests use the Myers matcher.
     let config = MyersConfig::new();
     // Generate mappings between ASTs.
-    let mut mapping = config.match_trees(ast_base, ast_diff);
+    let mapping = config.match_trees(ast_base, ast_diff);
     // Generate edit script. All tests use the Chawathe et al. (1996) algorithm.
-    // let _ = chawathe96(&mut mapping);
     let generator_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
-    let _ = generator_config.generate_script(&mut mapping);
-
+    let _ = generator_config.generate_script(&mapping);
     // Once the edit script has been generated, the mapping between the base
     // and diff ASTs should be a total mapping.
     assert_eq!(size, mapping.from.borrow().len());
@@ -83,7 +81,7 @@ fn compare_asts_post_edit_script(ty: &Filetype, base_file: &str, diff_file: &str
     for (key, val) in mapping.from.borrow().iter() {
         assert!(mapping.to.borrow().contains_key(&val.0));
         assert_eq!(key, &mapping.get_from(&val.0).unwrap());
-        assert_eq!(val.0, mapping.get_to(&key).unwrap());
+        assert_eq!(val.0, mapping.get_to(key).unwrap());
     }
 }
 
