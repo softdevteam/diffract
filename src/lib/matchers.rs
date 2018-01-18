@@ -86,7 +86,7 @@ pub struct MappingStore<T: Clone + Debug> {
     /// Source arena (treat as mutable).
     pub from_arena: RefCell<Arena<T, FromNodeId>>,
     /// Destination arena (treat as immutable).
-    pub to_arena: Arena<T, ToNodeId>,
+    pub to_arena: RefCell<Arena<T, ToNodeId>>,
 }
 
 impl<T: Clone + Debug> RenderJson for MappingStore<T> {
@@ -114,7 +114,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         MappingStore { from: RefCell::new(HashMap::new()),
                        to: RefCell::new(HashMap::new()),
                        from_arena: RefCell::new(base),
-                       to_arena: diff, }
+                       to_arena: RefCell::new(diff), }
     }
 
     /// Push a new mapping into the store.
@@ -178,27 +178,27 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// Described in more detail in Chawathe et al. (1996).
     pub fn is_isomorphic(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
         // Case 1: both nodes are leaves.
-        if from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena)
-           && self.from_arena.borrow()[from].label == self.to_arena[to].label
-           && self.from_arena.borrow()[from].ty == self.to_arena[to].ty
+        if from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena.borrow())
+           && self.from_arena.borrow()[from].label == self.to_arena.borrow()[to].label
+           && self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty
         {
             return true;
         }
         // Case 2: one node is a leaf and the other is a branch.
-        if from.is_leaf(&self.from_arena.borrow()) && !to.is_leaf(&self.to_arena)
-           || !from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena)
+        if from.is_leaf(&self.from_arena.borrow()) && !to.is_leaf(&self.to_arena.borrow())
+           || !from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena.borrow())
         {
             return false;
         }
         // Case 3: both nodes are branches.
-        if self.from_arena.borrow()[from].label != self.to_arena[to].label
-           || self.from_arena.borrow()[from].ty != self.to_arena[to].ty
-           || from.height(&self.from_arena.borrow()) != to.height(&self.to_arena)
+        if self.from_arena.borrow()[from].label != self.to_arena.borrow()[to].label
+           || self.from_arena.borrow()[from].ty != self.to_arena.borrow()[to].ty
+           || from.height(&self.from_arena.borrow()) != to.height(&self.to_arena.borrow())
         {
             return false;
         }
         let f_children = from.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
-        let t_children = to.children(&self.to_arena).collect::<Vec<NodeId<ToNodeId>>>();
+        let t_children = to.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
         if f_children.len() != t_children.len() {
             return false;
         }
@@ -212,7 +212,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
 
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
     pub fn is_mapping_allowed(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
-        self.from_arena.borrow()[*from].ty == self.to_arena[*to].ty
+        self.from_arena.borrow()[*from].ty == self.to_arena.borrow()[*to].ty
         && !(self.contains_from(from) || self.contains_to(to))
     }
 
@@ -220,7 +220,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     pub fn dice_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena).collect::<Vec<NodeId<ToNodeId>>>()
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
                      .len() as f64;
         let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
         debug_assert!(dice >= 0. && dice <= 1.);
@@ -231,7 +231,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     pub fn jaccard_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena).collect::<Vec<NodeId<ToNodeId>>>()
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
                      .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let jaccard = common / (n_from + n_to - common);
@@ -243,7 +243,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     pub fn chawathe_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena).collect::<Vec<NodeId<ToNodeId>>>()
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
                      .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let chawathe = common / n_from.max(n_to);
@@ -256,7 +256,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     /// To nodes are common if they have already been matched.
     fn num_common_descendants(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> u32 {
         let mut dst_desc = HashSet::new();
-        for node in to.breadth_first_traversal(&self.to_arena) {
+        for node in to.breadth_first_traversal(&self.to_arena.borrow()) {
             dst_desc.insert(node);
         }
         let mut common = 0;

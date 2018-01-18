@@ -72,7 +72,7 @@ fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
             "Edit script generator failed to complete.");
     // Get root nodes.
     let root_from = store.from_arena.borrow().root().unwrap();
-    let root_to = store.to_arena.root().unwrap();
+    let root_to = store.to_arena.borrow().root().unwrap();
     // Every reachable node in both ASTs should be mapped. N.B. deleted
     // nodes in the to AST will be in the arena but should not be reachable
     // from the root node.
@@ -86,7 +86,7 @@ fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
     assert_eq!(count_nodes, count_mapped);
     count_nodes = 0;
     count_mapped = 0;
-    for node in root_to.breadth_first_traversal(&store.to_arena) {
+    for node in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
         count_nodes += 1;
         assert!(store.contains_to(&node));
         count_mapped += 1;

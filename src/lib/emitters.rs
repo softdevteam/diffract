@@ -331,23 +331,23 @@ impl RenderDotfile for MappingStore<String> {
                                      attrs));
             }
         }
-        for id in 0..self.to_arena.size() {
+        for id in 0..self.to_arena.borrow().size() {
             to_node = NodeId::new(id);
             if !self.contains_to(&to_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.to_arena[to_node].label.is_empty() {
+            if self.to_arena.borrow()[to_node].label.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
                                      id,
-                                     escape_string(self.to_arena[to_node].ty.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     escape_string(self.to_arena[to_node].ty.as_str()),
-                                     escape_string(self.to_arena[to_node].label.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].label.as_str()),
                                      attrs));
             }
         }
@@ -366,7 +366,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.to_arena.get_edges() {
+        for (e0, e1) in self.to_arena.borrow().get_edges() {
             line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
