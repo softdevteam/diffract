@@ -617,7 +617,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
     /// child of `parent`.
-    pub fn make_nth_child_of<T: Clone>(&mut self, parent: NodeId<U>, nth: u16, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn make_nth_child_of<T: Clone>(&self, parent: NodeId<U>, nth: u16, arena: &mut Arena<T, U>) -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -1018,29 +1018,14 @@ mod tests {
     #[test]
     fn test_new_root() {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
         let format1 = "\"Expr\" +
   \"INT\" 1
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let new_root = arena.new_node("INT",
-                                      String::from("2"),
-                                      None,
-                                      None,
-                                      None,
-                                      None);
+        let new_root = arena.new_node("INT", String::from("2"), None, None, None, None);
         assert!(arena.new_root(new_root).is_ok());
         let format2 = "\"INT\" 2
   \"Expr\" +
@@ -1058,29 +1043,14 @@ mod tests {
     #[test]
     fn test_delete_root() {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
         let format1 = "\"Expr\" +
   \"INT\" 1
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let new_root = arena.new_node("INT",
-                                      String::from("2"),
-                                      None,
-                                      None,
-                                      None,
-                                      None);
+        let new_root = arena.new_node("INT", String::from("2"), None, None, None, None);
         assert!(arena.new_root(new_root).is_ok());
         let format2 = "\"INT\" 2
   \"Expr\" +
@@ -1100,36 +1070,16 @@ mod tests {
     #[test]
     fn test_delete_root_too_many_children() {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
         let format1 = "\"Expr\" +
   \"INT\" 1
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let new_root = arena.new_node("INT",
-                                      String::from("2"),
-                                      None,
-                                      None,
-                                      None,
-                                      None);
+        let new_root = arena.new_node("INT", String::from("2"), None, None, None, None);
         assert!(arena.new_root(new_root).is_ok());
-        let n2 = arena.new_node("INT",
-                                String::from("100"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n2 = arena.new_node("INT", String::from("100"), None, None, None, None);
         n2.make_child_of(new_root, &mut arena).unwrap();
         let res = arena.delete_root();
         assert!(res.is_err());
@@ -1139,29 +1089,14 @@ mod tests {
     #[test]
     fn test_delete_root_too_few_children() {
         let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
         let format1 = "\"Expr\" +
   \"INT\" 1
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let new_root = arena.new_node("INT",
-                                      String::from("2"),
-                                      None,
-                                      None,
-                                      None,
-                                      None);
+        let new_root = arena.new_node("INT", String::from("2"), None, None, None, None);
         assert!(arena.new_root(new_root).is_ok());
         assert!(root.detach(&mut arena).is_ok());
         let res = arena.delete_root();
@@ -1247,7 +1182,7 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let mut n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
         // Make first child.
         n3.make_nth_child_of(n2, 0, &mut arena).unwrap();
         let format2 = "\"Expr\" +
@@ -1273,7 +1208,7 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let mut n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
         // Make last child.
         n3.make_nth_child_of(root, 2, &mut arena).unwrap();
         let format2 = "\"Expr\" +
@@ -1299,7 +1234,7 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let mut n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n3 = arena.new_node("INT", String::from("100"), None, None, None, None);
         // Make second child.
         n3.make_nth_child_of(root, 1, &mut arena).unwrap();
         let format2 = "\"Expr\" +
@@ -1449,6 +1384,64 @@ mod tests {
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);
+        }
+    }
+
+    #[test]
+    fn children_iterator_with_add_delete() {
+        let mut arena = create_arena();
+        let n2 = NodeId::new(2);
+        // Children of n2.
+        let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
+                                                               phantom: PhantomData, },
+                                                      NodeId { index: 4,
+                                                               phantom: PhantomData, }];
+        let n2_child_ids = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(expected1.len(), n2_child_ids.len());
+        for index in 0..expected1.len() {
+            assert_eq!(expected1[index], n2_child_ids[index]);
+        }
+        // Delete "INT" 4 (id: 4)
+        NodeId::new(4).detach(&mut arena).unwrap();
+        let n2_child_ids_del = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(1, n2_child_ids_del.len());
+        assert_eq!(n2_child_ids[0], NodeId::new(3));
+        // Add a new node.
+        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        n5.make_child_of(n2, &mut arena).unwrap();
+        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
+                                                               phantom: PhantomData, },
+                                                      n5];
+        let n2_child_ids_add = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(expected2.len(), n2_child_ids_add.len());
+        for index in 0..expected2.len() {
+            assert_eq!(expected2[index], n2_child_ids_add[index]);
+        }
+        // Add a new node as nth child.
+        let n6 = arena.new_node("INT", String::from("-99"), None, None, None, None);
+        n6.make_nth_child_of(n2, 1, &mut arena).unwrap();
+        let expected3: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
+                                                               phantom: PhantomData, },
+                                                      n6,
+                                                      n5];
+        let n2_child_ids_nth = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(expected3.len(), n2_child_ids_nth.len());
+        for index in 0..expected3.len() {
+            assert_eq!(expected3[index], n2_child_ids_nth[index]);
+        }
+        // Add a new node as 0th child.
+        let n7 = arena.new_node("INT", String::from("-1"), None, None, None, None);
+        n7.make_nth_child_of(n2, 0, &mut arena).unwrap();
+        let expected4: Vec<NodeId<FromNodeId>> = vec![n7,
+                                                      NodeId { index: 3,
+                                                               phantom: PhantomData, },
+                                                      n6,
+                                                      n5];
+        let n2_child_ids_0th = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        assert_eq!(expected4.len(), n2_child_ids_0th.len());
+        for index in 0..expected4.len() {
+            println!("NODE: {:?}", n2_child_ids_0th[index]);
+            assert_eq!(expected4[index], n2_child_ids_0th[index]);
         }
     }
 
