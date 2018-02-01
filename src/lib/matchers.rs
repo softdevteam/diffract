@@ -121,6 +121,12 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
     pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &MappingType) {
         self.from.borrow_mut().insert(from, (to, ty.clone()));
         self.to.borrow_mut().insert(to, (from, ty.clone()));
+        info!("Mapping: {:?} {:} -> {:?} {:} ({:?})",
+              self.from_arena.borrow()[from].ty,
+              self.from_arena.borrow()[from].label,
+              self.to_arena.borrow()[to].ty,
+              self.to_arena.borrow()[to].label,
+              ty);
     }
 
     /// Remove mapping from store.
