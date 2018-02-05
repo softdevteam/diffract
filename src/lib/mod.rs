@@ -43,8 +43,8 @@ extern crate dot;
 #[macro_use]
 extern crate log;
 extern crate lrlex;
-extern crate lrtable;
 extern crate lrpar;
+extern crate lrtable;
 extern crate term;
 extern crate test;
 
@@ -84,5 +84,8 @@ pub mod patch;
 
 /// Algorithms which act on sequences of values.
 pub mod sequence;
-//Testing
+
+/// Algorithms which were described in Myers(1996).
+///
+/// Induced, pruning algorithms currently implemented.
 pub mod chawathe98_matcher;

@@ -56,10 +56,8 @@ struct PriorityNodeId<T: PartialEq + Copy> {
 
 impl<T: PartialEq + Copy> PriorityNodeId<T> {
     fn new(index: NodeId<T>, height: u32) -> PriorityNodeId<T> {
-        PriorityNodeId {
-            index: index,
-            height: height,
-        }
+        PriorityNodeId { index: index,
+                         height: height, }
     }
 
     fn id(&self) -> NodeId<T> {
@@ -185,39 +183,14 @@ mod tests {
 
     fn create_arena() -> Arena<&'static str, FromNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node("Expr",
-                                  String::from("+"),
-                                  None,
-                                  None,
-                                  None,
-                                  None);
-        let n1 = arena.new_node("INT",
-                                String::from("1"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr",
-                                String::from("*"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT",
-                                String::from("3"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT",
-                                String::from("4"),
-                                None,
-                                None,
-                                None,
-                                None);
+        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
         n4.make_child_of(n2, &mut arena).unwrap();
         let format1 = "\"Expr\" +
   \"INT\" 1
@@ -365,9 +338,11 @@ mod tests {
         // microbenchmark must push a distinct `NodeId` to the queue, to avoid
         // the optimisation that does not attempt to push an existing value to
         // the structure.
-        bencher.iter(|| for id in 0..BENCH_ITER {
-                         queue.push(NodeId::new(id), &arena);
-                         queue.clear();
+        bencher.iter(|| {
+                         for id in 0..BENCH_ITER {
+                             queue.push(NodeId::new(id), &arena);
+                             queue.clear();
+                         }
                      });
     }
 }
