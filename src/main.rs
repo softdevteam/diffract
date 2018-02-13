@@ -388,14 +388,13 @@ fn main() {
     // For now we ignore the content of args.flag_edit because we only
     // implement one edit script generation algorithm.
     info!("Selecting the Chawathe et al. (1996) edit script generator.");
-    // Edit script generator configuration object.
 
-    let generator_config: Box<edit_script::EditScriptGenerator<String>> = generator_script_config(args.flag_edit); //  Box::new(edit_script::Chawathe96Config::new());
-                                                                                                                   // This will check the args and compare it with the enum
-                                                                                                                   // There are only 2 enum
-                                                                                                                   // 1) Chawathe96Config
-                                                                                                                   // 2) Chawathe98Config
-                                                                                                                   //
+    // Edit script generator configuration object.
+    let generator_config: Box<edit_script::EditScriptGenerator<String>> = generator_script_config(args.flag_edit);
+
+    // There are only 2 enum
+    // 1) Chawathe96Config
+    // 2) Chawathe98Config
     fn generator_script_config(input: Option<EditScriptGenerator>) -> Box<edit_script::EditScriptGenerator<String>> {
         let config: Box<edit_script::EditScriptGenerator<String>>;
         match input {

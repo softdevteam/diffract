@@ -59,11 +59,9 @@ pub struct Patch {
 impl Patch {
     /// Create a new patch.
     pub fn new(ty: ActionType, start: usize, length: usize) -> Patch {
-        Patch {
-            action: ty,
-            start: start,
-            length: length,
-        }
+        Patch { action: ty,
+                start: start,
+                length: length, }
     }
 
     /// Character number where this patch begins in the original file.
@@ -103,11 +101,9 @@ pub struct Hunk {
 impl Hunk {
     /// Convert a patch into a hunk.
     pub fn new(patch: &Patch) -> Hunk {
-        Hunk {
-            patches: vec![patch.clone()],
-            start: patch.start,
-            length: patch.length,
-        }
+        Hunk { patches: vec![patch.clone()],
+               start: patch.start,
+               length: patch.length, }
     }
 
     fn end(&self) -> usize {
@@ -149,10 +145,7 @@ impl Hunk {
 /// Get the header for this hunk, in diff format.
 pub fn header(from: &Hunk, to: &Hunk) -> String {
     format!("@@ -{},{} +{},{} @@",
-            from.start,
-            from.length,
-            to.start,
-            to.length)
+            from.start, from.length, to.start, to.length)
 }
 
 /// Group related patches into hunks.

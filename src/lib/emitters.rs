@@ -49,6 +49,7 @@ use term;
 use action::{ActionType, EditScript, Patchify};
 use ast::{Arena, EdgeId, FromNodeId, NodeId, ToNodeId};
 use matchers::{MappingStore, MappingType};
+use chawathe98_matcher::{EdgeType, MappingStoreGraph};
 use patch::{hunkify, Patch};
 
 /// Errors produced in emitting new data.
@@ -86,11 +87,15 @@ pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>
                                                           store: &T,
                                                           script: &U)
                                                           -> EmitterResult {
-    stream.write_all(format!("{{\n{},\n{}\n}}\n",
-                             store.render_json(4),
-                             script.render_json(4))
-                     .as_bytes())
-          .map_err(|_| EmitterError::CouldNotWriteToFile)
+    stream
+        .write_all(
+            format!(
+                "{{\n{},\n{}\n}}\n",
+                store.render_json(4),
+                script.render_json(4)
+            ).as_bytes(),
+        )
+        .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
 
 // Map action types to terminal colours.
@@ -386,6 +391,110 @@ impl RenderDotfile for MappingStore<String> {
             line = format!("\t{{ rank=same FROM{} -> TO{}{}{}]; }}\n",
                            from.id(),
                            to.id(),
+                           attrs,
+                           common);
+            digraph.push(line);
+        }
+        digraph.push(String::from("}\n"));
+        // Write dotfile to stream.
+        buffer.write_all(digraph.join("").as_bytes())
+    }
+}
+
+impl RenderDotfile for MappingStoreGraph<String> {
+    // Because the `dot` crate cannot add arbitrary attributes to nodes and
+    // edges, or create subgraphs and clusters, we render mapping stores to
+    // a dot digraph manually.
+    fn render_dotfile<W: Write>(&self, buffer: &mut W) -> Result<(), Error> {
+        let mut digraph = vec![String::from("digraph MappingStore {\n"),
+                               String::from("\tratio=fill;\n\tfontsize=16;\n"),
+                               String::from("\tnewrank=true;\n")];
+        let mut line: String;
+        let mut from_node: NodeId<FromNodeId>;
+        let mut to_node: NodeId<ToNodeId>;
+
+        let mut attrs: &str;
+        // Node labels for both ASTs.
+        for id in 0..self.from_arena.borrow().size() {
+            from_node = NodeId::new(id);
+            if !self.contains_from(from_node) {
+                attrs = ", style=filled, fillcolor=lightgrey";
+            } else {
+                attrs = "";
+            }
+            if self.from_arena.borrow()[from_node].label.is_empty() {
+                digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
+                                     id,
+                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
+                                     attrs));
+            } else {
+                digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].label.as_str()),
+                                     attrs));
+            }
+        }
+        for id in 0..self.to_arena.borrow().size() {
+            to_node = NodeId::new(id);
+            if !self.contains_to(to_node) {
+                attrs = ", style=filled, fillcolor=lightgrey";
+            } else {
+                attrs = "";
+            }
+            if self.to_arena.borrow()[to_node].label.is_empty() {
+                digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
+                                     id,
+                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
+                                     attrs));
+            } else {
+                digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
+                                     id,
+                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].label.as_str()),
+                                     attrs));
+            }
+        }
+        // From AST parent relationships.
+        digraph.push(String::from("\tsubgraph clusterFROM {\n"));
+        digraph.push(String::from("\t\tcolor=black;\n"));
+        digraph.push(String::from("\t\tstyle=dashed;\n"));
+        for (e0, e1) in self.from_arena.borrow().get_edges() {
+            line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                           e0.id(),
+                           e1.id());
+            digraph.push(line);
+        }
+        digraph.push(String::from("\t}\n"));
+        // To AST parent relationships.
+        digraph.push(String::from("\tsubgraph clusterTO {\n"));
+        digraph.push(String::from("\t\tcolor=black;\n"));
+        digraph.push(String::from("\t\tstyle=dashed;\n"));
+        for (e0, e1) in self.to_arena.borrow().get_edges() {
+            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                           e0.id(),
+                           e1.id());
+            digraph.push(line);
+        }
+        digraph.push(String::from("\t}\n"));
+        // Mappings between ASTs.
+        let common = "dir=both, arrowsize=.75, arrowhead=odot, arrowtail=odot";
+        let list_edges = self.list_edges.borrow();
+        for edge in list_edges.iter() {
+            let ty = &edge.edge_type;
+            attrs = match *ty {
+                EdgeType::UPDATE => "[style = dotted, color=blue, ",
+                EdgeType::INSERT => "[style = dotted, color=green, ",
+                EdgeType::DELETE => "[style = dotted, color=red, ",
+                EdgeType::MOVE => "[style = dotted, color=black, ",
+                EdgeType::COPY => "[style = dotted, color=purple, ",
+                EdgeType::GLUE => "[style = dotted, color=orange, ",
+                EdgeType::NULL => "[style = dotted, color=grey, ",
+                EdgeType::OK => "[style = dotted, color=brown, ",
+            };
+            line = format!("\t FROM{} -> TO{}{}{}]; \n",
+                           edge.from_node.id(),
+                           edge.to_node.id(),
                            attrs,
                            common);
             digraph.push(line);
