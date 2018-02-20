@@ -31,3 +31,6 @@ cfgrammar = { git = "https://github.com/softdevteam/cfgrammar" }
 lrlex = { git = "http://github.com/softdevteam/lrlex" }
 lrpar = { git = "http://github.com/softdevteam/lrpar" }
 lrtable = { git = "http://github.com/softdevteam/lrtable" }
+
+[dev-dependencies]
+proptest = "0.5.0"
