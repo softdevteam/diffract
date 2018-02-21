@@ -80,6 +80,9 @@ pub mod null_matcher;
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
 
+/// Parse strings and files into `ast::Arena` types.
+pub mod parser;
+
 /// A patch represents a diff on a single AST node.
 ///
 /// Also deals with turning nearby patches into hunks.

@@ -40,42 +40,32 @@
 
 extern crate diffract;
 
-use std::path::Path;
-
-use diffract::ast::{parse_file, Arena};
+use diffract::ast::Arena;
 use diffract::edit_script::{Chawathe96Config, EditScriptGenerator};
 use diffract::matchers::MatchTrees;
 use diffract::myers_matcher::MyersConfig;
+use diffract::null_matcher::NullConfig;
+use diffract::parser::{get_lexer, get_parser, parse_file};
 
-fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
+fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
     // Lex and parse the input files.
-    let lex = if is_java {
-        Path::new("grammars/java.l")
-    } else {
-        Path::new("grammars/calc.l")
-    };
-    let yacc = if is_java {
-        Path::new("grammars/java.y")
-    } else {
-        Path::new("grammars/calc.y")
-    };
-    let ast_from = parse_file(filepath1, lex, yacc).unwrap();
-    let ast_to = parse_file(filepath2, lex, yacc).unwrap();
-    // Generate mappings between ASTs. For these tests we don't care what the
-    // mapping is.
-    let matcher_config = MyersConfig::new();
-    let store = matcher_config.match_trees(ast_from, ast_to);
+    let ast_from = parse_file(path1, &get_lexer(path1), &get_parser(path1)).unwrap();
+    let ast_to = parse_file(path2, &get_lexer(path2), &get_parser(path2)).unwrap();
+    // Generate mappings between ASTs.
+    let store = matcher.match_trees(ast_from.clone(), ast_to.clone());
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
     let edit_script_wrapped = gen_config.generate_script(&store);
     assert!(edit_script_wrapped.is_ok(),
             "Edit script generator failed to complete.");
-    // Get root nodes.
+    // Get root nodes after the edit script has run (note that the root nodes
+    // may be altered by the edit script.
     let root_from = store.from_arena.borrow().root().unwrap();
     let root_to = store.to_arena.borrow().root().unwrap();
-    // Every reachable node in both ASTs should be mapped. N.B. deleted
-    // nodes in the to AST will be in the arena but should not be reachable
-    // from the root node.
+    // Test 1: every reachable node in both ASTs should be mapped. The edit
+    // script generator should have turned the partial matching provided by the
+    // matcher into a total matching. N.B. deleted nodes in the to AST will be
+    // in the arena but should not be reachable from the root node.
     let mut count_nodes = 0;
     let mut count_mapped = 0;
     for node in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
@@ -91,17 +81,17 @@ fn check_trees(is_java: bool, filepath1: &str, filepath2: &str) {
         assert!(store.contains_to(&node));
         count_mapped += 1;
     }
-    assert_eq!(count_nodes, count_mapped);
+    assert_eq!(count_nodes, count_mapped,
+               "Final mapping not total for files: {} and {}.",
+               path1, path2);
 }
 
 #[test]
 #[should_panic]
 fn test_empty_arena() {
     // Lex and parse the input files.
-    let lex = Path::new("grammars/calc.l");
-    let yacc = Path::new("grammars/calc.y");
     let ast_from = Arena::new(); // Empty Arena with no root.
-    let ast_to = parse_file("tests/empty.calc", lex, yacc).unwrap();
+    let ast_to = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
     // Generate mappings between ASTs.
     let matcher_config = MyersConfig::new();
     let store = matcher_config.match_trees(ast_from, ast_to);
@@ -113,51 +103,232 @@ fn test_empty_arena() {
 }
 
 #[test]
-fn test_empty_one_calc() {
-    check_trees(false, "tests/empty.calc", "tests/one.calc")
+#[ignore]
+fn test_short_text_null() {
+    check_files("tests/short1.txt",
+                "tests/short2.txt",
+                Box::new(NullConfig::new()));
 }
 
 #[test]
-fn test_one_add_calc() {
-    check_trees(false, "tests/one.calc", "tests/add.calc")
+fn test_short_text_myers() {
+    check_files("tests/short1.txt",
+                "tests/short2.txt",
+                Box::new(MyersConfig::new()));
 }
 
 #[test]
-fn test_add_mult_calc() {
-    check_trees(false, "tests/add.calc", "tests/mult.calc")
+#[ignore]
+fn test_plain_text_null() {
+    check_files("tests/lorem1.txt",
+                "tests/lorem2.txt",
+                Box::new(NullConfig::new()));
 }
 
 #[test]
-fn test_one_empty_calc() {
-    check_trees(false, "tests/one.calc", "tests/empty.calc")
+fn test_plain_text_myers() {
+    check_files("tests/lorem1.txt",
+                "tests/lorem2.txt",
+                Box::new(MyersConfig::new()));
 }
 
 #[test]
-fn test_add_one_calc() {
-    check_trees(false, "tests/add.calc", "tests/one.calc")
+#[ignore]
+fn test_wiki_null() {
+    // Example from wikipedia.
+    check_files("tests/wiki1.txt",
+                "tests/wiki2.txt",
+                Box::new(NullConfig::new()));
 }
 
 #[test]
-fn test_mult_add_calc() {
-    check_trees(false, "tests/mult.calc", "tests/add.calc")
+fn test_wiki_myers() {
+    // Example from wikipedia.
+    check_files("tests/wiki1.txt",
+                "tests/wiki2.txt",
+                Box::new(MyersConfig::new()));
 }
 
 #[test]
-fn test_test0_test1_java() {
-    check_trees(true, "tests/Test0.java", "tests/Test1.java")
+#[ignore]
+fn test_empty_one_calc_null() {
+    check_files("tests/empty.calc",
+                "tests/one.calc",
+                Box::new(NullConfig::new()))
 }
 
 #[test]
-fn test_empty_hello_java() {
-    check_trees(true, "tests/Empty.java", "tests/Hello.java")
+fn test_empty_one_calc_myers() {
+    check_files("tests/empty.calc",
+                "tests/one.calc",
+                Box::new(MyersConfig::new()))
 }
 
 #[test]
-fn test_test1_test0_java() {
-    check_trees(true, "tests/Test1.java", "tests/Test0.java")
+#[ignore]
+fn test_one_two_calc_null() {
+    check_files("tests/one.calc",
+                "tests/two.calc",
+                Box::new(NullConfig::new()))
 }
 
 #[test]
-fn test_hello_empty_java() {
-    check_trees(true, "tests/Hello.java", "tests/Empty.java")
+fn test_one_two_calc_myers() {
+    check_files("tests/one.calc",
+                "tests/two.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_one_add_calc_null() {
+    check_files("tests/one.calc",
+                "tests/add.calc",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_one_add_calc_myers() {
+    check_files("tests/one.calc",
+                "tests/add.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_add_mult_calc_null() {
+    check_files("tests/add.calc",
+                "tests/mult.calc",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_add_mult_calc_myers() {
+    check_files("tests/add.calc",
+                "tests/mult.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_one_empty_calc_null() {
+    check_files("tests/one.calc",
+                "tests/empty.calc",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_one_empty_calc_myers() {
+    check_files("tests/one.calc",
+                "tests/empty.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_add_one_calc_null() {
+    check_files("tests/add.calc",
+                "tests/one.calc",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_add_one_calc_myers() {
+    check_files("tests/add.calc",
+                "tests/one.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_mult_add_calc_null() {
+    check_files("tests/mult.calc",
+                "tests/add.calc",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_mult_add_calc_myers() {
+    check_files("tests/mult.calc",
+                "tests/add.calc",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_test0_test1_java_null() {
+    check_files("tests/Test0.java",
+                "tests/Test1.java",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_test0_test1_java_myers() {
+    check_files("tests/Test0.java",
+                "tests/Test1.java",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_empty_hello_java_null() {
+    check_files("tests/Empty.java",
+                "tests/Hello.java",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_empty_hello_java_myers() {
+    check_files("tests/Empty.java",
+                "tests/Hello.java",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_test1_test0_java_null() {
+    check_files("tests/Test1.java",
+                "tests/Test0.java",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_test1_test0_java_myers() {
+    check_files("tests/Test1.java",
+                "tests/Test0.java",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_hello_empty_java_null() {
+    check_files("tests/Hello.java",
+                "tests/Empty.java",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+fn test_hello_empty_java_myers() {
+    check_files("tests/Hello.java",
+                "tests/Empty.java",
+                Box::new(MyersConfig::new()))
+}
+
+// Tests where AST root nodes are unmatched because the input files use
+// different grammars.
+
+#[test]
+#[ignore]
+fn test_empty_one_both_null() {
+    check_files("tests/empty.calc",
+                "tests/Empty.java",
+                Box::new(NullConfig::new()))
+}
+
+#[test]
+#[ignore]
+fn test_add_hello_both_null() {
+    check_files("tests/add.calc",
+                "tests/Hello.java",
+                Box::new(NullConfig::new()))
 }
