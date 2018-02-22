@@ -436,4 +436,7 @@ fn main() {
         consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()), &mapping, &edit_script),
                             "STDOUT");
     }
+
+    debug!("Final 'from' AST:\n{:?}", mapping.from_arena.borrow());
+    debug!("Final 'to' AST:\n{:?}", mapping.to_arena.borrow());
 }
