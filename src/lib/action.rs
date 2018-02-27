@@ -756,8 +756,6 @@ mod test {
         assert_eq!(ins1, ins1);
         assert_eq!(ins2, ins2);
         assert_ne!(ins1, ins2);
-        assert_ne!(del1, ins1);
-        assert_ne!(del2, ins2);
         let mov1 = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
         let upd1 = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions1.push(del1);
@@ -766,7 +764,6 @@ mod test {
         actions1.push(ins2);
         actions1.push(mov1);
         actions1.push(upd1);
-        assert_ne!(mov1, upd1);
         assert_eq!(6, actions1.size());
         // Second edit script.
         let mut arena2 = create_arena();
