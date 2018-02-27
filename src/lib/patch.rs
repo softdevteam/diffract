@@ -58,10 +58,10 @@ pub struct Patch {
 
 impl Patch {
     /// Create a new patch.
-    pub fn new(ty: ActionType, start: usize, length: usize) -> Patch {
-        Patch { action: ty,
-                start: start,
-                length: length, }
+    pub fn new(action: ActionType, start: usize, length: usize) -> Patch {
+        Patch { action,
+                start,
+                length, }
     }
 
     /// Character number where this patch begins in the original file.

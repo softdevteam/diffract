@@ -413,13 +413,13 @@ impl<T: Clone, U: PartialEq + Copy> Node<T, U> {
                next_sibling: None,
                first_child: None,
                last_child: None,
-               ty: ty,
-               label: label,
+               ty,
+               label,
                index: None,
-               col_no: col_no,
-               line_no: line_no,
-               char_no: char_no,
-               token_len: token_len, }
+               col_no,
+               line_no,
+               char_no,
+               token_len, }
     }
 
     /// Return the Id of the parent node, if there is one.
@@ -482,7 +482,7 @@ impl From<NodeId<ToNodeId>> for NodeId<FromNodeId> {
 impl<U: PartialEq + Copy> NodeId<U> {
     /// Create a new NodeId with a given index.
     pub fn new(index: usize) -> NodeId<U> {
-        NodeId { index: index,
+        NodeId { index,
                  phantom: PhantomData, }
     }
 
@@ -660,24 +660,20 @@ impl<U: PartialEq + Copy> NodeId<U> {
 
     /// If `self` is the *nth* child of its parent, return *n*.
     pub fn get_child_position<T: Clone>(self, arena: &Arena<T, U>) -> Option<usize> {
-        if arena[self].parent.is_none() {
-            return None;
-        }
-        arena[self].parent
-                   .unwrap()
+        arena[self].parent?
                    .children(arena)
                    .position(|val| val == self)
     }
 
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
-        Children { arena: arena,
+        Children { arena,
                    node: arena[self].first_child, }
     }
 
     /// Return an iterator of references to this node’s children, in reverse order.
     pub fn reverse_children<T: Clone>(self, arena: &Arena<T, U>) -> ReverseChildren<T, U> {
-        ReverseChildren { arena: arena,
+        ReverseChildren { arena,
                           node: arena[self].last_child, }
     }
 
@@ -685,16 +681,15 @@ impl<U: PartialEq + Copy> NodeId<U> {
     pub fn breadth_first_traversal<T: Clone>(self, arena: &Arena<T, U>) -> BreadthFirstTraversal<T, U> {
         let mut queue = VecDeque::new();
         queue.push_back(self);
-        BreadthFirstTraversal { arena: arena,
-                                queue: queue, }
+        BreadthFirstTraversal { arena, queue }
     }
 
     /// Return a post-order iterator of references to this node's descendants.
     pub fn post_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PostOrderTraversal<T, U> {
         let mut stack1 = VecDeque::new();
         stack1.push_front(self);
-        PostOrderTraversal { arena: arena,
-                             stack1: stack1,
+        PostOrderTraversal { arena,
+                             stack1,
                              stack2: VecDeque::new(), }
     }
 
@@ -702,16 +697,14 @@ impl<U: PartialEq + Copy> NodeId<U> {
     pub fn pre_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        PreOrderTraversal { arena: arena,
-                            stack: stack, }
+        PreOrderTraversal { arena, stack }
     }
 
     /// Get the descendants of this node, without including the node itself.
     pub fn descendants<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        let mut iterator = PreOrderTraversal { arena: arena,
-                                               stack: stack, };
+        let mut iterator = PreOrderTraversal { arena, stack };
         iterator.next(); // Consume self.
         iterator
     }

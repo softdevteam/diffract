@@ -56,8 +56,7 @@ struct PriorityNodeId<T: PartialEq + Copy> {
 
 impl<T: PartialEq + Copy> PriorityNodeId<T> {
     fn new(index: NodeId<T>, height: u32) -> PriorityNodeId<T> {
-        PriorityNodeId { index: index,
-                         height: height, }
+        PriorityNodeId { index, height }
     }
 
     fn id(&self) -> NodeId<T> {

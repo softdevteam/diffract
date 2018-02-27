@@ -163,43 +163,41 @@ pub struct Glue {
 impl Delete {
     /// Create a new `Delete` object.
     pub fn new(node: NodeId<FromNodeId>) -> Delete {
-        Delete { node: node }
+        Delete { node }
     }
 }
 
 impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(node: NodeId<FromNodeId>, parent: Option<NodeId<FromNodeId>>, nth: u16) -> Insert {
-        Insert { node: node,
-                 new_parent: parent,
-                 nth_child: nth, }
+    pub fn new(node: NodeId<FromNodeId>, new_parent: Option<NodeId<FromNodeId>>, nth_child: u16) -> Insert {
+        Insert { node,
+                 new_parent,
+                 nth_child, }
     }
 }
 
 impl Move {
     /// Create a new `Move` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Move {
-        Move { from_node: from,
-               parent: parent,
-               pos: position, }
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Move {
+        Move { from_node,
+               parent,
+               pos, }
     }
 }
 
 impl<T: Clone + fmt::Debug> Update<T> {
     /// Create a new `Update` object.
     pub fn new(node: NodeId<FromNodeId>, ty: T, label: String) -> Update<T> {
-        Update { node: node,
-                 ty: ty,
-                 label: label, }
+        Update { node, ty, label }
     }
 }
 
 impl Copy {
     /// Create a new `Copy` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Copy {
-        Copy { from_node: from,
-               parent: parent,
-               pos: position, }
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Copy {
+        Copy { from_node,
+               parent,
+               pos, }
     }
 }
 
