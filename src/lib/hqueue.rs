@@ -213,7 +213,6 @@ mod tests {
         let mut tallest: Vec<NodeId<FromNodeId>>;
         loop {
             tallest = clone.pop();
-            println!("{:?}", tallest);
             expected -= tallest.len();
             for node in &tallest {
                 assert!(node.height(arena) == tallest[0].height(arena));
