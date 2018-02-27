@@ -217,7 +217,7 @@ fn test_non_existant_input() {
 fn test_non_existant_lex() {
     let lex = Path::new("grammars/nosuchfileexists.l");
     let yacc = Path::new("grammars/calc.y");
-    let ast_result = parse_file::<FromNodeId>("tets/one.calc", lex, yacc);
+    let ast_result = parse_file::<FromNodeId>("tests/one.calc", lex, yacc);
     match ast_result {
         Err(ParseError::FileNotFound(s)) => {
             assert_eq!(s, String::from("grammars/nosuchfileexists.l"))
