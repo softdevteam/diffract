@@ -176,6 +176,7 @@ fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
                         n);
             &s
         }
+        NodeHasTooManyChildren => "Could not create edit script, NodeId had more than one child.",
         NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical.",
     };
     exit_with_message(message);
