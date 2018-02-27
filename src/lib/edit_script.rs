@@ -227,12 +227,16 @@ impl Chawathe96Config {
         if seq1.is_empty() || seq2.is_empty() {
             return lcss;
         }
-        let mut grid = vec![];
+        let mut grid = Vec::with_capacity(seq1.len() + 1);
         for _ in 0..seq1.len() + 1 {
             grid.push(vec![0; seq2.len() + 1]);
         }
-        debug_assert_eq!(seq1.len() + 1, grid.len());
-        debug_assert_eq!(seq2.len() + 1, grid[0].len());
+        debug_assert_eq!(seq1.len() + 1,
+                         grid.len(),
+                         "Cost matrix not sized correctly.");
+        debug_assert_eq!(seq2.len() + 1,
+                         grid[0].len(),
+                         "Cost matrix not sized correctly.");
         for (i, n1) in seq1.iter().enumerate() {
             for (j, n2) in seq2.iter().enumerate() {
                 if store.is_mapped(n1, n2) {
