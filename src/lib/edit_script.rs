@@ -196,7 +196,8 @@ impl Chawathe96Config {
         let x_pos = x.get_child_position(&store.to_arena.borrow()).unwrap();
         // 3. Find v in T_2, where v is the rightmost sibling of x that is to
         // the left of x and is marked "in order".
-        let v = x.children(&store.to_arena.borrow()).take(x_pos)
+        let v = siblings.iter()
+                 .take(x_pos)
                  .filter(|c| to_in_order.contains(c))
                  .last();
         if v.is_none() {
