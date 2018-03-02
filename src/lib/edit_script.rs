@@ -283,6 +283,9 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
         let mut script: EditScript<T> = EditScript::new();
         let mut from_in_order: HashSet<NodeId<FromNodeId>> = HashSet::new();
         let mut to_in_order: HashSet<NodeId<ToNodeId>> = HashSet::new();
+        if store.from_arena.borrow().is_empty() && store.to_arena.borrow().is_empty() {
+            return Ok(script);
+        }
         // Combined update, insert, align and move phases.
         // 2. Visit the nodes of T_2 in breadth-first order.
         assert!(store.from_arena.borrow().root().is_some(),
@@ -439,7 +442,6 @@ mod tests {
     use ast::Arena;
 
     #[test]
-    #[ignore]
     fn test_chawathe96_empty_asts() {
         let ast_from = Arena::<u8, FromNodeId>::new();
         let ast_to = Arena::<u8, ToNodeId>::new();
@@ -503,7 +505,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_chawathe96_single_update() {
         let mut ast_from = Arena::<&'static str, FromNodeId>::new();
         let root_from = ast_from.new_node("Expr", String::from("+"), None, None, None, None);

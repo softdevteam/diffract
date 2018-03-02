@@ -50,10 +50,23 @@ mod common;
 use common::check_files;
 
 #[test]
+fn test_both_arenas_empty() {
+    let ast_from = Arena::new();
+    let ast_to = Arena::new();
+    // Generate mappings between ASTs.
+    let matcher_config = MyersConfig::new();
+    let store = matcher_config.match_trees(ast_from, ast_to);
+    assert!(store.from.borrow().is_empty());
+    assert!(store.to.borrow().is_empty());
+    // Generate an edit script.
+    let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
+    let _edit_script_wrapped = gen_config.generate_script(&store);
+}
+
+#[test]
 #[should_panic]
-fn test_empty_arena() {
-    // Lex and parse the input files.
-    let ast_from = Arena::new(); // Empty Arena with no root.
+fn test_from_arena_empty() {
+    let ast_from = Arena::new();
     let ast_to = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
     // Generate mappings between ASTs.
     let matcher_config = MyersConfig::new();
@@ -66,7 +79,21 @@ fn test_empty_arena() {
 }
 
 #[test]
-#[ignore]
+#[should_panic]
+fn test_to_arena_empty() {
+    let ast_from = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
+    let ast_to = Arena::new();
+    // Generate mappings between ASTs.
+    let matcher_config = MyersConfig::new();
+    let store = matcher_config.match_trees(ast_from, ast_to);
+    assert!(store.from.borrow().is_empty());
+    assert!(store.to.borrow().is_empty());
+    // Generate an edit script.
+    let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
+    gen_config.generate_script(&store).ok(); // Panic.
+}
+
+#[test]
 fn test_short_text_null() {
     check_files("tests/short1.txt",
                 "tests/short2.txt",
