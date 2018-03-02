@@ -278,7 +278,7 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
     }
 }
 
-impl<'a, T: Clone, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U> {
+impl<'a, T: Clone + PartialEq, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U> {
     fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }

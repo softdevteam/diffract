@@ -45,7 +45,7 @@ use diffract::hqueue::HeightQueue;
 use diffract::parser::{get_lexer, get_parser, parse_file};
 
 // Assert that `queue` is in sorted order and has the same size `arena`.
-fn assert_sorted<T: Clone>(queue: &HeightQueue<FromNodeId>, arena: &Arena<T, FromNodeId>) {
+fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<FromNodeId>, arena: &Arena<T, FromNodeId>) {
     let mut expected = arena.size();
     if expected == 0 {
         assert!(queue.is_empty());

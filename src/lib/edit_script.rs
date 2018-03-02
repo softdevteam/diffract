@@ -45,6 +45,8 @@ use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{ArenaError, FromNodeId, NodeId, ToNodeId};
 use matchers::{EditScriptResult, MappingStore, MappingType};
 
+const TMP_ROOT: &str = "_____DIFFRACT_TMP_ROOT";
+
 /// Given a matching between two ASTs, generate a complete edit script.
 ///
 /// This trait should usually be implemented on configuration objects that
@@ -93,6 +95,7 @@ impl Chawathe96Config {
         Default::default()
     }
 
+    /// Align children of w (From AST) and x (To AST) which are out of order.
     fn align_children<T: Clone + Debug + Eq + 'static>(&self,
                                                        store: &MappingStore<T>,
                                                        w: NodeId<FromNodeId>,
@@ -105,8 +108,12 @@ impl Chawathe96Config {
         // a, w in store.from_arena (T_1 in paper).
         // b, x in store.to_arena (T_2 in paper).
         debug!("align_children({}, {})", w, x);
+        // If neither node has any children there is nothing to align. This
+        // optimisation does not appear in the paper.
         if w.is_leaf(&store.from_arena.borrow()) && x.is_leaf(&store.to_arena.borrow()) {
-            debug!("{} and {} both leaf nodes.", w, x);
+            debug!("align_children: {:?} and {:?} both leaf nodes.",
+                   store.from_arena.borrow()[w],
+                   store.to_arena.borrow()[x]);
             return Ok(());
         }
         // 1. Mark all children of w and all children of x "out of order".
@@ -178,7 +185,8 @@ impl Chawathe96Config {
                                                  to_in_order: &HashSet<NodeId<ToNodeId>>)
                                                  -> u16 {
         // 1. Let y=p(x) in T_2 and let w be the partner of x in T_1.
-        // N.B. w seems to be unused in the algorithm.
+        // N.B. w seems to be unused in the algorithm and y is not needed in
+        // this implementation.
         let y = store.to_arena.borrow()[x].parent().unwrap();
         // 2. If x is the leftmost child of y that is marked "in order" return
         // 0 (the paper says 1 but we count child nodes from 0).
@@ -197,9 +205,10 @@ impl Chawathe96Config {
         // 3. Find v in T_2, where v is the rightmost sibling of x that is to
         // the left of x and is marked "in order".
         let v = siblings.iter()
-                 .take(x_pos)
-                 .filter(|c| to_in_order.contains(c))
-                 .last();
+                        .take(x_pos)
+                        .filter(|c| to_in_order.contains(c))
+                        .last();
+        // This check is in GumTree and ChangeDistiller, but not in the paper.
         if v.is_none() {
             debug!("find_pos({}) <- 0. No right-most sibling in order.", x);
             return 0;
@@ -212,11 +221,11 @@ impl Chawathe96Config {
         // "in order". Return i + 1.
         let u_p = store.from_arena.borrow()[u].parent().unwrap();
         let u_pos = u.get_child_position(&store.from_arena.borrow()).unwrap();
-        let ret = u_p.children(&store.from_arena.borrow()).take(u_pos)
-                     .filter(|c| from_in_order.contains(c))
-                     .count() as u16 + 1;
-        debug!("find_pos({}) <- {}", x, ret);
-        ret
+        let position = u_p.children(&store.from_arena.borrow()).take(u_pos)
+                          .filter(|c| from_in_order.contains(c))
+                          .count() as u16 + 1;
+        debug!("find_pos({}) <- {}", x, position);
+        position
     }
 
     fn lcss<T: Clone + Debug + Eq + 'static>(&self,
@@ -265,7 +274,7 @@ impl Chawathe96Config {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Config {
+impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawathe96Config {
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
     /// Will panic if either `Arena` in `store` is empty (and has no root node).
@@ -276,51 +285,68 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         let mut to_in_order: HashSet<NodeId<ToNodeId>> = HashSet::new();
         // Combined update, insert, align and move phases.
         // 2. Visit the nodes of T_2 in breadth-first order.
-        let root_to = store.to_arena.borrow().root().unwrap();
+        assert!(store.from_arena.borrow().root().is_some(),
+                "'from' AST has no root node.");
+        assert!(store.to_arena.borrow().root().is_some(),
+                "'to' AST has no root node.");
+        // Check for unmatched root nodes. Chawathe et al. (1996) says: If the
+        // roots of T_1 and T_2 are not matched in M, then we add new (dummy)
+        // root nodes x to T_1 and y to T_2, and add (x; y)to M. The old root of
+        // T_1 is made the lone child of x and the old root of T_2 is made the
+        // lone child of y. Hereafter we assume without loss of generality that
+        // the roots of T_1 and T_2 are matched in M.
+        let mut fake_roots = false;
+        if !store.is_mapped(&store.from_arena.borrow().root().unwrap(),
+                            &store.to_arena.borrow().root().unwrap())
+        {
+            fake_roots = true;
+            assert!(!store.from_arena
+                          .borrow()
+                          .contains_type_and_label(Default::default(), TMP_ROOT),
+                    "'from' AST already contains a node like TMP_ROOT.");
+            let new_from_root = store.from_arena.borrow_mut().new_node(Default::default(),
+                                                                       String::from(TMP_ROOT),
+                                                                       None,
+                                                                       None,
+                                                                       None,
+                                                                       None);
+            store.from_arena.borrow_mut().new_root(new_from_root)?;
+            assert!(!store.to_arena
+                          .borrow()
+                          .contains_type_and_label(Default::default(), TMP_ROOT),
+                    "'to' AST already contains a node like TMP_ROOT.");
+            let new_to_root = store.to_arena.borrow_mut().new_node(Default::default(),
+                                                                   String::from(TMP_ROOT),
+                                                                   None,
+                                                                   None,
+                                                                   None,
+                                                                   None);
+            store.to_arena.borrow_mut().new_root(new_to_root)?;
+            store.push(new_from_root, new_to_root, &MappingType::EDIT);
+        }
         let root_from = store.from_arena.borrow().root().unwrap();
+        let root_to = store.to_arena.borrow().root().unwrap();
         // (a) Let x be the current node in the breadth-first search of T_2
         // and let y be the parent of x. Let z be the partner of y in M'.
         for x in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
             let mut w = root_from; // Overwritten later.
                                    // Insertion phase.
-            if !store.contains_to(&x) && x.is_root(&store.to_arena.borrow()) {
-                // Handle root nodes separately. This branch is most likely to
-                // be used when the "from" and "to" ASTs have been parsed
-                // into different grammars.
-                let k = self.find_pos(store, x, &from_in_order, &to_in_order);
-                debug!("Edit script: INS {:?} {} No parent",
-                       store.to_arena.borrow()[x].ty,
-                       store.to_arena.borrow()[x].label);
-                w = store.from_arena
-                         .borrow_mut()
-                         .new_node(store.to_arena.borrow()[x].ty.clone(),
-                                   store.to_arena.borrow()[x].label.clone(),
-                                   store.to_arena.borrow()[x].col_no,
-                                   store.to_arena.borrow()[x].line_no,
-                                   store.to_arena.borrow()[x].char_no,
-                                   store.to_arena.borrow()[x].token_len);
-                store.push(w, x, &MappingType::EDIT);
-                let mut ins = Insert::new(w, None, k);
-                ins.apply(&mut store.from_arena.borrow_mut())?;
-                script.push(ins);
-            } else if !store.contains_to(&x) {
+             if !store.contains_to(&x) {
                 let y = store.to_arena.borrow()[x].parent().unwrap();
                 let z = store.get_from(&y).unwrap();
                 // (b) if x has no partner in M': i. let k<-find_pos(x),
                 let k = self.find_pos(store, x, &from_in_order, &to_in_order);
-                debug!("Edit script: INS {:?} {} Parent: {:?} {}",
-                       store.to_arena.borrow()[x].ty,
-                       store.to_arena.borrow()[x].label,
-                       store.from_arena.borrow()[z].ty,
-                       store.from_arena.borrow()[z].label);
-                w = store.from_arena
-                         .borrow_mut()
-                         .new_node(store.to_arena.borrow()[x].ty.clone(),
-                                   store.to_arena.borrow()[x].label.clone(),
-                                   store.to_arena.borrow()[x].col_no,
-                                   store.to_arena.borrow()[x].line_no,
-                                   store.to_arena.borrow()[x].char_no,
-                                   store.to_arena.borrow()[x].token_len);
+                debug!("Edit script: INS {:?} Parent: {:?}",
+                       store.to_arena.borrow()[x],
+                       store.from_arena.borrow()[z]);
+                let w = store.from_arena
+                             .borrow_mut()
+                             .new_node(store.to_arena.borrow()[x].ty.clone(),
+                                       store.to_arena.borrow()[x].label.clone(),
+                                       store.to_arena.borrow()[x].col_no,
+                                       store.to_arena.borrow()[x].line_no,
+                                       store.to_arena.borrow()[x].char_no,
+                                       store.to_arena.borrow()[x].token_len);
                 // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
                 store.push(w, x, &MappingType::EDIT);
                 // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
@@ -335,12 +361,10 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
                 w = store.get_from(&x).unwrap();
                 let v = store.from_arena.borrow()[w].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
-                if store.from_arena.borrow()[w].ty != store.to_arena.borrow()[x].ty {
-                    debug!("Edit script: UPD {:?} {} -> {:?} {}",
-                           store.from_arena.borrow()[w].ty,
-                           store.from_arena.borrow()[w].label,
-                           store.to_arena.borrow()[x].ty,
-                           store.to_arena.borrow()[x].label);
+                if store.from_arena.borrow()[w].label != store.to_arena.borrow()[x].label {
+                    debug!("Edit script: UPD {:?} -> {:?}",
+                           store.from_arena.borrow()[w],
+                           store.to_arena.borrow()[x]);
                     let mut upd = Update::new(w,
                                               store.to_arena.borrow()[x].ty.clone(),
                                               store.to_arena.borrow()[x].label.clone());
@@ -395,6 +419,15 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
             }
         }
         actions.apply(&mut store.from_arena.borrow_mut())?;
+        if fake_roots {
+            debug!("Removing fake roots.");
+            let tmp_from_root = store.from_arena.borrow().root().unwrap();
+            let tmp_to_root = store.to_arena.borrow().root().unwrap();
+            store.from_arena.borrow_mut().delete_root()?;
+            store.to_arena.borrow_mut().delete_root()?;
+            store.remove(&tmp_from_root, &tmp_to_root);
+        }
+        debug_assert!(store.is_isomorphic(root_from, root_to));
         Ok(script)
     }
 }
