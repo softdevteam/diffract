@@ -40,10 +40,9 @@
 
 extern crate diffract;
 
-use std::path::Path;
-
-use diffract::ast::{Arena, FromNodeId, NodeId, parse_file};
+use diffract::ast::{Arena, FromNodeId, NodeId};
 use diffract::hqueue::HeightQueue;
+use diffract::parser::{get_lexer, get_parser, parse_file};
 
 // Assert that `queue` is in sorted order and has the same size `arena`.
 fn assert_sorted<T: Clone>(queue: &HeightQueue<FromNodeId>, arena: &Arena<T, FromNodeId>) {
@@ -71,43 +70,33 @@ fn assert_sorted<T: Clone>(queue: &HeightQueue<FromNodeId>, arena: &Arena<T, Fro
     assert_eq!(0, expected);
 }
 
-fn assert_sorted_from_file(is_java: bool, filepath: &str) {
-    let lex = if is_java {
-        Path::new("grammars/java.l")
-    } else {
-        Path::new("grammars/calc.l")
-    };
-    let yacc = if is_java {
-        Path::new("grammars/java.y")
-    } else {
-        Path::new("grammars/calc.y")
-    };
-    let arena = parse_file(filepath, lex, yacc).unwrap();
+fn assert_sorted_from_file(filepath: &str) {
+    let arena = parse_file(filepath, &get_lexer(filepath), &get_parser(filepath)).unwrap();
     let queue = arena.get_priority_queue();
     assert_sorted(&queue, &arena);
 }
 
 #[test]
 fn test_empty_calc() {
-    assert_sorted_from_file(false, "tests/empty.calc");
+    assert_sorted_from_file("tests/empty.calc");
 }
 
 #[test]
 fn test_one_calc() {
-    assert_sorted_from_file(false, "tests/one.calc");
+    assert_sorted_from_file("tests/one.calc");
 }
 
 #[test]
 fn test_add_calc() {
-    assert_sorted_from_file(false, "tests/add.calc");
+    assert_sorted_from_file("tests/add.calc");
 }
 
 #[test]
 fn test_mult_calc() {
-    assert_sorted_from_file(false, "tests/mult.calc");
+    assert_sorted_from_file("tests/mult.calc");
 }
 
 #[test]
 fn test_hello_java() {
-    assert_sorted_from_file(true, "tests/Hello.java");
+    assert_sorted_from_file("tests/Hello.java");
 }

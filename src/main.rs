@@ -55,6 +55,7 @@ use diffract::emitters;
 use diffract::gt_matcher;
 use diffract::myers_matcher;
 use diffract::matchers::MatchTrees;
+use diffract::parser;
 
 const USAGE: &str = "
 Usage: diffract [options] <base-file> <diff-file>
@@ -240,7 +241,7 @@ fn get_matcher_descriptions() -> String {
 
 fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast::Arena<String, T> {
     let error_to_str = |err| {
-        use ast::ParseError::*;
+        use parser::ParseError::*;
         match err {
             FileNotFound(path) => format!("File {} not found.", path),
             BrokenLexer => format!("Could not build lexer {:?}.", lexer_path),
@@ -250,9 +251,9 @@ fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_pa
             _ => format!("Error parsing {}.", filename),
         }
     };
-    ast::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
-                                                         .map_err(|ref msg| exit_with_message(msg))
-                                                         .unwrap()
+    parser::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
+                                                            .map_err(|ref msg| exit_with_message(msg))
+                                                            .unwrap()
 }
 
 /// Process flags which merely request documentation.
@@ -278,29 +279,26 @@ fn process_doc_flags(args: &Args) {
 /// Will cause diffract to exit if user-requested lexer / parser does not exist.
 fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     // TODO: create a HashMap of file extensions -> lex/yacc files.
-    let exe = match env::current_exe() {
-        Ok(p) => p,
+    match env::current_exe() {
+        Ok(_) => (),
         Err(_) => exit_with_message("Cannot determine which directory the executable is in."),
     };
-    let dir = exe.parent().unwrap();
 
-    let ext1 = match Path::new(&args.arg_base_file).extension() {
-        Some(ext) => ext.to_str().unwrap(),
+    match Path::new(&args.arg_base_file).extension() {
+        Some(_) => (),
         None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file)),
     };
     // Lexer path for first input file.
     let lexer1 = if !args.flag_grammar.is_empty() {
         canonicalize(format!("{}.l", &args.flag_grammar[0])).unwrap()
     } else {
-        canonicalize(dir.join(format!("../../grammars/{}.l", ext1)))
-            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap())
+        parser::get_lexer(&args.arg_base_file)
     };
     // Parser path for first input file.
     let parser1 = if !args.flag_grammar.is_empty() {
         canonicalize(format!("{}.y", &args.flag_grammar[0])).unwrap()
     } else {
-        canonicalize(dir.join(format!("../../grammars/{}.y", ext1)))
-            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap())
+        parser::get_parser(&args.arg_base_file)
     };
     if !args.flag_grammar.is_empty() {
         if !Path::new(&lexer1).exists() {
@@ -311,23 +309,21 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
         }
     }
 
-    let ext2 = match Path::new(&args.arg_diff_file).extension() {
-        Some(ext) => ext.to_str().unwrap(),
+    match Path::new(&args.arg_diff_file).extension() {
+        Some(_) => (),
         None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file)),
     };
     // Lexer path for second input file.
     let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         canonicalize(format!("{}.l", &args.flag_grammar[1])).unwrap()
     } else {
-        canonicalize(dir.join(format!("../../grammars/{}.l", ext2)))
-            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.l")).unwrap())
+        parser::get_lexer(&args.arg_diff_file)
     };
     // Parser path for second input file.
     let parser2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         canonicalize(format!("{}.y", &args.flag_grammar[1])).unwrap()
     } else {
-        canonicalize(dir.join(format!("../../grammars/{}.y", ext2)))
-            .unwrap_or_else(|_| canonicalize(dir.join("../../grammars/txt.y")).unwrap())
+        parser::get_parser(&args.arg_diff_file)
     };
     if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         if !Path::new(&lexer2).exists() {

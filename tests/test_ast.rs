@@ -42,20 +42,11 @@ extern crate diffract;
 
 use std::path::Path;
 
-use diffract::ast::{Arena, FromNodeId, ParseError, parse_file};
+use diffract::ast::{Arena, FromNodeId};
+use diffract::parser::{get_lexer, get_parser, parse_file, ParseError};
 
-fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &str) {
-    let lex = if is_java {
-        Path::new("grammars/java.l")
-    } else {
-        Path::new("grammars/calc.l")
-    };
-    let yacc = if is_java {
-        Path::new("grammars/java.y")
-    } else {
-        Path::new("grammars/calc.y")
-    };
-    let arena: Arena<String, FromNodeId> = parse_file(filepath, lex, yacc).unwrap();
+fn compare_ast_dump_to_lrpar_output(filepath: &str, expected: &str) {
+    let arena: Arena<String, FromNodeId> = parse_file(filepath, &get_lexer(filepath), &get_parser(filepath)).unwrap();
     let arena_pretty_printed = format!("{:?}", arena);
     // Remove `\r` from pretty printed string, as the 'expected' values all
     // use UNIX line endings.
@@ -66,7 +57,6 @@ fn compare_ast_dump_to_lrpar_output(is_java: bool, filepath: &str, expected: &st
 #[test]
 fn test_empty_calc() {
     compare_ast_dump_to_lrpar_output(
-        false,
         "tests/empty.calc",
         "\"^~\"
   \"~\"
@@ -75,14 +65,13 @@ fn test_empty_calc() {
   \"Expr\"
     \"Term\"
       \"Factor\"
-"
-  );
+",
+    );
 }
 
 #[test]
 fn test_one_calc() {
     compare_ast_dump_to_lrpar_output(
-        false,
         "tests/one.calc",
         "\"^~\"
   \"~\"
@@ -100,7 +89,6 @@ fn test_one_calc() {
 #[test]
 fn test_add_calc() {
     compare_ast_dump_to_lrpar_output(
-        false,
         "tests/add.calc",
         "\"^~\"
   \"~\"
@@ -125,7 +113,6 @@ fn test_add_calc() {
 #[test]
 fn test_mult_calc() {
     compare_ast_dump_to_lrpar_output(
-        false,
         "tests/mult.calc",
         "\"^~\"
   \"~\"
@@ -156,7 +143,6 @@ fn test_mult_calc() {
 #[test]
 fn test_nested_comment_java() {
     compare_ast_dump_to_lrpar_output(
-        true,
         "tests/NestedComment.java",
         "\"^~\"
   \"~\"
@@ -203,9 +189,8 @@ fn test_nested_comment_java() {
 
 #[test]
 fn test_non_existant_input() {
-    let lex = Path::new("grammars/calc.l");
-    let yacc = Path::new("grammars/calc.y");
-    let ast_result = parse_file::<FromNodeId>("nosuchfileexists.calc", lex, yacc);
+    let filepath = "nosuchfileexists.calc";
+    let ast_result = parse_file::<FromNodeId>(filepath, &get_lexer(filepath), &get_parser(filepath));
     match ast_result {
         Err(ParseError::FileNotFound(s)) => assert_eq!(s, String::from("nosuchfileexists.calc")),
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
@@ -219,9 +204,7 @@ fn test_non_existant_lex() {
     let yacc = Path::new("grammars/calc.y");
     let ast_result = parse_file::<FromNodeId>("tests/one.calc", lex, yacc);
     match ast_result {
-        Err(ParseError::FileNotFound(s)) => {
-            assert_eq!(s, String::from("grammars/nosuchfileexists.l"))
-        }
+        Err(ParseError::FileNotFound(s)) => assert_eq!(s, String::from("grammars/nosuchfileexists.l")),
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
         Ok(_) => panic!("Expected FileNotFound error, got an AST"),
     }
@@ -233,9 +216,7 @@ fn test_non_existant_grm() {
     let yacc = Path::new("grammars/nosuchfileexists.y");
     let ast_result = parse_file::<FromNodeId>("tests/one.calc", lex, yacc);
     match ast_result {
-        Err(ParseError::FileNotFound(s)) => {
-            assert_eq!(s, String::from("grammars/nosuchfileexists.y"))
-        }
+        Err(ParseError::FileNotFound(s)) => assert_eq!(s, String::from("grammars/nosuchfileexists.y")),
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
         Ok(_) => panic!("Expected FileNotFound error, got an AST"),
     }
@@ -243,9 +224,8 @@ fn test_non_existant_grm() {
 
 #[test]
 fn test_lexical_err() {
-    let lex = Path::new("grammars/calc.l");
-    let yacc = Path::new("grammars/calc.y");
-    let ast_result = parse_file::<FromNodeId>("tests/calc_lexical_err.calc", lex, yacc);
+    let filepath = "tests/calc_lexical_err.calc";
+    let ast_result = parse_file::<FromNodeId>(filepath, &get_lexer(filepath), &get_parser(filepath));
     match ast_result {
         Err(ParseError::LexicalError) => assert!(true),
         Err(e) => panic!("Expected LexicalError error, got: {:?}", e),
@@ -255,9 +235,8 @@ fn test_lexical_err() {
 
 #[test]
 fn test_syntax_err() {
-    let lex = Path::new("grammars/calc.l");
-    let yacc = Path::new("grammars/calc.y");
-    let ast_result = parse_file::<FromNodeId>("tests/calc_syntax_err.calc", lex, yacc);
+    let filepath = "tests/calc_syntax_err.calc";
+    let ast_result = parse_file::<FromNodeId>(filepath, &get_lexer(filepath), &get_parser(filepath));
     match ast_result {
         Err(ParseError::SyntaxError) => assert!(true),
         Err(e) => panic!("Expected SyntaxError error, got: {:?}", e),

@@ -7,6 +7,7 @@ repository = "https://github.com/softdevteam/diffract"
 homepage = "https://github.com/softdevteam/diffract.git"
 license = "UPL"
 description = "Generate source code diffs based on ASTs."
+build = "build.rs"
 
 [[bin]]
 doc = false
@@ -16,10 +17,13 @@ name = "diffract"
 name = "diffract"
 path = "src/lib/mod.rs"
 
+[build-dependencies]
+glob = "0.2.11"
+
 [dependencies]
+docopt = "0.7.0"
 dot = "0.1.2"
 env_logger = "0.4.2"
-docopt = "0.7.0"
 log = "0.3.7"
 rustc-serialize = "0.3"
 term = "0.4.5"
