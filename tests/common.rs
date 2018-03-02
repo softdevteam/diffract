@@ -82,4 +82,18 @@ pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
     assert_eq!(count_nodes, count_mapped,
                "Final mapping not total for files: {} and {}.",
                path1, path2);
+    // Test 2: final from and to ASTs should be isomorphic.
+    // Isomorphism is defined strictly, as there being no differences in the two
+    // trees, except in their node identifiers. As a belt-and-braces check, we
+    // also check that pretty-printed versions of both trees are identical.
+    assert!(store.is_isomorphic(root_from, root_to),
+            "ASTs not isomorphic for files: {} and {}.",
+            path1,
+            path2);
+    assert_eq!(format!("{:?}", store.from_arena.borrow()),
+               format!("{:?}", store.to_arena.borrow()),
+               "ASTs not isomorphic for files: {} and {}.",
+               path1,
+               path2);
+
 }

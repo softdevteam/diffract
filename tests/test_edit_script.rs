@@ -329,6 +329,20 @@ fn test_comment_hello_myers() {
 }
 
 #[test]
+fn test_comment_minimal_hello_minimal_myers() {
+    check_files("tests/CommentMinimal.java",
+                "tests/HelloMinimal.java",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
+fn test_hello_minimal_comment_minimal_myers() {
+    check_files("tests/HelloMinimal.java",
+                "tests/CommentMinimal.java",
+                Box::new(MyersConfig::new()))
+}
+
+#[test]
 fn test_short1_wiki2_myers() {
     check_files("tests/short1.txt",
                 "tests/wiki2.txt",
