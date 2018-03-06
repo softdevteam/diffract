@@ -103,18 +103,19 @@ impl Chawathe96Config {
                                                        script: &mut EditScript<T>,
                                                        from_in_order: &mut HashSet<NodeId<FromNodeId>>,
                                                        to_in_order: &mut HashSet<NodeId<ToNodeId>>)
-                                                       -> Result<(), ArenaError> {
+                                                       -> Result<(EditScript<T>), ArenaError> {
+        let mut actions = EditScript::new();
         // Variable key:
         // a, w in store.from_arena (T_1 in paper).
         // b, x in store.to_arena (T_2 in paper).
         debug!("align_children({}, {})", w, x);
         // If neither node has any children there is nothing to align. This
         // optimisation does not appear in the paper.
-        if w.is_leaf(&store.from_arena.borrow()) && x.is_leaf(&store.to_arena.borrow()) {
-            debug!("align_children: {:?} and {:?} both leaf nodes.",
+        if w.is_leaf(&store.from_arena.borrow()) || x.is_leaf(&store.to_arena.borrow()) {
+            debug!("align_children: {:?} or {:?} is a leaf node.",
                    store.from_arena.borrow()[w],
                    store.to_arena.borrow()[x]);
-            return Ok(());
+            return Ok(actions);
         }
         // 1. Mark all children of w and all children of x "out of order".
         for child in w.children(&store.from_arena.borrow()) {
@@ -130,7 +131,7 @@ impl Chawathe96Config {
         for child in w.children(&store.from_arena.borrow()) {
             if store.contains_from(&child) {
                 let mapped = store.get_to(&child).unwrap();
-                if x.children(&store.to_arena.borrow()).any(|n| n == mapped) {
+                if x.children(&store.to_arena.borrow()).any(|c| c == mapped) {
                     s1.push(child);
                 }
             }
@@ -139,7 +140,7 @@ impl Chawathe96Config {
         for child in x.children(&store.to_arena.borrow()) {
             if store.contains_to(&child) {
                 let mapped = store.get_from(&child).unwrap();
-                if w.children(&store.from_arena.borrow()).any(|n| n == mapped) {
+                if w.children(&store.from_arena.borrow()).any(|c| c == mapped) {
                     s2.push(child);
                 }
             }
@@ -168,13 +169,13 @@ impl Chawathe96Config {
                            store.from_arena.borrow()[w].label.clone(),
                            k);
                     script.push(mov.clone());
-                    mov.apply(&mut store.from_arena.borrow_mut())?;
+                    actions.push(mov);
                     from_in_order.insert(*a);
                     to_in_order.insert(*b);
                 }
             }
         }
-        Ok(())
+        Ok(actions)
     }
 
     /// Find the position of node x in to_arena.
@@ -185,8 +186,9 @@ impl Chawathe96Config {
                                                  to_in_order: &HashSet<NodeId<ToNodeId>>)
                                                  -> u16 {
         // 1. Let y=p(x) in T_2 and let w be the partner of x in T_1.
-        // N.B. w seems to be unused in the algorithm and y is not needed in
-        // this implementation.
+        // N.B. as the algorithm is presented in the paper, w is unused in the
+        // remainder of this method. Likely this is just a typo, and so we
+        // don't assign a variable w in this implementation.
         let y = store.to_arena.borrow()[x].parent().unwrap();
         // 2. If x is the leftmost child of y that is marked "in order" return
         // 0 (the paper says 1 but we count child nodes from 0).
@@ -214,7 +216,7 @@ impl Chawathe96Config {
             return 0;
         }
         // 4. Let u be the partner of v in T_1.
-        let u_opt = store.get_from(&v.unwrap());
+        let u_opt = store.get_from(v.unwrap());
         assert!(u_opt.is_some(), "find_pos() could not find a partner for v");
         let u = u_opt.unwrap();
         // 5. Suppose u is the i'th child of its parent that is marked
@@ -332,9 +334,9 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
         // (a) Let x be the current node in the breadth-first search of T_2
         // and let y be the parent of x. Let z be the partner of y in M'.
         for x in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
-            let mut w = root_from; // Overwritten later.
-                                   // Insertion phase.
-             if !store.contains_to(&x) {
+            let mut w: Option<NodeId<FromNodeId>> = None;
+            // Insertion phase.
+            if !store.contains_to(&x) {
                 let y = store.to_arena.borrow()[x].parent().unwrap();
                 let z = store.get_from(&y).unwrap();
                 // (b) if x has no partner in M': i. let k<-find_pos(x),
@@ -342,18 +344,18 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
                 debug!("Edit script: INS {:?} Parent: {:?}",
                        store.to_arena.borrow()[x],
                        store.from_arena.borrow()[z]);
-                let w = store.from_arena
-                             .borrow_mut()
-                             .new_node(store.to_arena.borrow()[x].ty.clone(),
-                                       store.to_arena.borrow()[x].label.clone(),
-                                       store.to_arena.borrow()[x].col_no,
-                                       store.to_arena.borrow()[x].line_no,
-                                       store.to_arena.borrow()[x].char_no,
-                                       store.to_arena.borrow()[x].token_len);
+                w = Some(store.from_arena
+                              .borrow_mut()
+                              .new_node(store.to_arena.borrow()[x].ty.clone(),
+                                        store.to_arena.borrow()[x].label.clone(),
+                                        store.to_arena.borrow()[x].col_no,
+                                        store.to_arena.borrow()[x].line_no,
+                                        store.to_arena.borrow()[x].char_no,
+                                        store.to_arena.borrow()[x].token_len));
                 // iii. Add (w, x) to M' and apply INS((w, a, v(x)), z, k) to T_1.
-                store.push(w, x, &MappingType::EDIT);
+                store.push(w.unwrap(), x, &MappingType::EDIT);
                 // ii. Append INS((w, a, v(x)), z, k) to E for new identifier w
-                let mut ins = Insert::new(w, Some(z), k);
+                let mut ins = Insert::new(w.unwrap(), Some(z), k);
                 ins.apply(&mut store.from_arena.borrow_mut())?;
                 script.push(ins);
             } else if !x.is_root(&store.to_arena.borrow()) {
@@ -361,14 +363,14 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
                 // (c) else if x is not a root (x has a partner in M').
                 // i. Let w be the partner of x in M' and let v be the parent
                 // of w in T_1.
-                w = store.get_from(&x).unwrap();
-                let v = store.from_arena.borrow()[w].parent().unwrap();
+                w = Some(store.get_from(&x).unwrap());
+                let v = store.from_arena.borrow()[w.unwrap()].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
-                if store.from_arena.borrow()[w].label != store.to_arena.borrow()[x].label {
+                if store.from_arena.borrow()[w.unwrap()].label != store.to_arena.borrow()[x].label {
                     debug!("Edit script: UPD {:?} -> {:?}",
-                           store.from_arena.borrow()[w],
+                           store.from_arena.borrow()[w.unwrap()],
                            store.to_arena.borrow()[x]);
-                    let mut upd = Update::new(w,
+                    let mut upd = Update::new(w.unwrap(),
                                               store.to_arena.borrow()[x].ty.clone(),
                                               store.to_arena.borrow()[x].label.clone());
                     // B. Apply UPD(w, v(x)) to T_1.
@@ -384,10 +386,10 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
                 if z != v {
                     // B. Let k<-find_pos(x).
                     let k = self.find_pos(store, x, &from_in_order, &to_in_order);
-                    let mut mov = Move::new(w, z, k);
+                    let mut mov = Move::new(w.unwrap(), z, k);
                     debug!("Edit script: MOV {:?} {} Parent: {:?} {} Child: {}",
-                           store.from_arena.borrow()[w].ty,
-                           store.from_arena.borrow()[w].label,
+                           store.from_arena.borrow()[w.unwrap()].ty,
+                           store.from_arena.borrow()[w.unwrap()].label,
                            store.from_arena.borrow()[z].ty,
                            store.from_arena.borrow()[z].label,
                            k);
@@ -398,12 +400,18 @@ impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawa
                 }
             }
             // (d) align_children(w, x).
-            self.align_children(store,
-                                 w,
-                                 x,
-                                 &mut script,
-                                 &mut from_in_order,
-                                 &mut to_in_order)?;
+            if w.is_some() && !w.unwrap().is_root(&store.from_arena.borrow())
+               && !x.is_root(&store.to_arena.borrow())
+            {
+                let mut actions = self.align_children(store,
+                                                       store.from_arena.borrow()[w.unwrap()].parent()
+                                                                                            .unwrap(),
+                                                       store.to_arena.borrow()[x].parent().unwrap(),
+                                                       &mut script,
+                                                       &mut from_in_order,
+                                                       &mut to_in_order)?;
+                actions.apply(&mut store.from_arena.borrow_mut())?;
+            }
         }
         // Delete phase.
         // 3. Perform a post-order traversal of T_1.
