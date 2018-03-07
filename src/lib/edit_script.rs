@@ -397,3 +397,124 @@ impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe96Confi
         Ok(script)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use action::{Delete, Insert, Move, Update};
+    use ast::Arena;
+
+    #[test]
+    #[ignore]
+    fn test_chawathe96_empty_asts() {
+        let ast_from = Arena::<u8, FromNodeId>::new();
+        let ast_to = Arena::<u8, ToNodeId>::new();
+        let store = MappingStore::new(ast_from, ast_to);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(0, edit_script.size());
+    }
+
+    #[test]
+    fn test_chawathe96_fully_matched_asts() {
+        let mut ast_from = Arena::<u8, FromNodeId>::new();
+        let root_from = ast_from.new_node(0, String::from("INT"), None, None, None, None);
+        let mut ast_to = Arena::<u8, ToNodeId>::new();
+        let root_to = ast_to.new_node(0, String::from("INT"), None, None, None, None);
+        let store = MappingStore::new(ast_from, ast_to);
+        store.push(root_from, root_to, &MappingType::EDIT);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(0, edit_script.size());
+    }
+
+    #[test]
+    fn test_chawathe96_single_delete() {
+        let mut ast_from = Arena::<&'static str, FromNodeId>::new();
+        let root_from = ast_from.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = ast_from.new_node("INT", String::from("1"), None, None, None, None);
+        n1.make_child_of(root_from, &mut ast_from).unwrap();
+        let mut ast_to = Arena::<&'static str, ToNodeId>::new();
+        let root_to = ast_to.new_node("Expr", String::from("+"), None, None, None, None);
+        let store = MappingStore::new(ast_from, ast_to);
+        store.push(root_from, root_to, &MappingType::ANCHOR);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(1, edit_script.size());
+        let mut expected: EditScript<&'static str> = EditScript::new();
+        expected.push(Delete::new(n1));
+        assert_eq!(expected, edit_script);
+    }
+
+    #[test]
+    fn test_chawathe96_single_insert() {
+        let mut ast_from = Arena::<&'static str, FromNodeId>::new();
+        let root_from = ast_from.new_node("Expr", String::from("+"), None, None, None, None);
+        let mut ast_to = Arena::<&'static str, ToNodeId>::new();
+        let root_to = ast_to.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = ast_to.new_node("INT", String::from("1"), None, None, None, None);
+        n1.make_child_of(root_to, &mut ast_to).unwrap();
+        let store = MappingStore::new(ast_from, ast_to);
+        store.push(root_from, root_to, &MappingType::ANCHOR);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(1, edit_script.size());
+        let mut expected: EditScript<&'static str> = EditScript::new();
+        expected.push(Insert::new(NodeId::new(1), Some(root_from), 0));
+        assert_eq!(expected, edit_script);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_chawathe96_single_update() {
+        let mut ast_from = Arena::<&'static str, FromNodeId>::new();
+        let root_from = ast_from.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = ast_from.new_node("INT", String::from("-1"), None, None, None, None);
+        n1.make_child_of(root_from, &mut ast_from).unwrap();
+        let mut ast_to = Arena::<&'static str, ToNodeId>::new();
+        let root_to = ast_to.new_node("Expr", String::from("+"), None, None, None, None);
+        let n2 = ast_to.new_node("INT", String::from("1"), None, None, None, None);
+        n2.make_child_of(root_to, &mut ast_to).unwrap();
+        let store = MappingStore::new(ast_from, ast_to);
+        store.push(root_from, root_to, &MappingType::ANCHOR);
+        store.push(n1, n2, &MappingType::ANCHOR);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(1, edit_script.size());
+        let mut expected: EditScript<&'static str> = EditScript::new();
+        expected.push(Update::new(n1, "INT", String::from("1")));
+        assert_eq!(expected, edit_script);
+    }
+
+    #[test]
+    fn test_chawathe96_single_move() {
+        let mut ast_from = Arena::<&'static str, FromNodeId>::new();
+        let root_from = ast_from.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = ast_from.new_node("INT", String::from("-1"), None, None, None, None);
+        n1.make_child_of(root_from, &mut ast_from).unwrap();
+        let n2 = ast_from.new_node("INT", String::from("1"), None, None, None, None);
+        n2.make_child_of(root_from, &mut ast_from).unwrap();
+        let mut ast_to = Arena::<&'static str, ToNodeId>::new();
+        let root_to = ast_to.new_node("Expr", String::from("+"), None, None, None, None);
+        let n3 = ast_to.new_node("INT", String::from("-1"), None, None, None, None);
+        n3.make_child_of(root_to, &mut ast_to).unwrap();
+        let n4 = ast_to.new_node("INT", String::from("1"), None, None, None, None);
+        n4.make_child_of(n3, &mut ast_to).unwrap();
+        let store = MappingStore::new(ast_from, ast_to);
+        store.push(root_from, root_to, &MappingType::ANCHOR);
+        store.push(n1, n3, &MappingType::ANCHOR);
+        store.push(n2, n4, &MappingType::ANCHOR);
+        let edit_script_res = Chawathe96Config::new().generate_script(&store);
+        assert!(edit_script_res.is_ok());
+        let edit_script = edit_script_res.unwrap();
+        assert_eq!(1, edit_script.size());
+        let mut expected: EditScript<&'static str> = EditScript::new();
+        expected.push(Move::new(n2, n1, 0));
+        assert_eq!(expected, edit_script);
+    }
+}

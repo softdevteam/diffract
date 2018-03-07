@@ -37,9 +37,10 @@
 
 #![warn(missing_docs)]
 
+use std::any::Any;
 use std::boxed::Box;
 use std::clone::Clone;
-use std::fmt::Debug;
+use std::fmt;
 
 use ast::{Arena, ArenaError, ArenaResult, FromNodeId, NodeId};
 use emitters::RenderJson;
@@ -66,13 +67,37 @@ pub enum ActionType {
 }
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone + Debug>: RenderJson + Patchify<T> {
+pub trait ApplyAction<T: Clone + fmt::Debug + Eq + PartialEq>
+    : fmt::Debug + Patchify<T> + RenderJson {
     /// Apply an action to an AST.
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult;
+    /// Test for equality, avoiding a recursive call to `eq()`.
+    fn is_eq(&self, other: &ApplyAction<T>) -> bool;
+    /// Cast to `Any` type.
+    fn as_any(&self) -> &Any;
+}
+
+impl<T: Clone + fmt::Debug + Eq + PartialEq> PartialEq for ApplyAction<T> {
+    fn eq(&self, other: &ApplyAction<T>) -> bool {
+        self.is_eq(other)
+    }
+}
+
+macro_rules! impl_compare {
+    () => {
+            fn as_any(&self) -> &Any { self }
+            fn is_eq(&self, other: &ApplyAction<T>) -> bool {
+                if let Some(other) = other.as_any().downcast_ref::<Self>() {
+                    self == other
+                } else {
+                    false
+                }
+            }
+        }
 }
 
 /// Turn an edit script into a list of patches on the "from" and "to" ASTs.
-pub trait Patchify<T: Clone + Debug> {
+pub trait Patchify<T: Clone + fmt::Debug> {
     /// Turn object into a `Patch`. Non-terminal nodes are ignored.
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
 }
@@ -81,14 +106,15 @@ pub trait Patchify<T: Clone + Debug> {
 ///
 /// This type will usually be used by iterating over the list and calling
 /// `apply()` on each element.
-pub struct EditScript<T> {
+#[derive(Debug)]
+pub struct EditScript<T: fmt::Debug + PartialEq> {
     actions: Vec<Box<ApplyAction<T>>>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
 /// Delete a node from a given AST.
 ///
 /// It is only valid to delete leaf nodes.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Delete {
     node: NodeId<FromNodeId>,
 }
@@ -113,7 +139,7 @@ pub struct Move {
 
 /// Update the data inside an AST node.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Update<T: Clone> {
+pub struct Update<T: Clone + fmt::Debug> {
     node: NodeId<FromNodeId>,
     ty: T,
     label: String,
@@ -137,43 +163,41 @@ pub struct Glue {
 impl Delete {
     /// Create a new `Delete` object.
     pub fn new(node: NodeId<FromNodeId>) -> Delete {
-        Delete { node: node }
+        Delete { node }
     }
 }
 
 impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(node: NodeId<FromNodeId>, parent: Option<NodeId<FromNodeId>>, nth: u16) -> Insert {
-        Insert { node: node,
-                 new_parent: parent,
-                 nth_child: nth, }
+    pub fn new(node: NodeId<FromNodeId>, new_parent: Option<NodeId<FromNodeId>>, nth_child: u16) -> Insert {
+        Insert { node,
+                 new_parent,
+                 nth_child, }
     }
 }
 
 impl Move {
     /// Create a new `Move` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Move {
-        Move { from_node: from,
-               parent: parent,
-               pos: position, }
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Move {
+        Move { from_node,
+               parent,
+               pos, }
     }
 }
 
-impl<T: Clone + Debug> Update<T> {
+impl<T: Clone + fmt::Debug> Update<T> {
     /// Create a new `Update` object.
     pub fn new(node: NodeId<FromNodeId>, ty: T, label: String) -> Update<T> {
-        Update { node: node,
-                 ty: ty,
-                 label: label, }
+        Update { node, ty, label }
     }
 }
 
 impl Copy {
     /// Create a new `Copy` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Copy {
-        Copy { from_node: from,
-               parent: parent,
-               pos: position, }
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Copy {
+        Copy { from_node,
+               parent,
+               pos, }
     }
 }
 
@@ -228,7 +252,7 @@ impl RenderJson for Move {
     }
 }
 
-impl<T: Clone> RenderJson for Update<T> {
+impl<T: Clone + fmt::Debug> RenderJson for Update<T> {
     fn render_json(&self, indent: usize) -> String {
         let ind_s = " ".repeat(indent + 4);
         let mut json = vec![];
@@ -268,7 +292,7 @@ impl RenderJson for Glue {
     }
 }
 
-impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
+impl<T: Clone + fmt::Debug + Eq> Patchify<T> for Delete {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
         let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
@@ -279,7 +303,7 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Delete {
     }
 }
 
-impl<T: Clone + Debug + Eq> Patchify<T> for Insert {
+impl<T: Clone + fmt::Debug + Eq> Patchify<T> for Insert {
     fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
@@ -290,7 +314,7 @@ impl<T: Clone + Debug + Eq> Patchify<T> for Insert {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Move {
+impl<T: Clone + fmt::Debug + Eq + 'static> Patchify<T> for Move {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
@@ -307,7 +331,7 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Move {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
+impl<T: Clone + fmt::Debug + Eq + 'static> Patchify<T> for Update<T> {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.node];
         if f_node.char_no.is_some() {
@@ -324,7 +348,7 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Update<T> {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy {
+impl<T: Clone + fmt::Debug + Eq + 'static> Patchify<T> for Copy {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
@@ -341,7 +365,7 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Copy {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Glue {
+impl<T: Clone + fmt::Debug + Eq + 'static> Patchify<T> for Glue {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
@@ -358,31 +382,34 @@ impl<T: Clone + Debug + Eq + 'static> Patchify<T> for Glue {
     }
 }
 
-impl<T: Clone + Debug + Eq> ApplyAction<T> for Delete {
+impl<T: Clone + fmt::Debug + Eq + PartialEq> ApplyAction<T> for Delete {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
                       "Attempt to delete branch node {}",
                       self.node);
         self.node.detach(arena)
     }
+    impl_compare!();
 }
 
-impl<T: Clone + Debug + Eq> ApplyAction<T> for Insert {
+impl<T: Clone + fmt::Debug + Eq + PartialEq> ApplyAction<T> for Insert {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         match self.new_parent {
             Some(p) => self.node.make_nth_child_of(p, self.nth_child, arena),
             None => arena.new_root(self.node),
         }
     }
+    impl_compare!();
 }
 
-impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Move {
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         self.from_node.make_nth_child_of(self.parent, self.pos, arena)
     }
+    impl_compare!();
 }
 
-impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> ApplyAction<T> for Update<T> {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
@@ -391,30 +418,33 @@ impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Update<T> {
         arena[self.node].label = self.label.clone();
         Ok(())
     }
+    impl_compare!();
 }
 
-impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Copy {
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> ApplyAction<T> for Copy {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.from_node) {
             return Err(ArenaError::NodeIdNotFound);
         }
         self.from_node.copy_subtree(self.parent, self.pos, arena)
     }
+    impl_compare!();
 }
 
-impl<T: Clone + Debug + Eq + 'static> ApplyAction<T> for Glue {
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> ApplyAction<T> for Glue {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         self.from_node.detach_with_children(arena)
     }
+    impl_compare!();
 }
 
-impl<T: Clone> Default for EditScript<T> {
+impl<T: Clone + fmt::Debug + PartialEq> Default for EditScript<T> {
     fn default() -> EditScript<T> {
         EditScript { actions: vec![] }
     }
 }
 
-impl<T: Clone + Debug + Eq> EditScript<T> {
+impl<T: Clone + fmt::Debug + Eq + PartialEq> EditScript<T> {
     /// Create an empty list of actions.
     pub fn new() -> EditScript<T> {
         Default::default()
@@ -434,9 +464,14 @@ impl<T: Clone + Debug + Eq> EditScript<T> {
     pub fn clear(&mut self) {
         self.actions.clear();
     }
+
+    /// Return the number of actions in this list.
+    pub fn size(&self) -> usize {
+        self.actions.len()
+    }
 }
 
-impl<T: Clone> RenderJson for EditScript<T> {
+impl<T: Clone + fmt::Debug + PartialEq> RenderJson for EditScript<T> {
     fn render_json(&self, indent: usize) -> String {
         let mut json = vec![];
         for action in &self.actions {
@@ -452,7 +487,7 @@ impl<T: Clone> RenderJson for EditScript<T> {
     }
 }
 
-impl<T: Clone + Debug + Eq> Patchify<T> for EditScript<T> {
+impl<T: Clone + fmt::Debug + Eq> Patchify<T> for EditScript<T> {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         for action in &self.actions {
             action.patchify(store, from, to);
@@ -460,13 +495,28 @@ impl<T: Clone + Debug + Eq> Patchify<T> for EditScript<T> {
     }
 }
 
-impl<T: Clone + Debug + Eq> ApplyAction<T> for EditScript<T> {
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> PartialEq for EditScript<T> {
+    fn eq(&self, other: &EditScript<T>) -> bool {
+        if self.actions.len() != other.actions.len() {
+            return false;
+        }
+        for (i, action) in self.actions.iter().enumerate() {
+            if **action != *other.actions[i] {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<T: Clone + fmt::Debug + Eq + PartialEq + 'static> ApplyAction<T> for EditScript<T> {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
         }
         Ok(())
     }
+    impl_compare!();
 }
 
 #[cfg(test)]
@@ -639,6 +689,7 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
+        assert_eq!(6, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
         let format2 = "\"Expr\" *
@@ -674,6 +725,7 @@ mod test {
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
+        assert_eq!(3, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
         let format2 = "\"Expr\" *
@@ -683,6 +735,53 @@ mod test {
     \"INT\" 3
 ";
         assert_eq!(format2, format!("{:?}", arena));
+    }
+
+    #[test]
+    fn apply_partial_eq() {
+        let mut arena1 = create_arena();
+        let n5 = arena1.new_node("INT", String::from("100"), None, None, None, None);
+        let n6 = arena1.new_node("INT", String::from("99"), None, None, None, None);
+        // Create action list.
+        let mut actions1: EditScript<&str> = EditScript::new();
+        let del1 = Delete::new(NodeId::new(3)); // INT 3
+        let del2 = Delete::new(NodeId::new(4)); // INT 4
+        assert_eq!(del1, del1);
+        assert_eq!(del2, del2);
+        assert_ne!(del1, del2);
+        let ins1 = Insert::new(n5, Some(NodeId::new(2)), 0);
+        let ins2 = Insert::new(n6, Some(NodeId::new(2)), 1);
+        assert_eq!(ins1, ins1);
+        assert_eq!(ins2, ins2);
+        assert_ne!(ins1, ins2);
+        let mov1 = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
+        let upd1 = Update::new(NodeId::new(0), "Expr", String::from("*"));
+        actions1.push(del1);
+        actions1.push(del2);
+        actions1.push(ins1);
+        actions1.push(ins2);
+        actions1.push(mov1);
+        actions1.push(upd1);
+        assert_eq!(6, actions1.size());
+        // Second edit script.
+        let mut arena2 = create_arena();
+        let n7 = arena2.new_node("INT", String::from("2"), None, None, None, None);
+        let mut actions2: EditScript<&str> = EditScript::new();
+        let del3 = Delete { node: NodeId::new(4), }; // Remove "4".
+        let ins3 = Insert { node: n7,
+                            new_parent: Some(NodeId::new(2)),
+                            nth_child: 0, };
+        let upd2 = Update { // Change "+" to "*".
+                            node: NodeId::new(0),
+                            ty: "Expr",
+                            label: String::from("*"), };
+        actions2.push(del3);
+        actions2.push(ins3);
+        actions2.push(upd2);
+        assert_eq!(3, actions2.size());
+        assert_eq!(actions1, actions1);
+        assert_eq!(actions2, actions2);
+        assert_ne!(actions1, actions2);
     }
 
     #[test]
@@ -701,6 +800,7 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
+        assert_eq!(6, actions.size());
         let expected = String::from(
             "\"actions\": [
     {

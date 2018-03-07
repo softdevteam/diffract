@@ -38,38 +38,11 @@
 #![warn(missing_docs)]
 
 use std::collections::VecDeque;
-use std::convert::{TryFrom, TryInto};
 use std::fmt;
-use std::fs::File;
 use std::marker::PhantomData;
-use std::io::Read;
 use std::ops::{Index, IndexMut};
-use std::path::Path;
-
-use cfgrammar::TIdx;
-use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
-use lrlex::{build_lex, Lexer};
-use lrpar::parser;
-use lrtable::{from_yacc, Minimiser};
 
 use hqueue::HeightQueue;
-
-/// Errors raised when parsing a source file.
-#[derive(Debug)]
-pub enum ParseError {
-    /// Io error returned from standard library routines.
-    Io(String),
-    /// File not found.
-    FileNotFound(String),
-    /// Lexer could not be built by `lrlex`.
-    BrokenLexer,
-    /// Parser could not be built by `lrpar`.
-    BrokenParser,
-    /// File contained lexical error and could not be lexed.
-    LexicalError,
-    /// File contained syntax error and could not be parsed.
-    SyntaxError,
-}
 
 /// Errors raised by arenas.
 #[derive(Debug, PartialEq)]
@@ -413,13 +386,13 @@ impl<T: Clone, U: PartialEq + Copy> Node<T, U> {
                next_sibling: None,
                first_child: None,
                last_child: None,
-               ty: ty,
-               label: label,
+               ty,
+               label,
                index: None,
-               col_no: col_no,
-               line_no: line_no,
-               char_no: char_no,
-               token_len: token_len, }
+               col_no,
+               line_no,
+               char_no,
+               token_len, }
     }
 
     /// Return the Id of the parent node, if there is one.
@@ -482,7 +455,7 @@ impl From<NodeId<ToNodeId>> for NodeId<FromNodeId> {
 impl<U: PartialEq + Copy> NodeId<U> {
     /// Create a new NodeId with a given index.
     pub fn new(index: usize) -> NodeId<U> {
-        NodeId { index: index,
+        NodeId { index,
                  phantom: PhantomData, }
     }
 
@@ -660,24 +633,20 @@ impl<U: PartialEq + Copy> NodeId<U> {
 
     /// If `self` is the *nth* child of its parent, return *n*.
     pub fn get_child_position<T: Clone>(self, arena: &Arena<T, U>) -> Option<usize> {
-        if arena[self].parent.is_none() {
-            return None;
-        }
-        arena[self].parent
-                   .unwrap()
+        arena[self].parent?
                    .children(arena)
                    .position(|val| val == self)
     }
 
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
-        Children { arena: arena,
+        Children { arena,
                    node: arena[self].first_child, }
     }
 
     /// Return an iterator of references to this node’s children, in reverse order.
     pub fn reverse_children<T: Clone>(self, arena: &Arena<T, U>) -> ReverseChildren<T, U> {
-        ReverseChildren { arena: arena,
+        ReverseChildren { arena,
                           node: arena[self].last_child, }
     }
 
@@ -685,16 +654,15 @@ impl<U: PartialEq + Copy> NodeId<U> {
     pub fn breadth_first_traversal<T: Clone>(self, arena: &Arena<T, U>) -> BreadthFirstTraversal<T, U> {
         let mut queue = VecDeque::new();
         queue.push_back(self);
-        BreadthFirstTraversal { arena: arena,
-                                queue: queue, }
+        BreadthFirstTraversal { arena, queue }
     }
 
     /// Return a post-order iterator of references to this node's descendants.
     pub fn post_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PostOrderTraversal<T, U> {
         let mut stack1 = VecDeque::new();
         stack1.push_front(self);
-        PostOrderTraversal { arena: arena,
-                             stack1: stack1,
+        PostOrderTraversal { arena,
+                             stack1,
                              stack2: VecDeque::new(), }
     }
 
@@ -702,16 +670,14 @@ impl<U: PartialEq + Copy> NodeId<U> {
     pub fn pre_order_traversal<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        PreOrderTraversal { arena: arena,
-                            stack: stack, }
+        PreOrderTraversal { arena, stack }
     }
 
     /// Get the descendants of this node, without including the node itself.
     pub fn descendants<T: Clone>(self, arena: &Arena<T, U>) -> PreOrderTraversal<T, U> {
         let mut stack = VecDeque::new();
         stack.push_front(self);
-        let mut iterator = PreOrderTraversal { arena: arena,
-                                               stack: stack, };
+        let mut iterator = PreOrderTraversal { arena, stack };
         iterator.next(); // Consume self.
         iterator
     }
@@ -813,108 +779,6 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PreOrderTraversal<'a, T, U>
         }
         Some(current)
     }
-}
-
-// Turn a grammar, parser and input string into an AST arena.
-fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16>,
-                                       lexer: &Lexer<u16>,
-                                       grm: &YaccGrammar,
-                                       input: &str)
-                                       -> Arena<String, T> {
-    let mut arena = Arena::new();
-    let mut st = vec![pt]; // Stack of nodes.
-                           // Stack of `Option<NodeId>`s which are parents of nodes on the `st` stack.
-                           // The stack should never be empty, a `None` should be at the bottom of the stack.
-    let mut parent = vec![None];
-    let mut child_node: NodeId<T>;
-    while !st.is_empty() {
-        let e = st.pop().unwrap();
-        match *e {
-            parser::Node::Term { lexeme } => {
-                let token_id: usize = lexeme.tok_id().try_into().ok().unwrap();
-                let term_name = grm.term_name(TIdx::from(token_id)).unwrap();
-                let lexeme_string = &input[lexeme.start()..lexeme.start() + lexeme.len()];
-                let (line_no, col_no) = lexer.line_and_col(&lexeme).unwrap();
-                child_node = arena.new_node(term_name.to_string(),
-                                            lexeme_string.to_string(),
-                                            Some(col_no),
-                                            Some(line_no),
-                                            Some(lexeme.start()),
-                                            Some(lexeme.len()));
-                match parent.pop().unwrap() {
-                    None => parent.push(None),
-                    Some(id) => {
-                        child_node.make_child_of(id, &mut arena).ok();
-                    }
-                };
-            }
-            parser::Node::Nonterm { nonterm_idx,
-                                    ref nodes, } => {
-                // A non-terminal has no label of its own, but has a node type.
-                child_node = arena.new_node(grm.nonterm_name(nonterm_idx).to_string(),
-                                            "".to_string(),
-                                            None,
-                                            None,
-                                            None,
-                                            None);
-                match parent.pop().unwrap() {
-                    None => parent.push(None),
-                    Some(id) => {
-                        child_node.make_child_of(id, &mut arena).ok();
-                    }
-                };
-                // Push children of current non-terminal onto stacks.
-                for x in nodes.iter().rev() {
-                    st.push(x);
-                    parent.push(Some(child_node));
-                }
-            }
-        }
-    }
-    arena
-}
-
-// Read file and return its contents or `ParseError`.
-fn read_file(path: &Path) -> Result<String, ParseError> {
-    if !Path::new(path).exists() {
-        return Err(ParseError::FileNotFound(path.to_str().unwrap().into()));
-    }
-    let mut f = File::open(path).map_err(|e| ParseError::Io(e.to_string()))?;
-    let mut s = String::new();
-    f.read_to_string(&mut s).unwrap();
-    Ok(s)
-}
-
-/// Parse an individual input file, and return an `Arena` or `ParseError`.
-pub fn parse_file<T: PartialEq + Copy>(input_path: &str,
-                                       lex_path: &Path,
-                                       yacc_path: &Path)
-                                       -> Result<Arena<String, T>, ParseError> {
-    // Determine lexer and yacc files by extension. For example if the input
-    // file is named Foo.java, the lexer should be grammars/java.l.
-    // TODO: create a HashMap of file extensions -> lex/yacc files.
-    // Get input files.
-    let lexs = read_file(lex_path)?;
-    let grms = read_file(yacc_path)?;
-    let input = read_file(Path::new(input_path))?;
-
-    let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
-    let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
-
-    // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map().iter()
-                      .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
-                      .collect();
-    lexerdef.set_rule_ids(&rule_ids);
-
-    // Lex input file.
-    let lexer = lexerdef.lexer(&input);
-    let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
-
-    // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
-    Ok(parse_into_ast::<T>(&pt, &lexer, &grm, &input))
 }
 
 #[cfg(test)]

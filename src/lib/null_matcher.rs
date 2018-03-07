@@ -35,63 +35,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#![feature(test)]
-#![feature(try_from)]
+#![warn(missing_docs)]
 
-extern crate cfgrammar;
-extern crate dot;
-#[macro_use]
-extern crate log;
-extern crate lrlex;
-extern crate lrpar;
-extern crate lrtable;
-extern crate term;
-extern crate test;
-
-/// Actions are operations that transform abstract syntax trees.
-pub mod action;
-
-/// AST defines the abstract syntax tree types that the differ works on.
+/// This matcher performs no operations.
 ///
-/// Routines are provided to create and iterate over ASTs, and to parse a file
-/// into an AST.
-pub mod ast;
+/// It should ONLY be used for testing the edit script generator, or other parts
+/// of diffract, and should not be visible to the user -- i.e. it should not be
+/// imported into the `main` module.
 
-/// Algorithms to generate edit scripts, based on an existing AST matching.
-pub mod edit_script;
+use std::fmt::Debug;
 
-/// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
-pub mod emitters;
+use ast::{Arena, FromNodeId, ToNodeId};
+use matchers::{MappingStore, MatchTrees};
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+/// The Null matcher needs no configuration.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NullConfig {}
 
-/// GT matching algorithm.
-pub mod gt_matcher;
+impl NullConfig {
+    /// Create a new configuration object, with default values.
+    pub fn new() -> NullConfig {
+        NullConfig {}
+    }
+}
 
-/// Longest common subsequence matching algorithm.
-///
-/// Described in Myers (1986).
-pub mod myers_matcher;
+impl<T: Clone + Debug + Eq + 'static> MatchTrees<T> for NullConfig {
+    /// Describe this matcher for the user.
+    fn describe(&self) -> String {
+        let desc = "This matcher performs no matching operations.";
+        String::from(desc)
+    }
 
-/// The null matcher produces no matches and is only used for testing.
-pub mod null_matcher;
-
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
-
-/// Parse strings and files into `ast::Arena` types.
-pub mod parser;
-
-/// A patch represents a diff on a single AST node.
-///
-/// Also deals with turning nearby patches into hunks.
-pub mod patch;
-
-/// Algorithms which act on sequences of values.
-pub mod sequence;
-
-/// Algorithms which were described in Myers(1996).
-///
-/// Induced, pruning algorithms currently implemented.
-pub mod chawathe98_matcher;
+    /// Perform no matching operations.
+    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
+        MappingStore::new(base, diff)
+    }
+}
