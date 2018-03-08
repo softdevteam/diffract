@@ -465,6 +465,11 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq> EditScript<T> {
         self.actions.clear();
     }
 
+    /// Test whether this edit script is empty.
+    pub fn is_empty(&self) -> bool {
+        self.actions.is_empty()
+    }
+
     /// Return the number of actions in this list.
     pub fn size(&self) -> usize {
         self.actions.len()
@@ -676,6 +681,7 @@ mod test {
         assert_eq!(format1, format!("{:?}", arena));
         // Create action list.
         let mut actions: EditScript<&str> = EditScript::new();
+        assert!(actions.is_empty());
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
         let ins1 = Insert::new(n5, Some(NodeId::new(2)), 0);
@@ -689,6 +695,7 @@ mod test {
         actions.push(ins2);
         actions.push(mov);
         actions.push(upd);
+        assert!(!actions.is_empty());
         assert_eq!(6, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
@@ -714,6 +721,7 @@ mod test {
         let n5 = arena.new_node("INT", String::from("2"), None, None, None, None);
         // Create action list.
         let mut actions: EditScript<&str> = EditScript::new();
+        assert!(actions.is_empty());
         let del = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins = Insert { node: n5,
                            new_parent: Some(NodeId::new(2)),
@@ -725,6 +733,7 @@ mod test {
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
+        assert!(!actions.is_empty());
         assert_eq!(3, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
@@ -744,6 +753,7 @@ mod test {
         let n6 = arena1.new_node("INT", String::from("99"), None, None, None, None);
         // Create action list.
         let mut actions1: EditScript<&str> = EditScript::new();
+        assert!(actions1.is_empty());
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
         assert_eq!(del1, del1);
@@ -762,11 +772,13 @@ mod test {
         actions1.push(ins2);
         actions1.push(mov1);
         actions1.push(upd1);
+        assert!(!actions1.is_empty());
         assert_eq!(6, actions1.size());
         // Second edit script.
         let mut arena2 = create_arena();
         let n7 = arena2.new_node("INT", String::from("2"), None, None, None, None);
         let mut actions2: EditScript<&str> = EditScript::new();
+        assert!(actions2.is_empty());
         let del3 = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins3 = Insert { node: n7,
                             new_parent: Some(NodeId::new(2)),
@@ -778,6 +790,7 @@ mod test {
         actions2.push(del3);
         actions2.push(ins3);
         actions2.push(upd2);
+        assert!(!actions2.is_empty());
         assert_eq!(3, actions2.size());
         assert_eq!(actions1, actions1);
         assert_eq!(actions2, actions2);
