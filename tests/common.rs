@@ -40,7 +40,7 @@
 
 extern crate diffract;
 
-use diffract::edit_script::{Chawathe96Config, EditScriptGenerator};
+use diffract::edit_script::{Chawathe96Config, EditScriptGenerator, TMP_ROOT};
 use diffract::matchers::MatchTrees;
 use diffract::parser::{get_lexer, get_parser, parse_file};
 
@@ -96,4 +96,17 @@ pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
                path1,
                path2);
 
+    // Test 3: check that `TMP_ROOT` is not found in the tree. This text is
+    // used when the `from` and `to` trees have roots with different types or
+    // labels. It should be removed before the edit script generator completes.
+    for id in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
+        if TMP_ROOT == store.from_arena.borrow()[id].label {
+            assert!(false, "TMP_ROOT not removed from {:?}", path1);
+        }
+    }
+    for id in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
+        if TMP_ROOT == store.to_arena.borrow()[id].label {
+            assert!(false, "TMP_ROOT not removed from {:?}", path2);
+        }
+    }
 }

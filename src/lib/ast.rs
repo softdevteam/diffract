@@ -198,7 +198,9 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
         if root.children(self).collect::<Vec<NodeId<U>>>().len() > 1 {
             return Err(ArenaError::NodeHasTooManyChildren);
         }
-        self.root = self[root].first_child;
+        let new_root = self[root].first_child.unwrap();
+        self[new_root].parent = None;
+        self.root = Some(new_root);
         self[root].parent = None;
         self[root].first_child = None;
         // Next few assignments should not be necessary.

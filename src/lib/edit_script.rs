@@ -45,7 +45,11 @@ use action::{ApplyAction, Delete, EditScript, Insert, Move, Update};
 use ast::{ArenaError, FromNodeId, NodeId, ToNodeId};
 use matchers::{EditScriptResult, MappingStore, MappingType};
 
-const TMP_ROOT: &str = "_____DIFFRACT_TMP_ROOT";
+/// Label to use when introducing temporary root nodes in an AST.
+///
+/// Temporary root nodes should be removed before the edit script generator
+/// completes. This constant is exposed for use in integration tests.
+pub const TMP_ROOT: &str = "_____DIFFRACT_TMP_ROOT";
 
 /// Given a matching between two ASTs, generate a complete edit script.
 ///
