@@ -163,18 +163,6 @@ impl<T: Clone + Debug + Eq + 'static> MappingStore<T> {
         self.get_to(from).map_or(false, |x| x == *to)
     }
 
-    /// Test whether `from` is mapped to `to` by the matcher.
-    /// As opposed to the edit script generator.
-    pub fn is_mapped_by_matcher(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
-        if !self.contains_from(from) {
-            return false;
-        }
-        match self.from.borrow().get(from) {
-            None => false,
-            Some(&(val, ref ty)) => val == *to && *ty != MappingType::EDIT,
-        }
-    }
-
     /// Two sub-trees are isomorphic if they have the same structure.
     ///
     /// Two single-node trees are isomorphic if they have the same types
@@ -402,29 +390,6 @@ mod tests {
         assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(1)));
         assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(2)));
         assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(3)));
-    }
-
-    #[test]
-    fn is_mapped_by_matcher() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
-        store.push(NodeId::new(0), NodeId::new(0), &MappingType::CONTAINER);
-        store.push(NodeId::new(2), NodeId::new(4), &MappingType::EDIT);
-        assert!(store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(0)));
-        // Not mapped.
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(1)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(2)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(3)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(0), &NodeId::new(4)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(1), &NodeId::new(1)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(1), &NodeId::new(2)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(1), &NodeId::new(3)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(1), &NodeId::new(4)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(2), &NodeId::new(1)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(2), &NodeId::new(2)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(2), &NodeId::new(3)));
-        assert!(!store.is_mapped_by_matcher(&NodeId::new(2), &NodeId::new(4)));
     }
 
     #[test]
