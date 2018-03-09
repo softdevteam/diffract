@@ -122,7 +122,7 @@ impl<T: Clone, U: PartialEq + Copy> IndexMut<NodeId<U>> for Arena<T, U> {
 }
 
 #[cfg(test)]
-impl<T: Clone> From<Arena<T, ToNodeId>> for Arena<T, FromNodeId> {
+impl<T: Clone + PartialEq> From<Arena<T, ToNodeId>> for Arena<T, FromNodeId> {
     fn from(arena: Arena<T, ToNodeId>) -> Self {
         let coerced = arena.nodes
                            .iter()
@@ -135,7 +135,7 @@ impl<T: Clone> From<Arena<T, ToNodeId>> for Arena<T, FromNodeId> {
 }
 
 #[cfg(test)]
-impl<T: Clone> From<Arena<T, FromNodeId>> for Arena<T, ToNodeId> {
+impl<T: Clone + PartialEq> From<Arena<T, FromNodeId>> for Arena<T, ToNodeId> {
     fn from(arena: Arena<T, FromNodeId>) -> Self {
         let coerced = arena.nodes
                            .iter()
@@ -147,7 +147,7 @@ impl<T: Clone> From<Arena<T, FromNodeId>> for Arena<T, ToNodeId> {
     }
 }
 
-impl<T: Clone, U: PartialEq + Copy> Arena<T, U> {
+impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
     /// Create an empty `Arena`.
     pub fn new() -> Arena<T, U> {
         Default::default()
@@ -198,7 +198,9 @@ impl<T: Clone, U: PartialEq + Copy> Arena<T, U> {
         if root.children(self).collect::<Vec<NodeId<U>>>().len() > 1 {
             return Err(ArenaError::NodeHasTooManyChildren);
         }
-        self.root = self[root].first_child;
+        let new_root = self[root].first_child.unwrap();
+        self[new_root].parent = None;
+        self.root = Some(new_root);
         self[root].parent = None;
         self[root].first_child = None;
         // Next few assignments should not be necessary.
@@ -230,6 +232,16 @@ impl<T: Clone, U: PartialEq + Copy> Arena<T, U> {
     /// Return `true` if index is in arena, `false` otherwise.
     pub fn contains(&self, index: NodeId<U>) -> bool {
         index.index < self.nodes.len()
+    }
+
+    /// Test whether this arena contains a node with a given type and label.
+    pub fn contains_type_and_label(&self, ty: T, label: &str) -> bool {
+        for n in &self.nodes {
+            if ty == n.ty && label == n.label {
+                return true;
+            }
+        }
+        false
     }
 
     /// Return a queue of `NodeId`s sorted by height.
@@ -496,7 +508,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach<T: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn detach<T: Clone + PartialEq>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -523,7 +535,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T: Clone>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn detach_with_children<T: Clone + PartialEq>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
         self.detach(arena)?;
         let ids = self.children(arena).collect::<Vec<NodeId<U>>>();
         for id in ids {
@@ -533,7 +545,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Make self the next (i.e. last) child of another.
-    pub fn make_child_of<T: Clone>(&self, parent: NodeId<U>, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn make_child_of<T: Clone + PartialEq>(&self, parent: NodeId<U>, arena: &mut Arena<T, U>) -> ArenaResult {
         if self.index >= arena.size() || parent.index >= arena.size() {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -556,7 +568,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// Attach children to given node
     /// This would copy the subtree from the to_node
     /// And then attach it to the self node.
-    pub fn copy_subtree<T: Clone>(self, _to_node: NodeId<U>, position: u16, _arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn copy_subtree<T: Clone + PartialEq>(self,
+                                              _to_node: NodeId<U>,
+                                              position: u16,
+                                              _arena: &mut Arena<T, U>)
+                                              -> ArenaResult {
         let current_node = _arena[_to_node].clone();
 
         let mut _new_node_made = _arena.new_node(current_node.ty,
@@ -590,7 +606,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
     /// child of `parent`.
-    pub fn make_nth_child_of<T: Clone>(&self, parent: NodeId<U>, nth: u16, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn make_nth_child_of<T: Clone + PartialEq>(&self,
+                                                   parent: NodeId<U>,
+                                                   nth: u16,
+                                                   arena: &mut Arena<T, U>)
+                                                   -> ArenaResult {
         if !arena.contains(*self) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -1442,6 +1462,16 @@ mod tests {
         assert!(arena.contains(n1));
         assert!(!arena.contains(NodeId { index: 1,
                                          phantom: PhantomData, }));
+    }
+
+    #[test]
+    fn contains_type_and_label() {
+        let arena = &mut Arena::<&str, FromNodeId>::new();
+        let _ = arena.new_node("1", String::from("INT"), None, None, None, None);
+        assert!(arena.contains_type_and_label("1", "INT"));
+        assert!(!arena.contains_type_and_label("0", "INT"));
+        assert!(!arena.contains_type_and_label("1", "FLOAT"));
+        assert!(!arena.contains_type_and_label("0", "FLOAT"));
     }
 
     #[test]
