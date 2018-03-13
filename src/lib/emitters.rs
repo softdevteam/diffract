@@ -251,8 +251,11 @@ fn escape_string(label: &str) -> String {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
-    let mut stream = File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
+pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str,
+                                               graph: &T)
+                                               -> EmitterResult {
+    let mut stream =
+        File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph.render_dotfile(&mut stream)
          .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
@@ -278,8 +281,9 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
     }
 }
 
-impl<'a, T: Clone + PartialEq, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>>
-    for Arena<T, U>
+impl<'a,
+     T: Clone + PartialEq,
+     U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U>
 {
     fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
@@ -383,9 +387,10 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.to_arena.borrow().get_edges() {
-            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
-                           e0.id(),
-                           e1.id());
+            line =
+                format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                        e0.id(),
+                        e1.id());
             digraph.push(line);
         }
         digraph.push(String::from("\t}\n"));
@@ -428,7 +433,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         // Node labels for both ASTs.
         for id in 0..self.from_arena.borrow().size() {
             from_node = NodeId::new(id);
-            if !self.contains_from(from_node) {
+            if !self.contains_edge_from(from_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
@@ -451,7 +456,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         }
         for id in 0..self.to_arena.borrow().size() {
             to_node = NodeId::new(id);
-            if !self.contains_to(to_node) {
+            if !self.contains_edge_to(to_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
@@ -486,9 +491,10 @@ impl RenderDotfile for MappingStoreGraph<String> {
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.to_arena.borrow().get_edges() {
-            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
-                           e0.id(),
-                           e1.id());
+            line =
+                format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                        e0.id(),
+                        e1.id());
             digraph.push(line);
         }
         digraph.push(String::from("\t}\n"));
