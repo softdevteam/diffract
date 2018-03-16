@@ -891,9 +891,9 @@ pub fn edgecover_apply_edit_script(new_matcher_pruning: &mut MappingStoreGraph<S
                     if new_matcher_pruning.contains_edge_from(parent_from_node) {
                         // if the parent exists then do the operation
                         let index_parent_from_index;
-                        match  get_index_from_node(&indexes_t_f.clone(), parent_index_1) {
-                            Some(x) => index_parent_from_index = x,
-                            None => index_parent_from_index = from_arena.size()+1,
+                        match get_index_from_node(&indexes_t_f.clone(), parent_index_1) {
+                            Some(x) => index_parent_from_index = *x,
+                            None => index_parent_from_index = from_arena.size() + 1,
                         };
 
                         if index_parent_from_index < from_arena.size() {
@@ -932,9 +932,9 @@ pub fn edgecover_apply_edit_script(new_matcher_pruning: &mut MappingStoreGraph<S
                     // Get Parent
                     let parent_index_1 = to_arena[to_node].parent().unwrap().id();
                     let index_parent_from_index;
-                    match  get_index_from_node(&indexes_t_f.clone(), parent_index_1) {
-                        Some(x) => index_parent_from_index = x,
-                        None => index_parent_from_index = from_arena.size()+1,
+                    match get_index_from_node(&indexes_t_f.clone(), parent_index_1) {
+                        Some(x) => index_parent_from_index = *x,
+                        None => index_parent_from_index = from_arena.size() + 1,
                     };
                     if index_parent_from_index < from_arena.size() {
                         let from_node_parent: NodeId<FromNodeId> =
@@ -1221,11 +1221,10 @@ impl Config2 {
 }
 
 /// Gets the corresponding From Node Index using the To Node Index.
-pub fn get_index_from_node(map: &HashMap<usize, usize>, to_node: usize) -> Option<usize> {
-    if map.get(&to_node).is_some() {
-       return Some(map[&to_node]);
-    }
-    None
+pub fn get_index_from_node(map: &HashMap<usize, usize>,
+                           to_node: usize)
+                           -> Option<&usize> {
+    map.get(&to_node)
 }
 
 impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
