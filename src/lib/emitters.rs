@@ -281,9 +281,8 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
     }
 }
 
-impl<'a,
-     T: Clone + PartialEq,
-     U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U>
+impl<'a, T: Clone + PartialEq, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>>
+    for Arena<T, U>
 {
     fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
@@ -387,10 +386,9 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.to_arena.borrow().get_edges() {
-            line =
-                format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
-                        e0.id(),
-                        e1.id());
+            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                           e0.id(),
+                           e1.id());
             digraph.push(line);
         }
         digraph.push(String::from("\t}\n"));
@@ -491,10 +489,9 @@ impl RenderDotfile for MappingStoreGraph<String> {
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
         for (e0, e1) in self.to_arena.borrow().get_edges() {
-            line =
-                format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
-                        e0.id(),
-                        e1.id());
+            line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
+                           e0.id(),
+                           e1.id());
             digraph.push(line);
         }
         digraph.push(String::from("\t}\n"));

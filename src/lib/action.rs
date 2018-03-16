@@ -210,9 +210,10 @@ impl Copy {
 
 impl Glue {
     /// Create a new `Glue` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>) -> Glue {
+    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Glue {
         Glue { from_node: from,
-               node: parent, }
+               node: parent,
+               pos : position}
     }
 }
 
@@ -779,7 +780,7 @@ mod test {
         let ins1 = Insert::new(n5, Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(n6, Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
-        // Change "+"" to "*".
+                                                                // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);
@@ -816,12 +817,12 @@ mod test {
         assert!(actions.is_empty());
         let del = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins = Insert { node: n5,
-            new_parent: Some(NodeId::new(2)),
-            nth_child: 0, };
+                           new_parent: Some(NodeId::new(2)),
+                           nth_child: 0, };
         let upd = Update { // Change "+" to "*".
-            node: NodeId::new(0),
-            ty: "Expr",
-            label: String::from("*"), };
+                           node: NodeId::new(0),
+                           ty: "Expr",
+                           label: String::from("*"), };
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
@@ -873,12 +874,12 @@ mod test {
         assert!(actions2.is_empty());
         let del3 = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins3 = Insert { node: n7,
-            new_parent: Some(NodeId::new(2)),
-            nth_child: 0, };
+                            new_parent: Some(NodeId::new(2)),
+                            nth_child: 0, };
         let upd2 = Update { // Change "+" to "*".
-            node: NodeId::new(0),
-            ty: "Expr",
-            label: String::from("*"), };
+                            node: NodeId::new(0),
+                            ty: "Expr",
+                            label: String::from("*"), };
         actions2.push(del3);
         actions2.push(ins3);
         actions2.push(upd2);
@@ -897,7 +898,7 @@ mod test {
         let ins1 = Insert::new(NodeId::new(5), Some(NodeId::new(2)), 0);
         let ins2 = Insert::new(NodeId::new(6), Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
-        // Change "+"" to "*".
+                                                                // Change "+"" to "*".
         let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
         actions.push(del1);
         actions.push(del2);
