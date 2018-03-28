@@ -502,6 +502,17 @@ impl<U: PartialEq + Copy> NodeId<U> {
             .unwrap() + 1
     }
 
+    /// Get the size of the subtree under this node.
+    ///
+    /// The size of a leaf node is 1, the size of a branch node is 1 + the
+    /// number of descendants of that node.
+    pub fn size<T: Clone>(&self, arena: &Arena<T, U>) -> u32 {
+        if self.is_leaf(arena) {
+            return 1;
+        }
+        1 + self.descendants(arena).count() as u32
+    }
+
     /// Detach this node, leaving its children unaffected.
     ///
     /// Detaching a node makes it inaccessible to other nodes. The node is not
@@ -1475,7 +1486,7 @@ mod tests {
     }
 
     #[test]
-    fn size() {
+    fn size_of_arena() {
         let arena = &mut Arena::<&str, FromNodeId>::new();
         assert_eq!(0, arena.size());
         let _ = arena.new_node("+", String::from("Expr"), None, None, None, None);
@@ -1505,6 +1516,23 @@ mod tests {
         assert_eq!(2, NodeId::new(2).height(&arena));
         assert_eq!(1, NodeId::new(3).height(&arena));
         assert_eq!(1, NodeId::new(4).height(&arena));
+    }
+
+    #[test]
+    fn size_on_nodeid() {
+        let arena = create_arena();
+        let format1 = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
+";
+        assert_eq!(format1, format!("{:?}", arena));
+        assert_eq!(5, NodeId::new(0).size(&arena));
+        assert_eq!(1, NodeId::new(1).size(&arena));
+        assert_eq!(3, NodeId::new(2).size(&arena));
+        assert_eq!(1, NodeId::new(3).size(&arena));
+        assert_eq!(1, NodeId::new(4).size(&arena));
     }
 
     #[test]
