@@ -223,9 +223,16 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     ///     1) from node id &
     ///     2) To node id
     ///     3) Edge Type
-    pub fn contains_edge(&self, from: usize, to: usize, edge_type: &EdgeType, list_edges: &[Edge]) -> bool {
+    pub fn contains_edge(&self,
+                         from: usize,
+                         to: usize,
+                         edge_type: &EdgeType,
+                         list_edges: &[Edge])
+                         -> bool {
         for edge in list_edges {
-            if edge.from_node.id() == from && edge.to_node.id() == to && edge.edge_type == *edge_type {
+            if edge.from_node.id() == from && edge.to_node.id() == to
+               && edge.edge_type == *edge_type
+            {
                 return true;
             }
         }
@@ -244,7 +251,10 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Print for all the pre order traversal tree2: <Vec<NodeId<ToNodeId>>>
-    pub fn print_preorder_traversal(&self, tree1: Vec<NodeId<FromNodeId>>, tree2: Vec<NodeId<ToNodeId>>) -> () {
+    pub fn print_preorder_traversal(&self,
+                                    tree1: Vec<NodeId<FromNodeId>>,
+                                    tree2: Vec<NodeId<ToNodeId>>)
+                                    -> () {
         println!();
         println!("Tree 1");
         print!("|");
@@ -299,7 +309,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     pub fn check_tree_deletion(&self,
                                from_node_ancestor: NodeId<FromNodeId>,
                                delete_tree2: NodeId<ToNodeId>,
-                               hash_set_deletion: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>)
+                               hash_set_deletion: &HashSet<(NodeId<FromNodeId>,
+                                        NodeId<ToNodeId>)>)
                                -> bool {
         let mut output = true;
         let descendants_from_node = from_node_ancestor.descendants(&self.from_arena.borrow())
@@ -328,7 +339,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     pub fn check_tree_insertion(&self,
                                 insert_tree1: NodeId<FromNodeId>,
                                 to_node: NodeId<ToNodeId>,
-                                hash_set_insertion: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>)
+                                hash_set_insertion: &HashSet<(NodeId<FromNodeId>,
+                                         NodeId<ToNodeId>)>)
                                 -> bool {
         let mut output = true;
         let descendants_from_node = to_node.descendants(&self.to_arena.borrow())
@@ -342,7 +354,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Converts vector(To_node_id) to hash set
-    pub fn vector_to_hash_set_to_node_id(&self, tree2: &[NodeId<ToNodeId>]) -> HashSet<NodeId<ToNodeId>> {
+    pub fn vector_to_hash_set_to_node_id(&self,
+                                         tree2: &[NodeId<ToNodeId>])
+                                         -> HashSet<NodeId<ToNodeId>> {
         let mut hashset = HashSet::<NodeId<ToNodeId>>::new();
         for node in tree2.to_owned() {
             hashset.insert(node);
@@ -351,7 +365,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Converts vector(From_node_id) to hash set
-    pub fn vector_to_hash_set_from_node_id(&self, tree2: &[NodeId<FromNodeId>]) -> HashSet<NodeId<FromNodeId>> {
+    pub fn vector_to_hash_set_from_node_id(&self,
+                                           tree2: &[NodeId<FromNodeId>])
+                                           -> HashSet<NodeId<FromNodeId>> {
         let mut hashset = HashSet::<NodeId<FromNodeId>>::new();
         for node in tree2.to_owned() {
             hashset.insert(node);
@@ -529,7 +545,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                 // (2:R) The node in N where it doesn't equal the deletion node which is the last node in to_arena
                 // (3:R) Check if node in N, is the same as our -- n --
                 if list_m[0].id() == self.from_arena.borrow().size() - 1
-                   && list_n[0].id() != self.to_arena.borrow().size() - 1 && list_n[0].id() == n.id()
+                   && list_n[0].id() != self.to_arena.borrow().size() - 1
+                   && list_n[0].id() == n.id()
                 {
                     // Last Node
                     //
@@ -559,7 +576,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                     for check in edges.to_owned() {
                         let m_parent = self.from_arena.borrow()[m].parent().unwrap();
                         let n_parent = self.to_arena.borrow()[n].parent().unwrap();
-                        if m_parent.id() == check.from_node.id() && n_parent.id() == check.to_node.id() {
+                        if m_parent.id() == check.from_node.id()
+                           && n_parent.id() == check.to_node.id()
+                        {
                             let mut edge = Edge::new(m, n, 1, EdgeType::NULL);
                             list_edges.push(edge);
                         } else {
@@ -634,7 +653,10 @@ impl Config2 {
 
 impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
     /// Perform matches
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStoreGraph<T> {
+    fn match_trees(&self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
+                   -> MappingStoreGraph<T> {
         let mut store = MappingStoreGraph::new(base.clone(), diff.clone());
         if store.from_arena.borrow().is_empty() || store.to_arena.borrow().is_empty() {
             return store;
@@ -678,7 +700,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                 } else if eq_label(from_node,
                                    &store.from_arena.borrow(),
                                    to_node,
-                                   &store.to_arena.borrow()) && from_node_id == to_node_id
+                                   &store.to_arena.borrow())
+                          && from_node_id == to_node_id
                 {
                     // the same label and value but different position
                     store.push(*from_node, *to_node, 1, EdgeType::UPDATE);
@@ -710,7 +733,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         }
         let get_all_edges = store.list_edges.borrow().clone();
         let mut all_edges_move = HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType)>::new();
-        let mut all_leaves_move = HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType)>::new();
+        let mut all_leaves_move =
+            HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType)>::new();
         for edge in get_all_edges.clone() {
             if edge.edge_type == EdgeType::MOVE {
                 let edge_copy = edge.clone();
@@ -719,18 +743,24 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                 let n_check = edge.to_node.is_leaf(&store.to_arena.borrow());
 
                 if m_check && n_check {
-                    all_leaves_move.insert((edge_copy.from_node, edge_copy.to_node, edge_copy.edge_type));
+                    all_leaves_move.insert((edge_copy.from_node,
+                                           edge_copy.to_node,
+                                           edge_copy.edge_type));
                 }
             }
         }
         let mut all_leaves_parent =
-            HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>, NodeId<FromNodeId>, NodeId<ToNodeId>)>::new();
+            HashSet::<(NodeId<FromNodeId>,
+                      NodeId<ToNodeId>,
+                      NodeId<FromNodeId>,
+                      NodeId<ToNodeId>)>::new();
         // Check if its nodes are in the leaf move operation
         for edge in all_leaves_move.clone() {
             let e1_parent = store.from_arena.borrow()[edge.0].parent().unwrap(); //edge.0.parent;
             let e1_siblings = e1_parent.children(&store.from_arena.borrow())
                                        .collect::<Vec<NodeId<FromNodeId>>>();
-            let e1_to_node_parent = store.to_arena.borrow()[edge.1].parent().unwrap(); // edge to node parent
+            // edge to node parent
+            let e1_to_node_parent = store.to_arena.borrow()[edge.1].parent().unwrap();
 
             let size_e1_siblings = e1_siblings.len();
             for _ in e1_siblings {
@@ -773,7 +803,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                     vector_input.push((edge_change.0, edge_change.1));
                     let parent_m = store.from_arena.borrow()[edge_change.0].parent().unwrap();
                     let parent_n = store.to_arena.borrow()[edge_change.1].parent().unwrap();
-                    if !parent_m.is_root(&store.from_arena.borrow()) && !parent_n.is_root(&store.to_arena.borrow()) {
+                    if !parent_m.is_root(&store.from_arena.borrow())
+                       && !parent_n.is_root(&store.to_arena.borrow())
+                    {
                         edge_change = (parent_m, parent_n);
                     } else {
                         break;
@@ -903,7 +935,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                     let m_glue = edge_glue.from_node;
                     let n_glue = edge_glue.to_node;
 
-                    if edge_glue.edge_type == EdgeType::GLUE && edge_move.edge_type == EdgeType::MOVE
+                    if edge_glue.edge_type == EdgeType::GLUE
+                       && edge_move.edge_type == EdgeType::MOVE
                        && m_move == m_glue && n_move == n_glue
                     {
                         // We have found a copy so check is true
@@ -955,7 +988,10 @@ fn eq_label<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
 /// define thresholds and weights for a given algorithm.
 pub trait MatchingTreesScriptor<T: Clone + Debug> {
     /// Match two trees and return a store of mappings between them.
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStoreGraph<T>;
+    fn match_trees(&self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
+                   -> MappingStoreGraph<T>;
 
     /// Describe the matcher for the user.
     ///

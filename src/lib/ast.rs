@@ -42,7 +42,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 
-use fingerprint::{CLOSE_SYMBOL, HashType, OPEN_SYMBOL, SEPARATE_SYMBOL};
+use fingerprint::{HashType, CLOSE_SYMBOL, OPEN_SYMBOL, SEPARATE_SYMBOL};
 use hqueue::HeightQueue;
 
 /// Errors raised by arenas.
@@ -365,12 +365,16 @@ pub struct Node<T: Clone, U: PartialEq + Copy> {
 #[cfg(test)]
 impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
     fn from(node: Node<T, ToNodeId>) -> Self {
-        Node::<T, FromNodeId> { parent: node.parent().map(|id| NodeId::<FromNodeId>::from(id)),
-                                previous_sibling: node.previous_sibling().map(|id| NodeId::<FromNodeId>::from(id)),
-                                next_sibling: node.next_sibling().map(|id| NodeId::<FromNodeId>::from(id)),
-                                first_child: node.first_child().map(|id| NodeId::<FromNodeId>::from(id)),
-                                last_child: node.last_child().map(|id| NodeId::<FromNodeId>::from(id)),
-                                index: node.index.map(|id| NodeId::<FromNodeId>::from(id)),
+        Node::<T, FromNodeId> { parent: node.parent().map(|i| NodeId::<FromNodeId>::from(i)),
+                                previous_sibling:
+                                    node.previous_sibling().map(|i| NodeId::<FromNodeId>::from(i)),
+                                next_sibling:
+                                    node.next_sibling().map(|i| NodeId::<FromNodeId>::from(i)),
+                                first_child:
+                                    node.first_child().map(|i| NodeId::<FromNodeId>::from(i)),
+                                last_child:
+                                    node.last_child().map(|i| NodeId::<FromNodeId>::from(i)),
+                                index: node.index.map(|i| NodeId::<FromNodeId>::from(i)),
                                 ty: node.ty,
                                 label: node.label,
                                 col_no: node.col_no,
@@ -385,10 +389,14 @@ impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
 impl<T: Clone> From<Node<T, FromNodeId>> for Node<T, ToNodeId> {
     fn from(node: Node<T, FromNodeId>) -> Self {
         Node::<T, ToNodeId> { parent: node.parent().map(|id| NodeId::<ToNodeId>::from(id)),
-                              previous_sibling: node.previous_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
-                              next_sibling: node.next_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
-                              first_child: node.first_child().map(|id| NodeId::<ToNodeId>::from(id)),
-                              last_child: node.last_child().map(|id| NodeId::<ToNodeId>::from(id)),
+                              previous_sibling:
+                                  node.previous_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
+                              next_sibling:
+                                  node.next_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
+                              first_child:
+                                  node.first_child().map(|id| NodeId::<ToNodeId>::from(id)),
+                              last_child:
+                                  node.last_child().map(|id| NodeId::<ToNodeId>::from(id)),
                               index: node.index.map(|id| NodeId::<ToNodeId>::from(id)),
                               ty: node.ty,
                               label: node.label,
@@ -507,12 +515,12 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Return the hash associated with this node.
-    pub fn get_hash<T: Clone>(&self,  arena: &Arena<T, U>) -> Option<HashType> {
+    pub fn get_hash<T: Clone>(&self, arena: &Arena<T, U>) -> Option<HashType> {
         arena[*self].hash
     }
 
     /// Set the hash associated with this node.
-    pub fn set_hash<T: Clone>(&self, hash: Option<HashType>,  arena: &mut Arena<T, U>) {
+    pub fn set_hash<T: Clone>(&self, hash: Option<HashType>, arena: &mut Arena<T, U>) {
         arena[*self].hash = hash;
     }
 
@@ -591,7 +599,9 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T: Clone + PartialEq>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn detach_with_children<T: Clone + PartialEq>(&self,
+                                                      arena: &mut Arena<T, U>)
+                                                      -> ArenaResult {
         self.detach(arena)?;
         let ids = self.children(arena).collect::<Vec<NodeId<U>>>();
         for id in ids {
@@ -601,7 +611,10 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Make self the next (i.e. last) child of another.
-    pub fn make_child_of<T: Clone + PartialEq>(&self, parent: NodeId<U>, arena: &mut Arena<T, U>) -> ArenaResult {
+    pub fn make_child_of<T: Clone + PartialEq>(&self,
+                                               parent: NodeId<U>,
+                                               arena: &mut Arena<T, U>)
+                                               -> ArenaResult {
         if self.index >= arena.size() || parent.index >= arena.size() {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -727,7 +740,9 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Return a breadth-first iterator of references to this node's descendants.
-    pub fn breadth_first_traversal<T: Clone>(self, arena: &Arena<T, U>) -> BreadthFirstTraversal<T, U> {
+    pub fn breadth_first_traversal<T: Clone>(self,
+                                             arena: &Arena<T, U>)
+                                             -> BreadthFirstTraversal<T, U> {
         let mut queue = VecDeque::new();
         queue.push_back(self);
         BreadthFirstTraversal { arena, queue }
@@ -781,9 +796,7 @@ pub struct Children<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
     node: Option<NodeId<U>>,
 }
-impl_node_iterator!(Children, |node: &Node<T, U>| {
-    node.next_sibling
-});
+impl_node_iterator!(Children, |node: &Node<T, U>| node.next_sibling);
 
 /// An iterator of references to the children of a given node.
 pub struct ReverseChildren<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
@@ -872,8 +885,10 @@ mod tests {
     #[test]
     fn from_trait_nodes() {
         let mut arena_from = Arena::<&str, FromNodeId>::new();
-        let _root_from = arena_from.new_node("CLASS", String::from("class"), None, None, None, None);
-        let nodeid_from = arena_from.new_node("MODIFIER", String::from("private"), None, None, None, None);
+        let _root_from =
+            arena_from.new_node("CLASS", String::from("class"), None, None, None, None);
+        let nodeid_from =
+            arena_from.new_node("MODIFIER", String::from("private"), None, None, None, None);
         let mut arena_to = Arena::<&str, ToNodeId>::new();
         let _root_to = arena_to.new_node("EXPR", String::from(""), None, None, None, None);
         let nodeid_to = arena_to.new_node("MULT", String::from("*"), None, None, None, None);
@@ -1187,10 +1202,16 @@ mod tests {
 
     #[test]
     fn node_fmt() {
-        let n1 = Node::<&str, NodeId<FromNodeId>>::new("MODIFIER", String::from("private"), None, None, None, None);
+        let n1 = Node::<&str, NodeId<FromNodeId>>::new("MODIFIER",
+                                                       String::from("private"),
+                                                       None,
+                                                       None,
+                                                       None,
+                                                       None);
         let expected1 = "\"MODIFIER\" private";
         assert_eq!(expected1, format!("{:?}", n1));
-        let n2 = Node::<&str, NodeId<FromNodeId>>::new("Expr", String::from(""), None, None, None, None);
+        let n2 =
+            Node::<&str, NodeId<FromNodeId>>::new("Expr", String::from(""), None, None, None, None);
         let expected2 = "\"Expr\"";
         assert_eq!(expected2, format!("{:?}", n2));
     }
@@ -1428,7 +1449,8 @@ mod tests {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let expected2: Vec<NodeId<FromNodeId>> =
+            vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
         let descendants2 = NodeId::new(2).breadth_first_traversal(&arena)
                                          .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
@@ -1453,7 +1475,8 @@ mod tests {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(3), NodeId::new(4), NodeId::new(2)];
+        let expected2: Vec<NodeId<FromNodeId>> =
+            vec![NodeId::new(3), NodeId::new(4), NodeId::new(2)];
         let descendants2 = NodeId::new(2).post_order_traversal(&arena)
                                          .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());
@@ -1478,7 +1501,8 @@ mod tests {
             assert_eq!(expected1[index], descendants1[index]);
         }
         // Descendants of n2.
-        let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
+        let expected2: Vec<NodeId<FromNodeId>> =
+            vec![NodeId::new(2), NodeId::new(3), NodeId::new(4)];
         let descendants2 = NodeId::new(2).pre_order_traversal(&arena)
                                          .collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), descendants2.len());

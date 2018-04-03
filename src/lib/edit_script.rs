@@ -100,14 +100,15 @@ impl Chawathe96Config {
     }
 
     /// Align children of w (From AST) and x (To AST) which are out of order.
-    fn align_children<T: Clone + Debug + Eq + ToString + 'static>(&self,
-                                                       store: &MappingStore<T>,
-                                                       w: NodeId<FromNodeId>,
-                                                       x: NodeId<ToNodeId>,
-                                                       script: &mut EditScript<T>,
-                                                       from_in_order: &mut HashSet<NodeId<FromNodeId>>,
-                                                       to_in_order: &mut HashSet<NodeId<ToNodeId>>)
-                                                       -> Result<(EditScript<T>), ArenaError> {
+    fn align_children<T: Clone + Debug + Eq + ToString + 'static>(
+        &self,
+        store: &MappingStore<T>,
+        w: NodeId<FromNodeId>,
+        x: NodeId<ToNodeId>,
+        script: &mut EditScript<T>,
+        from_in_order: &mut HashSet<NodeId<FromNodeId>>,
+        to_in_order: &mut HashSet<NodeId<ToNodeId>>)
+        -> Result<(EditScript<T>), ArenaError> {
         let mut actions = EditScript::new();
         // Variable key:
         // a, w in store.from_arena (T_1 in paper).
@@ -188,7 +189,7 @@ impl Chawathe96Config {
                                                  x: NodeId<ToNodeId>,
                                                  from_in_order: &HashSet<NodeId<FromNodeId>>,
                                                  to_in_order: &HashSet<NodeId<ToNodeId>>)
-                                                 -> u16 {
+-> u16{
         // 1. Let y=p(x) in T_2 and let w be the partner of x in T_1.
         // N.B. as the algorithm is presented in the paper, w is unused in the
         // remainder of this method. Likely this is just a typo, and so we
@@ -234,11 +235,12 @@ impl Chawathe96Config {
         position
     }
 
-    fn lcss<T: Clone + Debug + Eq + ToString + 'static>(&self,
-                                             store: &MappingStore<T>,
-                                             seq1: &[NodeId<FromNodeId>],
-                                             seq2: &[NodeId<ToNodeId>])
-                                             -> Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> {
+    fn lcss<T: Clone + Debug + Eq + ToString + 'static>(
+        &self,
+        store: &MappingStore<T>,
+        seq1: &[NodeId<FromNodeId>],
+        seq2: &[NodeId<ToNodeId>])
+        -> Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> {
         let mut lcss: Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = vec![];
         if seq1.is_empty() || seq2.is_empty() {
             return lcss;
@@ -280,7 +282,9 @@ impl Chawathe96Config {
     }
 }
 
-impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T> for Chawathe96Config {
+impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T>
+    for Chawathe96Config
+{
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
     /// Will panic if either `Arena` in `store` is empty (and has no root node).
@@ -407,13 +411,13 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
             if w.is_some() && !w.unwrap().is_root(&store.from_arena.borrow())
                && !x.is_root(&store.to_arena.borrow())
             {
-                let mut actions = self.align_children(store,
-                                                       store.from_arena.borrow()[w.unwrap()].parent()
-                                                                                            .unwrap(),
-                                                       store.to_arena.borrow()[x].parent().unwrap(),
-                                                       &mut script,
-                                                       &mut from_in_order,
-                                                       &mut to_in_order)?;
+                let mut actions =
+                    self.align_children(store,
+                                         store.from_arena.borrow()[w.unwrap()].parent().unwrap(),
+                                         store.to_arena.borrow()[x].parent().unwrap(),
+                                         &mut script,
+                                         &mut from_in_order,
+                                         &mut to_in_order)?;
                 actions.apply(&mut store.from_arena.borrow_mut())?;
             }
         }

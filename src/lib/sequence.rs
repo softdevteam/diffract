@@ -159,7 +159,11 @@ mod tests {
     fn assert_sequence_correct<T: Clone + Debug + Eq + ToString>(store: MappingStore<T>,
                                                                  expected: &[T]) {
         if expected.is_empty() {
-            assert!(lcss(&vec![], &store.from_arena.borrow(), &vec![], &store.to_arena.borrow(), &eq).is_empty());
+            assert!(lcss(&vec![],
+                         &store.from_arena.borrow(),
+                         &vec![],
+                         &store.to_arena.borrow(),
+                         &eq).is_empty());
             return;
         }
         assert!(!store.from_arena.borrow().is_empty());
@@ -181,7 +185,10 @@ mod tests {
         }
     }
 
-    fn create_mapping_store<T: Clone + Default + Debug + Eq + ToString + 'static>(base: &[T], diff: &[T]) -> MappingStore<T> {
+    fn create_mapping_store<T: Clone + Default + Debug + Eq + ToString + 'static>(
+        base: &[T],
+        diff: &[T])
+        -> MappingStore<T> {
         let mut base_arena: Arena<T, FromNodeId> = Arena::new();
         let mut from_id: NodeId<FromNodeId>;
         let mut to_id: NodeId<ToNodeId>;
@@ -193,7 +200,8 @@ mod tests {
                                            None,
                                            None);
             for ty in base {
-                from_id = base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
+                from_id =
+                    base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
                 from_id.make_child_of(root, &mut base_arena).unwrap();
             }
         }

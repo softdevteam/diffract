@@ -99,10 +99,7 @@ macro_rules! impl_compare {
 /// Turn an edit script into a list of patches on the "from" and "to" ASTs.
 pub trait Patchify<T: Clone + fmt::Debug + ToString> {
     /// Turn object into a `Patch`. Non-terminal nodes are ignored.
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>);
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
 }
 
 /// A list of actions to be applied.
@@ -184,10 +181,7 @@ impl Insert {
 
 impl Move {
     /// Create a new `Move` object.
-    pub fn new(from_node: NodeId<FromNodeId>,
-               parent: NodeId<FromNodeId>,
-               pos: u16)
-               -> Move {
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Move {
         Move { from_node,
                parent,
                pos, }
@@ -203,10 +197,7 @@ impl<T: Clone + fmt::Debug> Update<T> {
 
 impl Copy {
     /// Create a new `Copy` object.
-    pub fn new(from_node: NodeId<FromNodeId>,
-               parent: NodeId<FromNodeId>,
-               pos: u16)
-               -> Copy {
+    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Copy {
         Copy { from_node,
                parent,
                pos, }
@@ -305,10 +296,7 @@ impl RenderJson for Glue {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Delete {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                _: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
         let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
             from.push(Patch::new(ActionType::DELETE,
@@ -330,10 +318,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Insert {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::MOVE,
@@ -350,10 +335,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::UPDATE,
@@ -370,10 +352,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> 
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::COPY,
@@ -390,10 +369,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Glue {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::GLUE,
@@ -429,18 +405,14 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Inser
     impl_compare!();
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
-    for Move
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         self.from_node.make_nth_child_of(self.parent, self.pos, arena)
     }
     impl_compare!();
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
-    for Update<T>
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Update<T> {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
@@ -452,9 +424,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
     impl_compare!();
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
-    for Copy
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Copy {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         if !arena.contains(self.from_node) {
             return Err(ArenaError::NodeIdNotFound);
@@ -464,9 +434,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
     impl_compare!();
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
-    for Glue
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Glue {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         self.from_node.detach_with_children(arena)
     }
@@ -528,19 +496,14 @@ impl<T: Clone + fmt::Debug + PartialEq> RenderJson for EditScript<T> {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for EditScript<T> {
-    fn patchify(&self,
-                store: &MappingStore<T>,
-                from: &mut Vec<Patch>,
-                to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         for action in &self.actions {
             action.patchify(store, from, to);
         }
     }
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> PartialEq
-    for EditScript<T>
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> PartialEq for EditScript<T> {
     fn eq(&self, other: &EditScript<T>) -> bool {
         if self.actions.len() != other.actions.len() {
             return false;
@@ -554,9 +517,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> PartialEq
     }
 }
 
-impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
-    for EditScript<T>
-{
+impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for EditScript<T> {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
