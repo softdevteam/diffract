@@ -95,8 +95,14 @@ pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
                "ASTs not isomorphic for files: {} and {}.",
                path1,
                path2);
-
-    // Test 3: check that `TMP_ROOT` is not found in the tree. This text is
+    // Test 3: final from and to ASTs should be isomorphic.
+    // In this test isomorphism is determined by examining the hashes of the
+    // two trees.
+    assert!(store.is_isomorphic_hash(root_from, root_to),
+            "ASTs not isomorphic for files: {} and {}.",
+            path1,
+            path2);
+    // Test 4: check that `TMP_ROOT` is not found in the tree. This text is
     // used when the `from` and `to` trees have roots with different types or
     // labels. It should be removed before the edit script generator completes.
     for id in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
