@@ -40,7 +40,7 @@
 use std::fmt::Debug;
 
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
-use matchers::{MappingStore, MappingType, MatchTrees};
+use matchers::{has_same_type_and_label, MappingStore, MappingType, MatchTrees};
 use sequence::lcss;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -95,19 +95,10 @@ Variations.";
                            &store.from_arena.borrow(),
                            &diff_pre,
                            &store.to_arena.borrow(),
-                           &eq);
+                           &has_same_type_and_label);
         for &(n1, n2) in &longest {
             store.push(n1, n2, &MappingType::ANCHOR);
         }
         store
     }
-}
-
-/// Test that two nodes have the same label and type.
-fn eq<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
-                             arena1: &Arena<T, FromNodeId>,
-                             n2: &NodeId<ToNodeId>,
-                             arena2: &Arena<T, ToNodeId>)
-                             -> bool {
-    arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
 }

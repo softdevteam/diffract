@@ -47,6 +47,7 @@
 use std::fmt::Debug;
 
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+use matchers::{has_same_type, has_same_type_and_label};
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -280,17 +281,17 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                                              .collect::<Vec<NodeId<FromNodeId>>>();
         let descendants_to_node = to_node.descendants(&self.to_arena.borrow())
                                          .collect::<Vec<NodeId<ToNodeId>>>();
-        if eq(&from_node,
-              &self.from_arena.borrow(),
-              &to_node,
-              &self.to_arena.borrow())
+        if has_same_type_and_label(&from_node,
+                                   &self.from_arena.borrow(),
+                                   &to_node,
+                                   &self.to_arena.borrow())
         {
             if descendants_from_node.len() == descendants_to_node.len() {
                 for i in 0..descendants_to_node.len() {
-                    if !eq(&descendants_from_node[i],
-                           &self.from_arena.borrow(),
-                           &descendants_to_node[i],
-                           &self.to_arena.borrow())
+                    if !has_same_type_and_label(&descendants_from_node[i],
+                                                &self.from_arena.borrow(),
+                                                &descendants_to_node[i],
+                                                &self.to_arena.borrow())
                     {
                         // This means the descendants are !perfect by label and expression
                         return false;
@@ -684,10 +685,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         for (from_node_id, from_node) in base_pre.iter().enumerate() {
             let mut bool_check = false;
             for (to_node_id, to_node) in diff_pre.iter().enumerate() {
-                if eq(from_node,
-                      &store.from_arena.borrow(),
-                      to_node,
-                      &store.to_arena.borrow())
+                if has_same_type_and_label(from_node,
+                                           &store.from_arena.borrow(),
+                                           to_node,
+                                           &store.to_arena.borrow())
                 {
                     if from_node_id == to_node_id {
                         // Perfect matching
@@ -697,10 +698,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                         store.push(*from_node, *to_node, 1, EdgeType::MOVE)
                     }
                     bool_check = true;
-                } else if eq_label(from_node,
-                                   &store.from_arena.borrow(),
-                                   to_node,
-                                   &store.to_arena.borrow())
+                } else if has_same_type(from_node,
+                                        &store.from_arena.borrow(),
+                                        to_node,
+                                        &store.to_arena.borrow())
                           && from_node_id == to_node_id
                 {
                     // the same label and value but different position
@@ -718,10 +719,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         for (_, to_node) in diff_pre.iter().enumerate() {
             let mut bool_check = false;
             for (from_node_id, from_node) in base_pre.iter().enumerate() {
-                if eq(from_node,
-                      &store.from_arena.borrow(),
-                      to_node,
-                      &store.to_arena.borrow())
+                if has_same_type_and_label(from_node,
+                                           &store.from_arena.borrow(),
+                                           to_node,
+                                           &store.to_arena.borrow())
                 {
                     bool_check = true;
                 }
@@ -962,24 +963,6 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
 
         (edges_still_left, edges_to_be_pruned)
     }
-}
-
-/// Test that two nodes have the same label and type.
-fn eq<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
-                             arena1: &Arena<T, FromNodeId>,
-                             n2: &NodeId<ToNodeId>,
-                             arena2: &Arena<T, ToNodeId>)
-                             -> bool {
-    arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
-}
-
-/// Test that two nodes have the same types.
-fn eq_label<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
-                                   arena1: &Arena<T, FromNodeId>,
-                                   n2: &NodeId<ToNodeId>,
-                                   arena2: &Arena<T, ToNodeId>)
-                                   -> bool {
-    arena1[*n1].ty == arena2[*n2].ty
 }
 
 /// Match two trees and return a store of mappings between them.

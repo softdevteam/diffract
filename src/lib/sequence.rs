@@ -146,15 +146,7 @@ pub fn levenshtein<T: Eq + PartialEq + ToString>(s1: &T, s2: &T) -> usize {
 mod tests {
     use super::*;
     use std::fmt::Debug;
-    use matchers::MappingStore;
-
-    fn eq<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
-                                 arena1: &Arena<T, FromNodeId>,
-                                 n2: &NodeId<ToNodeId>,
-                                 arena2: &Arena<T, ToNodeId>)
-                                 -> bool {
-        arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
-    }
+    use matchers::{has_same_type_and_label, MappingStore};
 
     fn assert_sequence_correct<T: Clone + Debug + Eq + ToString>(store: MappingStore<T>,
                                                                  expected: &[T]) {
@@ -163,7 +155,7 @@ mod tests {
                          &store.from_arena.borrow(),
                          &vec![],
                          &store.to_arena.borrow(),
-                         &eq).is_empty());
+                         &has_same_type_and_label).is_empty());
             return;
         }
         assert!(!store.from_arena.borrow().is_empty());
@@ -178,7 +170,7 @@ mod tests {
                            &store.from_arena.borrow(),
                            &diff,
                            &store.to_arena.borrow(),
-                           &eq);
+                           &has_same_type_and_label);
         for (i, value) in longest.iter().enumerate() {
             assert_eq!(expected[i], store.from_arena.borrow()[value.0].ty);
             assert_eq!(expected[i], store.to_arena.borrow()[value.1].ty);
