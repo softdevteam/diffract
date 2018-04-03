@@ -278,7 +278,9 @@ impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<Strin
     }
 }
 
-impl<'a, T: Clone + PartialEq, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>> for Arena<T, U> {
+impl<'a, T: Clone + PartialEq, U: Clone + PartialEq + Copy> GraphWalk<'a, NodeId<U>, EdgeId<U>>
+    for Arena<T, U>
+{
     fn nodes(&self) -> Nodes<'a, NodeId<U>> {
         Owned((0..self.size()).map(NodeId::new).collect())
     }
@@ -328,14 +330,17 @@ impl RenderDotfile for MappingStore<String> {
                 digraph.push(format!("\tFROM{}[label=\"{}: {}\"{}];\n",
                                      id,
                                      from_node.id(),
-                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty
+                                                                                      .as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{}: {} {}\"{}];\n",
                                      id,
                                      from_node.id(),
-                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
-                                     escape_string(self.from_arena.borrow()[from_node].label.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty
+                                                                                      .as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].label
+                                                                                      .as_str()),
                                      attrs));
             }
         }
@@ -357,7 +362,8 @@ impl RenderDotfile for MappingStore<String> {
                                      id,
                                      to_node.id(),
                                      escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
-                                     escape_string(self.to_arena.borrow()[to_node].label.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].label
+                                                                                  .as_str()),
                                      attrs));
             }
         }
@@ -430,13 +436,16 @@ impl RenderDotfile for MappingStoreGraph<String> {
             if self.from_arena.borrow()[from_node].label.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty
+                                                                                      .as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena.borrow()[from_node].ty.as_str()),
-                                     escape_string(self.from_arena.borrow()[from_node].label.as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].ty
+                                                                                      .as_str()),
+                                     escape_string(self.from_arena.borrow()[from_node].label
+                                                                                      .as_str()),
                                      attrs));
             }
         }
@@ -456,7 +465,8 @@ impl RenderDotfile for MappingStoreGraph<String> {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
                                      escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
-                                     escape_string(self.to_arena.borrow()[to_node].label.as_str()),
+                                     escape_string(self.to_arena.borrow()[to_node].label
+                                                                                  .as_str()),
                                      attrs));
             }
         }

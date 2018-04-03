@@ -129,7 +129,10 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
     let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
 
     // Return parse tree.
-    let pt = parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes).map_err(|_| ParseError::SyntaxError)?;
+    let pt =
+        parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes).map_err(|_| {
+                                                                            ParseError::SyntaxError
+                                                                        })?;
     Ok(parse_into_ast::<T>(&pt, &lexer, &grm, input))
 }
 

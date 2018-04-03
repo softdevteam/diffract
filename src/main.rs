@@ -240,7 +240,10 @@ fn get_matcher_descriptions() -> String {
     descriptions.join("\n")
 }
 
-fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_path: &PathBuf) -> ast::Arena<String, T> {
+fn parse_file<T: Copy + PartialEq>(filename: &str,
+                                   lexer_path: &PathBuf,
+                                   yacc_path: &PathBuf)
+                                   -> ast::Arena<String, T> {
     let error_to_str = |err| {
         use parser::ParseError::*;
         match err {
@@ -253,7 +256,9 @@ fn parse_file<T: Copy + PartialEq>(filename: &str, lexer_path: &PathBuf, yacc_pa
         }
     };
     parser::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
-                                                            .map_err(|ref msg| exit_with_message(msg))
+                                                            .map_err(|ref msg| {
+                                                                         exit_with_message(msg)
+                                                                     })
                                                             .unwrap()
 }
 
@@ -287,7 +292,9 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
     match Path::new(&args.arg_base_file).extension() {
         Some(_) => (),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file)),
+        None => {
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
+        }
     };
     // Lexer path for first input file.
     let lexer1 = if !args.flag_grammar.is_empty() {
@@ -312,7 +319,9 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
     match Path::new(&args.arg_diff_file).extension() {
         Some(_) => (),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file)),
+        None => {
+            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
+        }
     };
     // Lexer path for second input file.
     let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
@@ -397,12 +406,14 @@ fn main() {
     info!("Selecting the Chawathe et al. (1996) edit script generator.");
 
     // Edit script generator configuration object.
-    let generator_config: Box<edit_script::EditScriptGenerator<String>> = generator_script_config(args.flag_edit);
+    let generator_config: Box<edit_script::EditScriptGenerator<String>> =
+        generator_script_config(args.flag_edit);
 
     // There are only 2 enum
     // 1) Chawathe96Config
     // 2) Chawathe98Config
-    fn generator_script_config(input: Option<EditScriptGenerator>) -> Box<edit_script::EditScriptGenerator<String>> {
+    fn generator_script_config(input: Option<EditScriptGenerator>)
+                               -> Box<edit_script::EditScriptGenerator<String>> {
         let config: Box<edit_script::EditScriptGenerator<String>>;
         match input {
             Some(EditScriptGenerator::Chawathe96) | None => {
@@ -439,7 +450,9 @@ fn main() {
         return;
     } else if args.flag_output == Some(Output::JSON) {
         info!("Writing JSON output to STDOUT.");
-        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()), &store, &edit_script),
+        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()),
+                                                           &store,
+                                                           &edit_script),
                             "STDOUT");
     }
 

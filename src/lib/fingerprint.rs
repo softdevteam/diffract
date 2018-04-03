@@ -77,7 +77,9 @@ fn calculate_hash<T: Hash>(t: &T) -> HashType {
     s.finish() as HashType
 }
 
-fn standard_hash<T: Clone + Eq + Hash, U: PartialEq + Copy>(id: &NodeId<U>, arena: &Arena<T, U>) -> HashType {
+fn standard_hash<T: Clone + Eq + Hash, U: PartialEq + Copy>(id: &NodeId<U>,
+                                                            arena: &Arena<T, U>)
+                                                            -> HashType {
     calculate_hash(&arena[*id].ty) + BASE + calculate_hash(&arena[*id].label)
 }
 
@@ -96,8 +98,8 @@ fn out_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: &NodeId<U>
 /// Convert a byte array (from digest) to integer.
 fn bytes_to_int(b: &[u8]) -> HashType {
     debug_assert_eq!(4, b.len(), "Byte array from digest has length {}", b.len());
-    HashType::from(b[3]) & 0xff | (HashType::from(b[2]) & 0xff) << 8 | (HashType::from(b[1]) & 0xff) << 16
-    | (HashType::from(b[0]) & 0xff) << 24
+    HashType::from(b[3]) & 0xff | (HashType::from(b[2]) & 0xff) << 8
+    | (HashType::from(b[1]) & 0xff) << 16 | (HashType::from(b[0]) & 0xff) << 24
 }
 
 /// Integer exponent function, returns `b**e`.
@@ -170,7 +172,8 @@ impl<T: Clone + Debug + Eq + Hash + ToString> HashGenerator<T> for Md5HashGenera
         match id_enum {
             FromOrToNodeId::FromNodeId(id) => {
                 let mut size = HashType::from(id.size(&store.from_arena.borrow()));
-                let mut hash = HashGenerator::<T>::hash(self, &in_seed(&id, &store.from_arena.borrow()))
+                let mut hash = HashGenerator::<T>::hash(self,
+                                                        &in_seed(&id, &store.from_arena.borrow()))
                                * fpow(BASE, size);
                 for child in id.children(&store.from_arena.borrow()) {
                     size -= HashType::from(child.size(&store.from_arena.borrow())) * 2;
@@ -181,7 +184,8 @@ impl<T: Clone + Debug + Eq + Hash + ToString> HashGenerator<T> for Md5HashGenera
             }
             FromOrToNodeId::ToNodeId(id) => {
                 let mut size = HashType::from(id.size(&store.to_arena.borrow()));
-                let mut hash = HashGenerator::<T>::hash(self, &in_seed(&id, &store.to_arena.borrow()))
+                let mut hash = HashGenerator::<T>::hash(self,
+                                                        &in_seed(&id, &store.to_arena.borrow()))
                                * fpow(BASE, size);
                 for child in id.children(&store.to_arena.borrow()) {
                     size -= HashType::from(child.size(&store.to_arena.borrow())) * 2;
@@ -216,7 +220,7 @@ pub fn apply_fingerprint<T: Clone + Debug + Eq + Hash + ToString>(gen: &mut Hash
 
 /// Decorate the `from` and `to` ASTs with fingerprints.
 pub fn apply_fingerprint_both<T: Clone + Debug + Eq + Hash + ToString>(gen: &mut HashGenerator<T>,
-                                                                       store: &MappingStore<T>) {
+store: &MappingStore<T>){
     apply_fingerprint(gen, store);
     debug_assert!(store.to_arena.borrow().root().is_some());
     for child in store.to_arena
