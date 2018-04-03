@@ -70,7 +70,7 @@ impl GumTreeConfig {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> MatchTrees<T> for GumTreeConfig {
+impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for GumTreeConfig {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         let desc = "

@@ -156,7 +156,8 @@ mod tests {
         arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
     }
 
-    fn assert_sequence_correct<T: Clone + Debug + Eq>(store: MappingStore<T>, expected: &[T]) {
+    fn assert_sequence_correct<T: Clone + Debug + Eq + ToString>(store: MappingStore<T>,
+                                                                 expected: &[T]) {
         if expected.is_empty() {
             assert!(lcss(&vec![], &store.from_arena.borrow(), &vec![], &store.to_arena.borrow(), &eq).is_empty());
             return;
@@ -180,7 +181,7 @@ mod tests {
         }
     }
 
-    fn create_mapping_store<T: Clone + Default + Debug + Eq + 'static>(base: &[T], diff: &[T]) -> MappingStore<T> {
+    fn create_mapping_store<T: Clone + Default + Debug + Eq + ToString + 'static>(base: &[T], diff: &[T]) -> MappingStore<T> {
         let mut base_arena: Arena<T, FromNodeId> = Arena::new();
         let mut from_id: NodeId<FromNodeId>;
         let mut to_id: NodeId<ToNodeId>;

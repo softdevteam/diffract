@@ -52,6 +52,7 @@ extern crate diffract;
 use diffract::ast;
 use diffract::edit_script;
 use diffract::emitters;
+use diffract::fingerprint;
 use diffract::gt_matcher;
 use diffract::myers_matcher;
 use diffract::matchers::MatchTrees;
@@ -373,12 +374,21 @@ fn main() {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
+    // Create a mapping store.
+    let store = matcher_config.match_trees(ast_base, ast_diff);
+
+    // If the matcher needs it, set the fingerprint (hash) of each node in the
+    // from and to ASTs.
+    if args.flag_matcher == Some(Matchers::GumTree) {
+        let mut hash_generator = fingerprint::Md5HashGenerator::new();
+        fingerprint::apply_fingerprint_both(&mut hash_generator, &store);
+    }
+
     // Generate mappings between ASTs.
-    let mapping = matcher_config.match_trees(ast_base, ast_diff);
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("Creating dot representation of mapping {:?}.", map_file);
-        write_dotfile_to_disk(&map_file, &mapping);
+        write_dotfile_to_disk(&map_file, &store);
     }
 
     // Generate edit script.
@@ -405,7 +415,7 @@ fn main() {
         config
     }
 
-    let edit_script = match generator_config.generate_script(&mapping) {
+    let edit_script = match generator_config.generate_script(&store) {
         Ok(script) => script,
         Err(err) => consume_edit_script_err(&err),
     };
@@ -413,13 +423,13 @@ fn main() {
         let edit_file = args.flag_store.unwrap();
         info!("Creating dot representation of edit script {:?}.",
               edit_file);
-        write_dotfile_to_disk(&edit_file, &mapping);
+        write_dotfile_to_disk(&edit_file, &store);
     }
 
     // Generate output.
     if args.flag_output.is_none() || args.flag_output == Some(Output::Terminal) {
         info!("Writing terminal output to STDOUT.");
-        consume_emitter_err(emitters::write_diff_to_stdout(&mapping,
+        consume_emitter_err(emitters::write_diff_to_stdout(&store,
                                                            &edit_script,
                                                            &args.arg_base_file,
                                                            &args.arg_diff_file),
@@ -429,10 +439,10 @@ fn main() {
         return;
     } else if args.flag_output == Some(Output::JSON) {
         info!("Writing JSON output to STDOUT.");
-        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()), &mapping, &edit_script),
+        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()), &store, &edit_script),
                             "STDOUT");
     }
 
-    debug!("Final 'from' AST:\n{:?}", mapping.from_arena.borrow());
-    debug!("Final 'to' AST:\n{:?}", mapping.to_arena.borrow());
+    debug!("Final 'from' AST:\n{:?}", store.from_arena.borrow());
+    debug!("Final 'to' AST:\n{:?}", store.to_arena.borrow());
 }

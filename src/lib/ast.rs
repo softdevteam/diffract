@@ -42,6 +42,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 
+use fingerprint::{CLOSE_SYMBOL, HashType, OPEN_SYMBOL, SEPARATE_SYMBOL};
 use hqueue::HeightQueue;
 
 /// Errors raised by arenas.
@@ -69,6 +70,15 @@ pub struct FromNodeId;
 /// A node identifier for a 'to' `Arena`.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, PartialOrd)]
 pub struct ToNodeId;
+
+/// A type which can either be `FromNodeId` or `ToNodeId`.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum FromOrToNodeId {
+    /// Id for a `from` node.
+    FromNodeId(NodeId<FromNodeId>),
+    /// Id for a `to` node.
+    ToNodeId(NodeId<ToNodeId>),
+}
 
 /// A node identifier used for indexing nodes within a particular `Arena`.
 ///
@@ -320,6 +330,10 @@ pub struct Node<T: Clone, U: PartialEq + Copy> {
     ///
     /// Note that nodes with a non-`None` index are unique.
     index: Option<NodeId<U>>,
+    /// A hash that identifies this node.
+    ///
+    /// Used by the GumTree algorithm, and potentially to check tree isomorphism.
+    hash: Option<HashType>,
     /// The `label` of a node is the lexeme it corresponds to in the code.
     ///
     /// For example, a numerical or string literal, bracket, semicolon, etc.
@@ -362,7 +376,8 @@ impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
                                 col_no: node.col_no,
                                 line_no: node.line_no,
                                 char_no: node.char_no,
-                                token_len: node.token_len, }
+                                token_len: node.token_len,
+                                hash: node.hash, }
     }
 }
 
@@ -380,7 +395,8 @@ impl<T: Clone> From<Node<T, FromNodeId>> for Node<T, ToNodeId> {
                               col_no: node.col_no,
                               line_no: node.line_no,
                               char_no: node.char_no,
-                              token_len: node.token_len, }
+                              token_len: node.token_len,
+                              hash: node.hash, }
     }
 }
 
@@ -404,7 +420,8 @@ impl<T: Clone, U: PartialEq + Copy> Node<T, U> {
                col_no,
                line_no,
                char_no,
-               token_len, }
+               token_len,
+               hash: None, }
     }
 
     /// Return the Id of the parent node, if there is one.
@@ -489,6 +506,16 @@ impl<U: PartialEq + Copy> NodeId<U> {
         arena[*self].parent.is_none()
     }
 
+    /// Return the hash associated with this node.
+    pub fn get_hash<T: Clone>(&self,  arena: &Arena<T, U>) -> Option<HashType> {
+        arena[*self].hash
+    }
+
+    /// Set the hash associated with this node.
+    pub fn set_hash<T: Clone>(&self, hash: Option<HashType>,  arena: &mut Arena<T, U>) {
+        arena[*self].hash = hash;
+    }
+
     /// Get the height of this node.
     ///
     /// The height of a leaf node is 1, the height of a branch node is 1 +
@@ -511,6 +538,24 @@ impl<U: PartialEq + Copy> NodeId<U> {
             return 1;
         }
         1 + self.descendants(arena).count() as u32
+    }
+
+    /// Return a static hash of this node (used to compute isomorphism).
+    ///
+    /// This is distinct from the rolling hash generator implemented in the
+    /// fingerprinting module. As a static hash, this function assumes that the
+    /// AST does not change.
+    pub fn to_static_hash_string<T: Clone + ToString>(&self, arena: &Arena<T, U>) -> String {
+        let mut hash: String = String::from(OPEN_SYMBOL) + &self.to_short_string(arena);
+        for child in self.children(arena) {
+            hash.push_str(&child.to_static_hash_string(arena));
+        }
+        hash.push_str(CLOSE_SYMBOL);
+        hash
+    }
+
+    fn to_short_string<T: Clone + ToString>(&self, arena: &Arena<T, U>) -> String {
+        arena[*self].ty.to_string() + SEPARATE_SYMBOL + &arena[*self].label
     }
 
     /// Detach this node, leaving its children unaffected.

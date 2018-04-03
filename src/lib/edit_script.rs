@@ -55,7 +55,7 @@ pub const TMP_ROOT: &str = "_____DIFFRACT_TMP_ROOT";
 ///
 /// This trait should usually be implemented on configuration objects that
 /// define thresholds and weights for a given algorithm.
-pub trait EditScriptGenerator<T: Clone + Debug + Eq + 'static> {
+pub trait EditScriptGenerator<T: Clone + Debug + Eq + ToString + 'static> {
     /// Given a matching between two ASTs, generate a complete edit script.
     fn generate_script(&self, store: &MappingStore<T>) -> EditScriptResult<T>;
 }
@@ -76,7 +76,7 @@ impl Chawathe98Config {
     }
 }
 
-impl<T: Clone + Debug + Eq + 'static> EditScriptGenerator<T> for Chawathe98Config {
+impl<T: Clone + Debug + Eq + ToString + 'static> EditScriptGenerator<T> for Chawathe98Config {
     /// This function should generate the edit script for GLUE and COPY
     fn generate_script(&self, _store: &MappingStore<T>) -> EditScriptResult<T> {
         Ok(EditScript::new())
@@ -100,7 +100,7 @@ impl Chawathe96Config {
     }
 
     /// Align children of w (From AST) and x (To AST) which are out of order.
-    fn align_children<T: Clone + Debug + Eq + 'static>(&self,
+    fn align_children<T: Clone + Debug + Eq + ToString + 'static>(&self,
                                                        store: &MappingStore<T>,
                                                        w: NodeId<FromNodeId>,
                                                        x: NodeId<ToNodeId>,
@@ -183,7 +183,7 @@ impl Chawathe96Config {
     }
 
     /// Find the position of node x in to_arena.
-    fn find_pos<T: Clone + Debug + Eq + 'static>(&self,
+    fn find_pos<T: Clone + Debug + Eq + ToString + 'static>(&self,
                                                  store: &MappingStore<T>,
                                                  x: NodeId<ToNodeId>,
                                                  from_in_order: &HashSet<NodeId<FromNodeId>>,
@@ -234,7 +234,7 @@ impl Chawathe96Config {
         position
     }
 
-    fn lcss<T: Clone + Debug + Eq + 'static>(&self,
+    fn lcss<T: Clone + Debug + Eq + ToString + 'static>(&self,
                                              store: &MappingStore<T>,
                                              seq1: &[NodeId<FromNodeId>],
                                              seq2: &[NodeId<ToNodeId>])
@@ -280,7 +280,7 @@ impl Chawathe96Config {
     }
 }
 
-impl<T: Clone + Debug + Default + Eq + 'static> EditScriptGenerator<T> for Chawathe96Config {
+impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T> for Chawathe96Config {
     /// This function implements the optimal algorithm of Chawathe et al. (1996).
     /// Variable names as in Figures 8 and 9 of the paper.
     /// Will panic if either `Arena` in `store` is empty (and has no root node).
