@@ -52,6 +52,7 @@ extern crate diffract;
 use diffract::ast;
 use diffract::edit_script;
 use diffract::emitters;
+use diffract::fingerprint;
 use diffract::gt_matcher;
 use diffract::myers_matcher;
 use diffract::matchers::MatchTrees;
@@ -373,8 +374,17 @@ fn main() {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
 
-    // Generate mappings between ASTs.
+    // Create a mapping store.
     let mapping = matcher_config.match_trees(ast_base, ast_diff);
+
+    // If the matcher needs it, set the fingerprint (hash) of each node in the
+    // from and to ASTs.
+    if args.flag_matcher == Some(Matchers::GumTree) {
+        let mut hash_generator = fingerprint::Md5HashGenerator::new();
+        fingerprint::apply_fingerprint_both(&mut hash_generator, &mapping);
+    }
+
+    // Generate mappings between ASTs.
     if args.flag_map.is_some() {
         let map_file = args.flag_map.unwrap();
         info!("Creating dot representation of mapping {:?}.", map_file);
