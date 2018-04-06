@@ -1,4 +1,5 @@
 %%
+
 boolean BOOLEAN
 byte BYTE
 short SHORT
@@ -9,6 +10,7 @@ float FLOAT
 double DOUBLE
 \[ LBRACK
 \] RBRACK
+\.\.\. ELLIPSIS
 \. DOT
 ; SEMICOLON
 \* MULT
@@ -19,6 +21,7 @@ double DOUBLE
 \( LPAREN
 \) RPAREN
 : COLON
+@ AT
 package PACKAGE
 import IMPORT
 public PUBLIC
@@ -31,7 +34,9 @@ native NATIVE
 synchronized SYNCHRONIZED
 transient TRANSIENT
 volatile VOLATILE
+strictfp STRICTFP
 class CLASS
+enum ENUM
 extends EXTENDS
 implements IMPLEMENTS
 void VOID
@@ -92,16 +97,14 @@ instanceof INSTANCEOF
 \^= XOREQ
 \|= OREQ
 
-0x[0-9A-Fa-f]+|[0-9]+ INTEGER_LITERAL
-[0-9]+\.[0-9]+([eE][0-9]+)?[fFdD]?|[0-9]+[eE][0-9]+[fFdD]? FLOATING_POINT_LITERAL
+[0-9]+\.[0-9]*([eE][+-]?[0-9]+)?[fFdD]?|\.[0-9]+([eE][+-]?[0-9]+)?[fFdD]?|[0-9]+[eE][+-]?[0-9]+[fFdD]?|[0-9]+[fFdD]|0[xX][0-9A-Fa-f]+(\.[0-9A-Fa-f]*)?[pP][+-]?[0-9]+[fFdD]? FLOATING_POINT_LITERAL
+(0_[0-7]+|[0-9][0-9_]+[0-9]|0[bB][01]+|0[xX][0-9A-Fa-f]+|[0-9]+)[lL]? INTEGER_LITERAL
 (true|false) BOOLEAN_LITERAL
 null NULL_LITERAL
-[a-zA-Z_][a-zA-Z0-9_]* IDENTIFIER
+[a-zA-Z_$][a-zA-Z0-9_$]* IDENTIFIER
 
-strictfp STRICTFP
-ellipsis ELLIPSIS
-enum ENUM
+'(?:\\\\|\\'|[^'\n])*' CHARACTER_LITERAL
+"(?:\\\\|\\"|[^"\n])*" STRING_LITERAL
 
-'(?:\\'|[^'\n])*' CHARACTER_LITERAL
-"(?:\\"|[^"\n])*" STRING_LITERAL
+(//.*?$|/[*].*?[*]/) COMMENT
 [ \t\n\r]+ ;

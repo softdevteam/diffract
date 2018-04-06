@@ -2,7 +2,7 @@
 %%
 goal : compilation_unit;
 
-literal :    "INTEGER_LITERAL"
+literal :    "INTEGER_LITERAL" 
     |    "FLOATING_POINT_LITERAL"
     |    "BOOLEAN_LITERAL"
     |    "CHARACTER_LITERAL"
@@ -10,23 +10,23 @@ literal :    "INTEGER_LITERAL"
     |    "NULL_LITERAL"
     ;
 
-type    :    primitive_type
-    |    reference_type
+type    :    primitive_type 
+    |    reference_type 
     ;
-
+    
 primitive_type :
-        numeric_type
+        numeric_type 
     |    "BOOLEAN"
     ;
-
-numeric_type:    integral_type
+    
+numeric_type:    integral_type 
     |    floating_point_type
     ;
-
+    
 integral_type :
         "BYTE"
     |    "SHORT"
-    |    "INT"
+    |    "INT" 
     |    "LONG"
     |    "CHAR"
     ;
@@ -36,19 +36,20 @@ floating_point_type :
     ;
 
 reference_type :
-        class_or_interface_type
+        class_or_interface_type 
     |    array_type
     ;
 type_variable :
         "IDENTIFIER"
     ;
 class_or_interface :
-        name
+        name 
     |    class_or_interface "LT" type_argument_list_1 "DOT" name
     ;
 class_or_interface_type :
-        class_or_interface
-    |    class_or_interface "LT" type_argument_list_1
+        class_or_interface 
+    |   class_or_interface "LT" type_argument_list_1
+    |   class_or_interface "LT" "GT"
     ;
 
 class_type :    class_or_interface_type;
@@ -64,6 +65,7 @@ type_arguments_opt : type_arguments |
     ;
 type_arguments :
         "LT" type_argument_list_1
+    |   "LT" "GT"
     ;
 wildcard :    "QUESTION"
     |    "QUESTION" "EXTENDS" reference_type
@@ -125,8 +127,8 @@ type_argument_3 :
     |    wildcard_3
     ;
 
-name    :    simple_name
-    |    qualified_name
+name    :    simple_name 
+    |    qualified_name 
     ;
 simple_name :    "IDENTIFIER" ;
 
@@ -135,36 +137,35 @@ qualified_name :
 
 
 compilation_unit :
-        package_declaration_opt
-        import_declarations_opt
-        type_declarations_opt ;
+                                            import_declarations type_declarations_opt
+    |   annotations_opt package_declaration import_declarations type_declarations_opt
+    |   annotations_opt package_declaration                     type_declarations_opt
+    |                                                           type_declarations_opt
+    ;
 
-package_declaration_opt : package_declaration | ;
-import_declarations_opt : import_declarations | ;
-type_declarations_opt   : type_declarations
-                          | ;
+type_declarations_opt   : type_declarations   | ;
 
-import_declarations :
+import_declarations : 
         import_declaration
     |    import_declarations import_declaration
     ;
-type_declarations :
-        type_declaration
+type_declarations : 
+        type_declaration 
     |    type_declarations type_declaration
     ;
-package_declaration :
+package_declaration : 
         "PACKAGE" name "SEMICOLON"
     ;
-import_declaration :
+import_declaration : 
         single_type_import_declaration
     |    type_import_on_demand_declaration
     |    static_single_type_import_declaration
     |    static_type_import_on_demand_declaration
     ;
-single_type_import_declaration :
-        "IMPORT" name "SEMICOLON"
+single_type_import_declaration : 
+        "IMPORT" name "SEMICOLON" 
     ;
-static_single_type_import_declaration :
+static_single_type_import_declaration : 
         "IMPORT" "STATIC" name "SEMICOLON"
     ;
 type_import_on_demand_declaration :
@@ -182,23 +183,35 @@ type_declaration :
 
 modifiers_opt:
     |    modifiers
+    |    annotations
+    |    modifiers annotations
     ;
-modifiers :     modifier
+modifiers :
+         modifier
+    |    annotations modifier
     |    modifiers modifier
     ;
-modifier :    "PUBLIC" | "PROTECTED" | "PRIVATE"
-    |    "STATIC"
-    |    "ABSTRACT" | "FINAL" | "NATIVE" | "SYNCHRONIZED" | "TRANSIENT" | "VOLATILE"
-    |    "STRICTFP"
+modifier :
+      "PUBLIC"
+    | "PROTECTED"
+    | "PRIVATE"
+    | "STATIC"
+    | "ABSTRACT"
+    | "FINAL"
+    | "NATIVE"
+    | "SYNCHRONIZED"
+    | "TRANSIENT"
+    | "VOLATILE"
+    | "STRICTFP"
     ;
 
-class_declaration :
+class_declaration : 
     modifiers_opt "CLASS" "IDENTIFIER" type_parameters_opt
       super_opt interfaces_opt class_body ;
 
 super :    "EXTENDS" class_type;
 
-super_opt :
+super_opt :    
     |    super;
 
 interfaces :    "IMPLEMENTS" interface_type_list;
@@ -206,7 +219,7 @@ interfaces :    "IMPLEMENTS" interface_type_list;
 interfaces_opt:
     |    interfaces ;
 
-interface_type_list :
+interface_type_list : 
         interface_type
     |    interface_type_list "COMMA" interface_type;
 
@@ -214,22 +227,22 @@ class_body :    "LBRACE" class_body_declarations_opt "RBRACE" ;
 
 class_body_opt :
     |    class_body ;
-class_body_declarations_opt :
+class_body_declarations_opt : 
     |    class_body_declarations ;
-class_body_declarations :
-        class_body_declaration
+class_body_declarations : 
+        class_body_declaration 
     |    class_body_declarations class_body_declaration ;
 
 class_body_declaration :
-        class_member_declaration
+        class_member_declaration 
     |    static_initializer
     |    constructor_declaration
     |    block;
 
 class_member_declaration :
-        field_declaration
-    |    method_declaration
-    |    modifiers_opt "CLASS" "IDENTIFIER" type_parameters_opt super_opt interfaces_opt class_body
+        field_declaration 
+    |    method_declaration 
+    |    modifiers_opt "CLASS" "IDENTIFIER" type_parameters_opt super_opt interfaces_opt class_body 
     |    enum_declaration
     |    interface_declaration
     |    "SEMICOLON"
@@ -243,6 +256,8 @@ enum_body :
     ;
 enum_constants_opt :
     |    enum_constants
+    |    enum_constants "COMMA"
+    |    "COMMA"
     ;
 enum_constants :
         enum_constant
@@ -259,53 +274,53 @@ enum_body_declarations_opt :
     |    "SEMICOLON" class_body_declarations_opt
     ;
 
-field_declaration :
-        modifiers_opt type variable_declarators "SEMICOLON"
+field_declaration : 
+        modifiers_opt type variable_declarators "SEMICOLON" 
     ;
 variable_declarators :
-        variable_declarator
-    |    variable_declarators "COMMA" variable_declarator
+        variable_declarator 
+    |    variable_declarators "COMMA" variable_declarator 
     ;
 variable_declarator :
-        variable_declarator_id
-    |    variable_declarator_id "EQ" variable_initializer
+        variable_declarator_id 
+    |    variable_declarator_id "EQ" variable_initializer 
     ;
 variable_declarator_id :
-        "IDENTIFIER"
+        "IDENTIFIER" 
     |    variable_declarator_id "LBRACK" "RBRACK"
     ;
 variable_initializer :
-        expression
+        expression 
     |    array_initializer
 
     ;
 method_declaration :
-        method_header method_body
+        method_header method_body 
     ;
 method_header :
-        modifiers_opt type method_declarator throws_opt
+        modifiers_opt type method_declarator throws_opt 
     |    modifiers_opt "LT" type_parameter_list_1 type method_declarator throws_opt
-    |    modifiers_opt "VOID" method_declarator throws_opt
+    |    modifiers_opt "VOID" method_declarator throws_opt 
     |    modifiers_opt "LT" type_parameter_list_1 "VOID" method_declarator throws_opt
     ;
 method_declarator :
-        "IDENTIFIER" "LPAREN" formal_parameter_list_opt "RPAREN"
+        "IDENTIFIER" "LPAREN" formal_parameter_list_opt "RPAREN" 
     |    method_declarator "LBRACK" "RBRACK"
     ;
 formal_parameter_list_opt :
-    |    formal_parameter_list
+    |    formal_parameter_list 
     ;
 formal_parameter_list :
-        formal_parameter
-    |    formal_parameter_list "COMMA" formal_parameter
+        formal_parameter 
+    |    formal_parameter_list "COMMA" formal_parameter 
     ;
 formal_parameter :
-        type variable_declarator_id
+        type variable_declarator_id 
     |    "FINAL" type variable_declarator_id
     |    type "ELLIPSIS" "IDENTIFIER"
     |    "FINAL" type "ELLIPSIS" "IDENTIFIER"
     ;
-throws_opt :
+throws_opt :    
     |    throws
     ;
 throws :    "THROWS" class_type_list;
@@ -314,7 +329,7 @@ class_type_list :
         class_type
     |    class_type_list "COMMA" class_type
     ;
-method_body :    block
+method_body :    block 
     |    "SEMICOLON"
     ;
 
@@ -351,9 +366,47 @@ explicit_constructor_invocation :
     ;
 
 interface_declaration :
+        normal_interface_declaration
+    |   annotation_type_declaration
+    ;
+normal_interface_declaration :
         modifiers_opt "INTERFACE" "IDENTIFIER" type_parameters_opt
           extends_interfaces_opt interface_body
     ;
+
+annotation_type_declaration :
+        modifiers "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |             "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |   annotations "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |   modifiers annotations "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    ;
+
+annotation_type_body :
+      "LBRACE" "RBRACE"
+    | "LBRACE" annotation_type_member_declarations "RBRACE"
+    ;
+
+annotation_type_member_declarations :
+      annotation_type_member_declaration
+    | annotation_type_member_declarations annotation_type_member_declaration
+    ;
+
+annotation_type_member_declaration :
+      annotation_type_element_declaration
+    | class_declaration
+    | interface_declaration
+    | enum_declaration
+    | constant_declaration
+    ;
+
+annotation_type_element_declaration :
+      modifiers_opt type "IDENTIFIER" "LPAREN" "RPAREN" dims_opt default_value_opt "SEMICOLON"
+    ;
+
+default_value_opt :
+    | "DEFAULT" element_value
+    ;
+
 extends_interfaces_opt :
     |    extends_interfaces
     ;
@@ -373,7 +426,7 @@ interface_member_declarations :
     ;
 interface_member_declaration :
         constant_declaration
-    |    abstract_method_declaration
+    |    interface_method_declaration
     |    class_declaration
     |    enum_declaration
     |    interface_declaration
@@ -382,7 +435,7 @@ interface_member_declaration :
 constant_declaration :
         field_declaration
     ;
-abstract_method_declaration :
+interface_method_declaration :
         method_header "SEMICOLON"
     ;
 
@@ -393,32 +446,34 @@ array_initializer :
     |    "LBRACE" "RBRACE"
     ;
 variable_initializers :
-        variable_initializer
+        variable_initializer 
     |    variable_initializers "COMMA" variable_initializer
 
     ;
 block :    "LBRACE" block_statements_opt "RBRACE" ;
 
 block_statements_opt :
-    |    block_statements
+    |    block_statements 
     ;
 block_statements :
-        block_statement
-    |    block_statements block_statement
+        block_statement 
+    |    block_statements block_statement 
     ;
 block_statement :
-        local_variable_declaration_statement
+        local_variable_declaration_statement 
     |    statement
     |    class_declaration
     |    enum_declaration
     |    interface_declaration
     ;
 local_variable_declaration_statement :
-        local_variable_declaration "SEMICOLON"
+        local_variable_declaration "SEMICOLON" 
     ;
 local_variable_declaration :
-        type variable_declarators
-    |    "FINAL" type variable_declarators
+                  type variable_declarators
+    |   modifiers type variable_declarators
+    |   modifiers annotations type variable_declarators
+    |   annotations type variable_declarators
     ;
 statement :    statement_without_trailing_substatement
     |    labeled_statement
@@ -460,10 +515,10 @@ labeled_statement_no_short_if :
         "IDENTIFIER" "COLON" statement_no_short_if
     ;
 expression_statement :
-        statement_expression "SEMICOLON"
+        statement_expression "SEMICOLON" 
     ;
 statement_expression :
-        assignment
+        assignment 
     |    preincrement_expression
     |    predecrement_expression
     |    postincrement_expression
@@ -475,7 +530,7 @@ if_then_statement :
         "IF" "LPAREN" expression "RPAREN" statement
     ;
 if_then_else_statement :
-        "IF" "LPAREN" expression "RPAREN" statement_no_short_if
+        "IF" "LPAREN" expression "RPAREN" statement_no_short_if 
             "ELSE" statement
     ;
 if_then_else_statement_no_short_if :
@@ -517,16 +572,16 @@ do_statement :
         "DO" statement "WHILE" "LPAREN" expression "RPAREN" "SEMICOLON"
     ;
 foreach_statement :
-        "FOR" "LPAREN" type variable_declarator_id "COLON" expression "RPAREN"
-            statement
-    |    "FOR" "IDENTIFIER" "LPAREN" type variable_declarator_id "IDENTIFIER"
-            expression "RPAREN" statement
+        "FOR" "LPAREN"           type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" modifiers type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" annotations type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" modifiers annotations type variable_declarator_id "COLON" expression "RPAREN" statement
     ;
 foreach_statement_no_short_if :
-        "FOR" "LPAREN" type variable_declarator_id "COLON" expression "RPAREN"
-            statement_no_short_if
-    |    "FOR" "IDENTIFIER" "LPAREN" type variable_declarator_id "IDENTIFIER"
-            expression "RPAREN" statement_no_short_if
+        "FOR" "LPAREN"           type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" modifiers type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" annotations type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" modifiers annotations type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
     ;
 for_statement :
         "FOR" "LPAREN" for_init_opt "SEMICOLON" expression_opt "SEMICOLON"
@@ -552,7 +607,7 @@ statement_expression_list :
     |    statement_expression_list "COMMA" statement_expression
     ;
 
-identifier_opt :
+identifier_opt : 
     |    "IDENTIFIER"
     ;
 
@@ -574,8 +629,32 @@ synchronized_statement :
     ;
 try_statement :
         "TRY" block catches
-    |    "TRY" block catches_opt finally
+    |   "TRY" block catches_opt finally
+    |   try_with_resource_statement
     ;
+
+try_with_resource_statement :
+        "TRY" resource_specification block catches_opt finally
+    |   "TRY" resource_specification block catches_opt
+    ;
+
+resource_specification:
+        "LPAREN" resource_list "SEMICOLON" "RPAREN"
+    |   "LPAREN" resource_list             "RPAREN"
+    ;
+
+resource_list:
+        resource
+    |   resource_list "SEMICOLON" resource
+    ;
+
+resource:
+        annotation "FINAL" type variable_declarator_id "EQ" expression
+    |   annotation         type variable_declarator_id "EQ" expression
+    |              "FINAL" type variable_declarator_id "EQ" expression
+    |                      type variable_declarator_id "EQ" expression
+    ;
+
 catches_opt :
     |    catches
     ;
@@ -583,8 +662,18 @@ catches :    catch_clause
     |    catches catch_clause
     ;
 catch_clause :
-        "CATCH" "LPAREN" formal_parameter "RPAREN" block
+        "CATCH" "LPAREN" catch_formal_parameter "RPAREN" block
     ;
+
+catch_formal_parameter :
+        modifiers_opt catch_type "IDENTIFIER"
+    ;
+
+catch_type :
+        name
+    |   catch_type "OR" name
+    ;
+
 finally :    "FINALLY" block
     ;
 assert_statement :
@@ -592,12 +681,12 @@ assert_statement :
     |    "ASSERT" expression "COLON" expression "SEMICOLON"
     ;
 
-primary :    primary_no_new_array
+primary :    primary_no_new_array 
     |    array_creation_init
     |    array_creation_uninit
     ;
 primary_no_new_array :
-        literal
+        literal 
     |    "THIS"
     |    "LPAREN" name "RPAREN"
     |    "LPAREN" expression_nn "RPAREN"
@@ -652,8 +741,8 @@ field_access :
     |    name "DOT" "SUPER" "DOT" "IDENTIFIER"
     ;
 method_invocation :
-         simple_name "LPAREN" argument_list_opt "RPAREN"
-    |    qualified_name "LPAREN" argument_list_opt "RPAREN"
+         simple_name "LPAREN" argument_list_opt "RPAREN" 
+    |    qualified_name "LPAREN" argument_list_opt "RPAREN" 
     |    primary "DOT" "IDENTIFIER" "LPAREN" argument_list_opt "RPAREN"
     |    primary "DOT" type_arguments "IDENTIFIER" "LPAREN" argument_list_opt "RPAREN"
     |    name "DOT" type_arguments "IDENTIFIER" "LPAREN" argument_list_opt "RPAREN"
@@ -668,8 +757,8 @@ array_access :
     |    array_creation_init "LBRACK" expression "RBRACK"
     ;
 postfix_expression :
-        primary
-    |    name
+        primary 
+    |    name 
     |    postincrement_expression
     |    postdecrement_expression
     ;
@@ -680,11 +769,11 @@ postdecrement_expression :
         postfix_expression "MINUSMINUS"
     ;
 unary_expression :
-        preincrement_expression
-    |    predecrement_expression
+        preincrement_expression 
+    |    predecrement_expression 
     |    "PLUS" unary_expression
     |    "MINUS" unary_expression
-    |    unary_expression_not_plus_minus
+    |    unary_expression_not_plus_minus 
     ;
 preincrement_expression :
         "PLUSPLUS" unary_expression
@@ -693,10 +782,10 @@ predecrement_expression :
         "MINUSMINUS" unary_expression
     ;
 unary_expression_not_plus_minus :
-        postfix_expression
+        postfix_expression 
     |    "COMP" unary_expression
     |    "NOT" unary_expression
-    |    cast_expression
+    |    cast_expression 
     ;
 cast_expression :
         "LPAREN" primitive_type dims_opt "RPAREN" unary_expression
@@ -709,67 +798,67 @@ cast_expression :
             unary_expression_not_plus_minus
     ;
 multiplicative_expression :
-        unary_expression
+        unary_expression 
     |    multiplicative_expression "MULT" unary_expression
     |    multiplicative_expression "DIV" unary_expression
     |    multiplicative_expression "MOD" unary_expression
     ;
 additive_expression :
-        multiplicative_expression
-    |    additive_expression "PLUS" multiplicative_expression
-    |    additive_expression "MINUS" multiplicative_expression
+        multiplicative_expression 
+    |    additive_expression "PLUS" multiplicative_expression 
+    |    additive_expression "MINUS" multiplicative_expression 
     ;
 shift_expression :
-        additive_expression
+        additive_expression 
     |    shift_expression "LSHIFT" additive_expression
     |    shift_expression "RSHIFT" additive_expression
     |    shift_expression "URSHIFT" additive_expression
     ;
 relational_expression :
-        shift_expression
+        shift_expression 
     |    relational_expression "LT" shift_expression
     |    relational_expression "GT" shift_expression
     |    relational_expression "LTEQ" shift_expression
     |    relational_expression "GTEQ" shift_expression
     ;
 instanceof_expression :
-        relational_expression
+        relational_expression 
     |    instanceof_expression "INSTANCEOF" reference_type
     ;
 equality_expression :
-        instanceof_expression
+        instanceof_expression 
     |    equality_expression "EQEQ" instanceof_expression
     |    equality_expression "NOTEQ" instanceof_expression
     ;
 and_expression :
-        equality_expression
+        equality_expression 
     |    and_expression "AND" equality_expression
     ;
 exclusive_or_expression :
-        and_expression
+        and_expression 
     |    exclusive_or_expression "XOR" and_expression
     ;
 inclusive_or_expression :
-        exclusive_or_expression
+        exclusive_or_expression 
     |    inclusive_or_expression "OR" exclusive_or_expression
     ;
 conditional_and_expression :
-        inclusive_or_expression
+        inclusive_or_expression 
     |    conditional_and_expression "ANDAND" inclusive_or_expression
     ;
 conditional_or_expression :
-        conditional_and_expression
+        conditional_and_expression 
     |    conditional_or_expression "OROR" conditional_and_expression
     ;
 conditional_expression :
-        conditional_or_expression
+        conditional_or_expression 
     |    conditional_or_expression "QUESTION" expression "COLON" conditional_expression
     ;
 assignment_expression :
-        conditional_expression
-    |    assignment
+        conditional_expression 
+    |    assignment 
     ;
-assignment :    postfix_expression assignment_operator assignment_expression
+assignment :    postfix_expression assignment_operator assignment_expression 
     ;
 assignment_operator :
         "EQ"
@@ -788,7 +877,7 @@ assignment_operator :
 expression_opt :
     |    expression
     ;
-expression :    assignment_expression
+expression :    assignment_expression 
     ;
 constant_expression :
         expression
@@ -930,7 +1019,7 @@ conditional_or_expression_nn :
 conditional_expression_nn :
         conditional_or_expression_nn
     |    name "QUESTION" expression "COLON" conditional_expression
-    |    conditional_or_expression_nn "QUESTION" expression
+    |    conditional_or_expression_nn "QUESTION" expression 
             "COLON" conditional_expression
     ;
 assignment_expression_nn :
@@ -939,3 +1028,54 @@ assignment_expression_nn :
     ;
 expression_nn :    assignment_expression_nn;
 
+annotations_opt : annotations | ;
+
+annotations :
+        annotation
+    |   annotations annotation
+    ;
+
+annotation :
+      normal_annotation
+    | marker_annotation
+    | single_element_annotation
+    ;
+
+normal_annotation :
+      "AT" name "LPAREN" element_value_pair_list "RPAREN"
+    | "AT" name "LPAREN"                         "RPAREN"
+    ;
+
+element_value_pair_list :
+      element_value_pair
+    | element_value_pair_list "COMMA" element_value_pair
+    ;
+
+element_value_pair :
+    "IDENTIFIER" "EQ" element_value
+    ;
+
+element_value :
+      conditional_expression
+    | element_value_array_initializer
+    ;
+
+element_value_array_initializer :
+      "LBRACE" element_value_list "COMMA" "RBRACE"
+    | "LBRACE"                    "COMMA" "RBRACE"
+    | "LBRACE" element_value_list         "RBRACE"
+    | "LBRACE"                            "RBRACE"
+    ;
+
+element_value_list :
+      element_value
+    | element_value_list "COMMA" element_value
+    ;
+
+marker_annotation :
+    "AT" name
+    ;
+
+single_element_annotation :
+      "AT" name "LPAREN" element_value "RPAREN"
+    ;
