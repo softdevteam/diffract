@@ -151,12 +151,9 @@ fn test_nested_comment_java() {
  * // Single line comment nested in multi-line comment.
  */
     \"~\"
-      \"WHITESPACE\" \n
-      \"~\"
+      \"WHITESPACE\" \n\n      \"~\"
   \"goal\"
     \"compilation_unit\"
-      \"package_declaration_opt\"
-      \"import_declarations_opt\"
       \"type_declarations_opt\"
         \"type_declarations\"
           \"type_declaration\"
@@ -182,8 +179,7 @@ fn test_nested_comment_java() {
                 \"class_body_declarations_opt\"
                 \"RBRACE\" }
                 \"~\"
-                  \"WHITESPACE\" \n
-                  \"~\"
+                  \"WHITESPACE\" \n\n                  \"~\"
 ",
     );
 }

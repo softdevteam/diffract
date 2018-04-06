@@ -49,7 +49,8 @@ class_or_interface :
     ;
 class_or_interface_type :
         class_or_interface
-    |    class_or_interface "LT" type_argument_list_1
+    |   class_or_interface "LT" type_argument_list_1
+    |   class_or_interface "LT" "GT"
     ;
 
 class_type :    class_or_interface_type;
@@ -65,6 +66,7 @@ type_arguments_opt : type_arguments |
     ;
 type_arguments :
         "LT" type_argument_list_1
+    |   "LT" "GT"
     ;
 wildcard :    "QUESTION"
     |    "QUESTION" "EXTENDS" reference_type
@@ -136,14 +138,13 @@ qualified_name :
 
 
 compilation_unit :
-        package_declaration_opt
-        import_declarations_opt
-        type_declarations_opt ;
+                                            import_declarations type_declarations_opt
+    |   annotations_opt package_declaration import_declarations type_declarations_opt
+    |   annotations_opt package_declaration                     type_declarations_opt
+    |                                                           type_declarations_opt
+    ;
 
-package_declaration_opt : package_declaration | ;
-import_declarations_opt : import_declarations | ;
-type_declarations_opt   : type_declarations
-                          | ;
+type_declarations_opt   : type_declarations   | ;
 
 import_declarations :
         import_declaration
@@ -183,14 +184,26 @@ type_declaration :
 
 modifiers_opt:
     |    modifiers
+    |    annotations
+    |    modifiers annotations
     ;
-modifiers :     modifier
+modifiers :
+         modifier
+    |    annotations modifier
     |    modifiers modifier
     ;
-modifier :    "PUBLIC" | "PROTECTED" | "PRIVATE"
-    |    "STATIC"
-    |    "ABSTRACT" | "FINAL" | "NATIVE" | "SYNCHRONIZED" | "TRANSIENT" | "VOLATILE"
-    |    "STRICTFP"
+modifier :
+      "PUBLIC"
+    | "PROTECTED"
+    | "PRIVATE"
+    | "STATIC"
+    | "ABSTRACT"
+    | "FINAL"
+    | "NATIVE"
+    | "SYNCHRONIZED"
+    | "TRANSIENT"
+    | "VOLATILE"
+    | "STRICTFP"
     ;
 
 class_declaration :
@@ -244,6 +257,8 @@ enum_body :
     ;
 enum_constants_opt :
     |    enum_constants
+    |    enum_constants "COMMA"
+    |    "COMMA"
     ;
 enum_constants :
         enum_constant
@@ -352,9 +367,47 @@ explicit_constructor_invocation :
     ;
 
 interface_declaration :
+        normal_interface_declaration
+    |   annotation_type_declaration
+    ;
+normal_interface_declaration :
         modifiers_opt "INTERFACE" "IDENTIFIER" type_parameters_opt
           extends_interfaces_opt interface_body
     ;
+
+annotation_type_declaration :
+        modifiers "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |             "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |   annotations "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    |   modifiers annotations "AT" "INTERFACE" "IDENTIFIER" annotation_type_body
+    ;
+
+annotation_type_body :
+      "LBRACE" "RBRACE"
+    | "LBRACE" annotation_type_member_declarations "RBRACE"
+    ;
+
+annotation_type_member_declarations :
+      annotation_type_member_declaration
+    | annotation_type_member_declarations annotation_type_member_declaration
+    ;
+
+annotation_type_member_declaration :
+      annotation_type_element_declaration
+    | class_declaration
+    | interface_declaration
+    | enum_declaration
+    | constant_declaration
+    ;
+
+annotation_type_element_declaration :
+      modifiers_opt type "IDENTIFIER" "LPAREN" "RPAREN" dims_opt default_value_opt "SEMICOLON"
+    ;
+
+default_value_opt :
+    | "DEFAULT" element_value
+    ;
+
 extends_interfaces_opt :
     |    extends_interfaces
     ;
@@ -374,7 +427,7 @@ interface_member_declarations :
     ;
 interface_member_declaration :
         constant_declaration
-    |    abstract_method_declaration
+    |    interface_method_declaration
     |    class_declaration
     |    enum_declaration
     |    interface_declaration
@@ -383,7 +436,7 @@ interface_member_declaration :
 constant_declaration :
         field_declaration
     ;
-abstract_method_declaration :
+interface_method_declaration :
         method_header "SEMICOLON"
     ;
 
@@ -418,8 +471,10 @@ local_variable_declaration_statement :
         local_variable_declaration "SEMICOLON"
     ;
 local_variable_declaration :
-        type variable_declarators
-    |    "FINAL" type variable_declarators
+                  type variable_declarators
+    |   modifiers type variable_declarators
+    |   modifiers annotations type variable_declarators
+    |   annotations type variable_declarators
     ;
 statement :    statement_without_trailing_substatement
     |    labeled_statement
@@ -518,16 +573,16 @@ do_statement :
         "DO" statement "WHILE" "LPAREN" expression "RPAREN" "SEMICOLON"
     ;
 foreach_statement :
-        "FOR" "LPAREN" type variable_declarator_id "COLON" expression "RPAREN"
-            statement
-    |    "FOR" "IDENTIFIER" "LPAREN" type variable_declarator_id "IDENTIFIER"
-            expression "RPAREN" statement
+        "FOR" "LPAREN"           type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" modifiers type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" annotations type variable_declarator_id "COLON" expression "RPAREN" statement
+    |   "FOR" "LPAREN" modifiers annotations type variable_declarator_id "COLON" expression "RPAREN" statement
     ;
 foreach_statement_no_short_if :
-        "FOR" "LPAREN" type variable_declarator_id "COLON" expression "RPAREN"
-            statement_no_short_if
-    |    "FOR" "IDENTIFIER" "LPAREN" type variable_declarator_id "IDENTIFIER"
-            expression "RPAREN" statement_no_short_if
+        "FOR" "LPAREN"           type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" modifiers type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" annotations type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
+    |   "FOR" "LPAREN" modifiers annotations type variable_declarator_id "COLON" expression "RPAREN" statement_no_short_if
     ;
 for_statement :
         "FOR" "LPAREN" for_init_opt "SEMICOLON" expression_opt "SEMICOLON"
@@ -575,8 +630,32 @@ synchronized_statement :
     ;
 try_statement :
         "TRY" block catches
-    |    "TRY" block catches_opt finally
+    |   "TRY" block catches_opt finally
+    |   try_with_resource_statement
     ;
+
+try_with_resource_statement :
+        "TRY" resource_specification block catches_opt finally
+    |   "TRY" resource_specification block catches_opt
+    ;
+
+resource_specification:
+        "LPAREN" resource_list "SEMICOLON" "RPAREN"
+    |   "LPAREN" resource_list             "RPAREN"
+    ;
+
+resource_list:
+        resource
+    |   resource_list "SEMICOLON" resource
+    ;
+
+resource:
+        annotation "FINAL" type variable_declarator_id "EQ" expression
+    |   annotation         type variable_declarator_id "EQ" expression
+    |              "FINAL" type variable_declarator_id "EQ" expression
+    |                      type variable_declarator_id "EQ" expression
+    ;
+
 catches_opt :
     |    catches
     ;
@@ -584,8 +663,18 @@ catches :    catch_clause
     |    catches catch_clause
     ;
 catch_clause :
-        "CATCH" "LPAREN" formal_parameter "RPAREN" block
+        "CATCH" "LPAREN" catch_formal_parameter "RPAREN" block
     ;
+
+catch_formal_parameter :
+        modifiers_opt catch_type "IDENTIFIER"
+    ;
+
+catch_type :
+        name
+    |   catch_type "OR" name
+    ;
+
 finally :    "FINALLY" block
     ;
 assert_statement :
@@ -940,3 +1029,54 @@ assignment_expression_nn :
     ;
 expression_nn :    assignment_expression_nn;
 
+annotations_opt : annotations | ;
+
+annotations :
+        annotation
+    |   annotations annotation
+    ;
+
+annotation :
+      normal_annotation
+    | marker_annotation
+    | single_element_annotation
+    ;
+
+normal_annotation :
+      "AT" name "LPAREN" element_value_pair_list "RPAREN"
+    | "AT" name "LPAREN"                         "RPAREN"
+    ;
+
+element_value_pair_list :
+      element_value_pair
+    | element_value_pair_list "COMMA" element_value_pair
+    ;
+
+element_value_pair :
+    "IDENTIFIER" "EQ" element_value
+    ;
+
+element_value :
+      conditional_expression
+    | element_value_array_initializer
+    ;
+
+element_value_array_initializer :
+      "LBRACE" element_value_list "COMMA" "RBRACE"
+    | "LBRACE"                    "COMMA" "RBRACE"
+    | "LBRACE" element_value_list         "RBRACE"
+    | "LBRACE"                            "RBRACE"
+    ;
+
+element_value_list :
+      element_value
+    | element_value_list "COMMA" element_value
+    ;
+
+marker_annotation :
+    "AT" name
+    ;
+
+single_element_annotation :
+      "AT" name "LPAREN" element_value "RPAREN"
+    ;
