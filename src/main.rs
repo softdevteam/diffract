@@ -286,7 +286,7 @@ fn process_doc_flags(args: &Args) {
 fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     // TODO: create a HashMap of file extensions -> lex/yacc files.
     match env::current_exe() {
-        Ok(_) => (),
+        Ok(p) => p,
         Err(_) => exit_with_message("Cannot determine which directory the executable is in."),
     };
 

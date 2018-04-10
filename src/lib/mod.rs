@@ -75,6 +75,11 @@ pub mod gt_matcher;
 /// Described in Myers (1986).
 pub mod myers_matcher;
 
+/// Zhang-Shasha matching algorithm.
+///
+/// Described in Zhang & Shasha (1989).
+pub mod zs_matcher;
+
 /// The null matcher produces no matches and is only used for testing.
 pub mod null_matcher;
 

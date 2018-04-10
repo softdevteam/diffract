@@ -13,7 +13,7 @@
 //
 // (a) the Software, and
 // (b) any piece of software and/or hardware listed in the lrgrwrks.txt file
-// if one is included with the Software (each a "Larger Work" to which the Software
+// if one is included with the Software (each a “Larger Work” to which the Software
 // is contributed by such licensors),
 //
 // without restriction, including without limitation the rights to copy, create
@@ -38,67 +38,69 @@
 #![warn(missing_docs)]
 
 use std::fmt::Debug;
+use std::f64;
 
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
-use matchers::{has_same_type_and_label, MappingStore, MappingType, MatchTrees};
-use sequence::lcss;
+use matchers::{MappingStore, MatchTrees};
+use sequence::levenshtein;
 
+/// The `ZhangShasha` matcher does not require any configuration.
 #[derive(Debug, Clone, PartialEq)]
-/// The Myers matcher does not require any configuration.
-pub struct MyersConfig {}
+pub struct ZhangShashaConfig {}
 
-impl Default for MyersConfig {
-    fn default() -> MyersConfig {
-        MyersConfig {}
+impl Default for ZhangShashaConfig {
+    fn default() -> ZhangShashaConfig {
+        ZhangShashaConfig {}
     }
 }
 
-impl MyersConfig {
-    /// Create a new configuration object, with default values.
-    pub fn new() -> MyersConfig {
+impl ZhangShashaConfig {
+    /// Create a new configuration object.
+    pub fn new() -> ZhangShashaConfig {
         Default::default()
     }
 }
 
-impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for MyersConfig {
-    /// Describe this matcher for the user.
+impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for ZhangShashaConfig {
     fn describe(&self) -> String {
         let desc = "
-This matcher finds the longest common subsequence between two ASTs. Myers is the
-default algorithm used by git-diff.
-
-For more information see Myers (1986) An O(ND) Difference Algorithm and its
-Variations.";
+The Zhang Shasha tree matching algorithm -- works by attempting to match
+successive subtrees. For more information see Zhang and Shasha (1989) Simple
+Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
         String::from(desc)
     }
 
     /// Match locations in distinct ASTs.
     fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
-        let store = MappingStore::new(base, diff);
-        if store.from_arena.borrow().is_empty() || store.to_arena.borrow().is_empty() {
-            return store;
-        }
-        let base_pre = store.from_arena
-                            .borrow()
-                            .root()
-                            .unwrap()
-                            .pre_order_traversal(&store.from_arena.borrow())
-                            .collect::<Vec<NodeId<FromNodeId>>>();
-        let diff_pre = store.to_arena
-                            .borrow()
-                            .root()
-                            .unwrap()
-                            .pre_order_traversal(&store.to_arena.borrow())
-                            .collect::<Vec<NodeId<ToNodeId>>>();
-
-        let longest = lcss(&base_pre,
-                           &store.from_arena.borrow(),
-                           &diff_pre,
-                           &store.to_arena.borrow(),
-                           &has_same_type_and_label);
-        for &(n1, n2) in &longest {
-            store.push(n1, n2, &MappingType::ANCHOR);
-        }
-        store
+        MappingStore::new(base, diff)
     }
+}
+
+/// Return cost of a deletion action.
+fn get_deletion_cost<T: Clone>(_node: NodeId<FromNodeId>, _arena: &Arena<T, FromNodeId>) -> f64 {
+    1.0
+}
+
+/// Return cost of an insertion action.
+fn get_insertion_cost<T: Clone>(_node: &NodeId<FromNodeId>, _arena: &Arena<T, FromNodeId>) -> f64 {
+    1.0
+}
+
+/// Return cost of an update action.
+fn get_update_cost<T: Clone + ToString>(from: &NodeId<FromNodeId>,
+                                        from_arena: &Arena<String, FromNodeId>,
+                                        to: &NodeId<ToNodeId>,
+                                        to_arena: &Arena<T, ToNodeId>)
+                                        -> f64 {
+    if from_arena[*from].label == to_arena[*to].label {
+        let from_s = from_arena[*from].ty.to_string();
+        let to_s = to_arena[*to].ty.to_string();
+        if from_s.is_empty() && to_s.is_empty() {
+            return 1.0;
+        } else {
+            // In the GT code, this is a q-gram distance.
+            return levenshtein(&from_s, &to_s) as f64;
+        }
+    }
+    f64::MAX
 }

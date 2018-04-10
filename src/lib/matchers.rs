@@ -300,6 +300,24 @@ pub trait MatchTrees<T: Clone + Debug + ToString> {
     fn describe(&self) -> String;
 }
 
+/// Test that two nodes have the same label and type.
+pub fn has_same_type_and_label<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
+                                                      arena1: &Arena<T, FromNodeId>,
+                                                      n2: &NodeId<ToNodeId>,
+                                                      arena2: &Arena<T, ToNodeId>)
+                                                      -> bool {
+    arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
+}
+
+/// Test that two nodes have the same type.
+pub fn has_same_type<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
+                                            arena1: &Arena<T, FromNodeId>,
+                                            n2: &NodeId<ToNodeId>,
+                                            arena2: &Arena<T, ToNodeId>)
+                                            -> bool {
+    arena1[*n1].ty == arena2[*n2].ty
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
