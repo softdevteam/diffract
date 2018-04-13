@@ -97,6 +97,9 @@ pub mod patch;
 /// Algorithms which act on sequences of values.
 pub mod sequence;
 
+/// Compute the similarity of two subtrees in a `MappingStore`.
+pub mod similarity;
+
 /// Algorithms which were described in Myers(1996).
 ///
 /// Induced, pruning algorithms currently implemented.
