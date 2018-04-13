@@ -46,6 +46,7 @@ extern crate log;
 extern crate lrlex;
 extern crate lrpar;
 extern crate lrtable;
+extern crate multiset;
 extern crate term;
 extern crate test;
 
@@ -93,6 +94,9 @@ pub mod parser;
 ///
 /// Also deals with turning nearby patches into hunks.
 pub mod patch;
+
+/// QGram distance algorithm.
+pub mod qgram;
 
 /// Algorithms which act on sequences of values.
 pub mod sequence;
