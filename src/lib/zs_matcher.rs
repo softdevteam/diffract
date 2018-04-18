@@ -42,7 +42,7 @@ use std::f64;
 
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use matchers::{MappingStore, MatchTrees};
-use sequence::levenshtein;
+use qgram::trigram_distance;
 
 /// The `ZhangShasha` matcher does not require any configuration.
 #[derive(Debug, Clone, PartialEq)]
@@ -98,8 +98,7 @@ fn get_update_cost<T: Clone + ToString>(from: &NodeId<FromNodeId>,
         if from_s.is_empty() && to_s.is_empty() {
             return 1.0;
         } else {
-            // In the GT code, this is a q-gram distance.
-            return levenshtein(&from_s, &to_s) as f64;
+            return trigram_distance(&from_s, &to_s);
         }
     }
     f64::MAX
