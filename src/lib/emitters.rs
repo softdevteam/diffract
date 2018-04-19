@@ -251,8 +251,11 @@ fn escape_string(label: &str) -> String {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
-    let mut stream = File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
+pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str,
+                                               graph: &T)
+                                               -> EmitterResult {
+    let mut stream =
+        File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph.render_dotfile(&mut stream)
          .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
@@ -428,7 +431,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         // Node labels for both ASTs.
         for id in 0..self.from_arena.borrow().size() {
             from_node = NodeId::new(id);
-            if !self.contains_from(from_node) {
+            if !self.contains_edge_from(from_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
@@ -451,7 +454,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         }
         for id in 0..self.to_arena.borrow().size() {
             to_node = NodeId::new(id);
-            if !self.contains_to(to_node) {
+            if !self.contains_edge_to(to_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";

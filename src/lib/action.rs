@@ -46,6 +46,7 @@ use ast::{Arena, ArenaError, ArenaResult, FromNodeId, NodeId};
 use emitters::RenderJson;
 use matchers::MappingStore;
 use patch::Patch;
+use chawathe98_matcher::MappingStoreGraph;
 
 /// Type of action.
 ///
@@ -100,6 +101,8 @@ macro_rules! impl_compare {
 pub trait Patchify<T: Clone + fmt::Debug + ToString> {
     /// Turn object into a `Patch`. Non-terminal nodes are ignored.
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
+    /// Turn object into a 'Patch'.
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
 }
 
 /// A list of actions to be applied.
@@ -158,6 +161,7 @@ pub struct Copy {
 pub struct Glue {
     from_node: NodeId<FromNodeId>,
     node: NodeId<FromNodeId>,
+    pos: u16,
 }
 
 impl Delete {
@@ -206,9 +210,10 @@ impl Copy {
 
 impl Glue {
     /// Create a new `Glue` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>) -> Glue {
+    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Glue {
         Glue { from_node: from,
-               node: parent, }
+               node: parent,
+               pos : position}
     }
 }
 
@@ -290,6 +295,7 @@ impl RenderJson for Glue {
         json.push(format!("{}\"action\": \"glue\",", ind_s));
         json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
         json.push(format!("{}\"from\": {},", &ind_s, self.node));
+        json.push(format!("{}\"at\": {}", &ind_s, self.pos));
         json.push(" ".repeat(indent) + "}");
         json.join("\n")
     }
@@ -297,6 +303,14 @@ impl RenderJson for Glue {
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Delete {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
+        let node = &store.from_arena.borrow()[self.node];
+        if node.char_no.is_some() {
+            from.push(Patch::new(ActionType::DELETE,
+                                 node.char_no.unwrap(),
+                                 node.token_len.unwrap()));
+        }
+    }
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
         let node = &store.from_arena.borrow()[self.node];
         if node.char_no.is_some() {
             from.push(Patch::new(ActionType::DELETE,
@@ -315,10 +329,34 @@ impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Insert {
                                node.token_len.unwrap()));
         }
     }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let node = &store.from_arena.borrow()[self.node];
+        if node.char_no.is_some() {
+            to.push(Patch::new(ActionType::INSERT,
+                               node.char_no.unwrap(),
+                               node.token_len.unwrap()));
+        }
+    }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena.borrow()[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::MOVE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::MOVE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::MOVE,
@@ -349,10 +387,40 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> 
                                t_node.token_len.unwrap()));
         }
     }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena.borrow()[self.node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::UPDATE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena.borrow()[store.get_to(&self.node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::UPDATE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena.borrow()[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::COPY,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::COPY,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         let f_node = &store.from_arena.borrow()[self.from_node];
         if f_node.char_no.is_some() {
             from.push(Patch::new(ActionType::COPY,
@@ -383,6 +451,22 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Glue {
                                t_node.token_len.unwrap()));
         }
     }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        let f_node = &store.from_arena.borrow()[self.from_node];
+        if f_node.char_no.is_some() {
+            from.push(Patch::new(ActionType::GLUE,
+                                 f_node.char_no.unwrap(),
+                                 f_node.token_len.unwrap()));
+        }
+        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        if t_node.char_no.is_some() {
+            to.push(Patch::new(ActionType::GLUE,
+                               t_node.char_no.unwrap(),
+                               t_node.token_len.unwrap()));
+        }
+    }
+
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Delete {
@@ -436,7 +520,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Glue {
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
-        self.from_node.detach_with_children(arena)
+        self.from_node.make_nth_child_of(self.node, self.pos, arena)
     }
     impl_compare!();
 }
@@ -499,6 +583,12 @@ impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for EditScript<T> {
     fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
         for action in &self.actions {
             action.patchify(store, from, to);
+        }
+    }
+
+    fn patchify_chawathe98(&self, store: &MappingStoreGraph<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+        for action in &self.actions {
+            action.patchify_chawathe98(store, from, to);
         }
     }
 }

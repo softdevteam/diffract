@@ -643,29 +643,42 @@ impl<U: PartialEq + Copy> NodeId<U> {
                                               _arena: &mut Arena<T, U>)
                                               -> ArenaResult {
         let current_node = _arena[_to_node].clone();
-
         let mut _new_node_made = _arena.new_node(current_node.ty,
                                                  current_node.label,
                                                  current_node.col_no,
                                                  current_node.line_no,
                                                  current_node.char_no,
                                                  current_node.token_len);
-        // Collect all the children
-        let ids = _to_node.children(_arena).collect::<Vec<NodeId<U>>>();
-        for (counter, &id) in ids.iter().enumerate() {
-            let current_child_node = _arena[id].clone();
-
-            let mut _new_child_node = _arena.new_node(current_child_node.ty,
-                                                      current_child_node.label,
-                                                      current_child_node.col_no,
-                                                      current_child_node.line_no,
-                                                      current_child_node.char_no,
-                                                      current_child_node.token_len);
-            _new_child_node.make_nth_child_of(_new_node_made, counter as u16, _arena)
-                           .unwrap();
-            if !id.is_leaf(_arena) {
-                _new_child_node.copy_subtree(id, counter as u16, _arena)
-                               .unwrap();
+        // Iterative approach to copying a subtree.
+        let mut queue: VecDeque<(NodeId<U>, NodeId<U>)> = VecDeque::new();
+        queue.push_back((_to_node, _new_node_made));
+        // Loops until there are no internal nodes left
+        while !queue.is_empty() {
+            // Current node (Node Copy from, new Node Copy To)
+            let get_current_tuple = queue.pop_front();
+            if get_current_tuple.is_some() {
+                // Get all the children and make a copy and
+                // then make them children of the new children.
+                let current_node = get_current_tuple.unwrap().0;
+                let copy_to_node = get_current_tuple.unwrap().1;
+                let children_of_current_node =
+                    current_node.children(_arena).collect::<Vec<NodeId<U>>>();
+                for child in children_of_current_node {
+                    // Make a copy of the node
+                    // attach it to the copy to node
+                    let child_properties = _arena[child].clone();
+                    let child_copy = _arena.new_node(child_properties.ty,
+                                                     child_properties.label,
+                                                     child_properties.col_no,
+                                                     child_properties.line_no,
+                                                     child_properties.char_no,
+                                                     child_properties.token_len);
+                    // If child is not a leaf node then add it to the queue
+                    if !child.is_leaf(_arena) {
+                        queue.push_back((child, child_copy));
+                    }
+                    child_copy.make_child_of(copy_to_node, _arena);
+                }
             }
         }
         _new_node_made.make_nth_child_of(self, position, _arena)

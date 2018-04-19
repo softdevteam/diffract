@@ -57,6 +57,7 @@ use diffract::gt_matcher;
 use diffract::myers_matcher;
 use diffract::matchers::MatchTrees;
 use diffract::parser;
+use diffract::chawathe98_matcher;
 
 const USAGE: &str = "
 Usage: diffract [options] <base-file> <diff-file>
@@ -382,6 +383,65 @@ fn main() {
     if args.flag_dot.len() > 1 {
         write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
     }
+    // Check for Chawathe98
+
+    match args.flag_edit {
+        Some(EditScriptGenerator::Chawathe96) | None => {}
+        Some(EditScriptGenerator::Chawathe98) => {
+            let ast_base_clone = ast_base.clone();
+            let ast_diff_clone = ast_diff.clone();
+            fn input_from_user() -> Vec<usize> {
+                println!("If the wrong values are entered, default values would be taken");
+                print!("\nPlease enter cost for edges: Insert, Delete, Update, Move, Copy, Glue: ");
+                let mut user_input = String::new();
+                let _ = stdout().flush();
+                std::io::stdin().read_line(&mut user_input)
+                                .expect("Did not enter a correct string");
+                if let Some('\n') = user_input.chars().next_back() {
+                    user_input.pop();
+                }
+                if let Some('\r') = user_input.chars().next_back() {
+                    user_input.pop();
+                }
+                // Get all the integer input from the user. Split by space.
+                let vec_cost: Vec<usize> = user_input.split(" ")
+                                                     .filter_map(|x| x.parse::<usize>().ok())
+                                                     .collect();
+                // Keep only values which are greater than zero
+                println!("What user has entered => {:?}", vec_cost);
+                vec_cost
+            }
+
+            let vec_cost = input_from_user();
+            // When user inputs right values
+            if vec_cost.len() == 6 {
+                // Right values
+                let cost_user_defined = chawathe98_matcher::CostEdge::new(vec_cost[0],
+                                                                          vec_cost[1],
+                                                                          vec_cost[2],
+                                                                          vec_cost[3],
+                                                                          vec_cost[4],
+                                                                          vec_cost[5],
+                                                                          0,
+                                                                          0);
+                println!("User Values Taken");
+                chawathe98_matcher::chawathe_matching_actual(ast_base_clone,
+                                                             ast_diff_clone,
+                                                             &args.arg_base_file,
+                                                             &args.arg_diff_file,
+                                                             cost_user_defined);
+            } else {
+                // Default values
+                println!("Default values taken");
+                let cost_user_default = chawathe98_matcher::CostEdge::new(1, 1, 1, 1, 1, 1, 0, 0);
+                chawathe98_matcher::chawathe_matching_actual(ast_base_clone,
+                                                             ast_diff_clone,
+                                                             &args.arg_base_file,
+                                                             &args.arg_diff_file,
+                                                             cost_user_default);
+            }
+        }
+    }
 
     // Create a mapping store.
     let store = matcher_config.match_trees(ast_base, ast_diff);
@@ -406,6 +466,7 @@ fn main() {
     info!("Selecting the Chawathe et al. (1996) edit script generator.");
 
     // Edit script generator configuration object.
+
     let generator_config: Box<edit_script::EditScriptGenerator<String>> =
         generator_script_config(args.flag_edit);
 
@@ -430,6 +491,7 @@ fn main() {
         Ok(script) => script,
         Err(err) => consume_edit_script_err(&err),
     };
+
     if args.flag_store.is_some() {
         let edit_file = args.flag_store.unwrap();
         info!("Creating dot representation of edit script {:?}.",
