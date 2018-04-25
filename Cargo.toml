@@ -25,6 +25,7 @@ docopt = "0.7.0"
 dot = "0.1.2"
 env_logger = "0.4.2"
 log = "0.3.7"
+multiset = { git = "https://github.com/jmitchell/multiset" }
 rust-crypto = "0.2.36"
 rustc-serialize = "0.3"
 term = "0.4.5"
