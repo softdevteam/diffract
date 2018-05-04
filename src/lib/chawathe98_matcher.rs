@@ -2398,8 +2398,6 @@ pub trait MatchingTreesScriptor<T: Clone + Debug> {
 pub fn chawathe_matching_actual(
     mut from_arena: Arena<String, FromNodeId>,
     mut to_arena: Arena<String, ToNodeId>,
-    from_path: &str,
-    to_path: &str,
     user_defined_cost: CostEdge,
 ) -> EditScriptResult<String> {
     from_arena.new_node(

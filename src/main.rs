@@ -404,7 +404,7 @@ fn main() {
                     user_input.pop();
                 }
                 // Get all the integer input from the user. Split by space.
-                let vec_cost: Vec<usize> = user_input.split(" ")
+                let vec_cost: Vec<usize> = user_input.split(' ')
                                                      .filter_map(|x| x.parse::<usize>().ok())
                                                      .collect();
                 // Keep only values which are greater than zero
@@ -414,32 +414,21 @@ fn main() {
 
             let vec_cost = input_from_user();
             // When user inputs right values
-            if vec_cost.len() == 6 {
-                // Right values
-                let cost_user_defined = chawathe98_matcher::CostEdge::new(vec_cost[0],
-                                                                          vec_cost[1],
-                                                                          vec_cost[2],
-                                                                          vec_cost[3],
-                                                                          vec_cost[4],
-                                                                          vec_cost[5],
-                                                                          0,
-                                                                          0);
-                println!("User Values Taken");
-                chawathe98_matcher::chawathe_matching_actual(ast_base_clone,
-                                                             ast_diff_clone,
-                                                             &args.arg_base_file,
-                                                             &args.arg_diff_file,
-                                                             cost_user_defined);
+            let cost = if vec_cost.len() == 6 {
+                chawathe98_matcher::CostEdge::new(vec_cost[0],
+                                                  vec_cost[1],
+                                                  vec_cost[2],
+                                                  vec_cost[3],
+                                                  vec_cost[4],
+                                                  vec_cost[5],
+                                                  0,
+                                                  0)
             } else {
-                // Default values
-                println!("Default values taken");
-                let cost_user_default = chawathe98_matcher::CostEdge::new(1, 1, 1, 1, 1, 1, 0, 0);
-                chawathe98_matcher::chawathe_matching_actual(ast_base_clone,
-                                                             ast_diff_clone,
-                                                             &args.arg_base_file,
-                                                             &args.arg_diff_file,
-                                                             cost_user_default);
-            }
+                chawathe98_matcher::CostEdge::new(1, 1, 1, 1, 1, 1, 0, 0)
+            };
+            // Chawathe98 matcher does not yet have a way to generate a textual diff.
+            chawathe98_matcher::chawathe_matching_actual(ast_base_clone, ast_diff_clone, cost)
+                .expect("Chawathe98 matcher could not generate edit script.");
         }
     }
 
