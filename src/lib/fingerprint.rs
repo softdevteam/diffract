@@ -41,9 +41,8 @@
 /// Roussel (2009) Syntax Tree Fingerprinting: A Foundation For Source Code
 /// Similarity Detection.
 
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::Debug;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use crypto::digest::Digest;
 use crypto::md5::Md5;
@@ -70,18 +69,6 @@ pub const CLOSE_SYMBOL: &str = ")]";
 ///
 /// See `ast:: to_static_hash_string`.
 pub const SEPARATE_SYMBOL: &str = "@@";
-
-fn calculate_hash<T: Hash>(t: &T) -> HashType {
-    let mut s = DefaultHasher::new();
-    t.hash(&mut s);
-    s.finish() as HashType
-}
-
-fn standard_hash<T: Clone + Eq + Hash, U: PartialEq + Copy>(id: &NodeId<U>,
-                                                            arena: &Arena<T, U>)
-                                                            -> HashType {
-    calculate_hash(&arena[*id].ty) + BASE + calculate_hash(&arena[*id].label)
-}
 
 fn in_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: &NodeId<U>,
                                                                  arena: &Arena<T, U>)
