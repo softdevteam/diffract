@@ -677,7 +677,8 @@ impl<U: PartialEq + Copy> NodeId<U> {
                     if !child.is_leaf(_arena) {
                         queue.push_back((child, child_copy));
                     }
-                    child_copy.make_child_of(copy_to_node, _arena);
+                    child_copy.make_child_of(copy_to_node, _arena)
+                              .expect(&format!("AST node {} does not exist.", copy_to_node));
                 }
             }
         }

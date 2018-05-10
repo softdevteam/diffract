@@ -43,18 +43,18 @@
 /// This matcher would use the additional operation which are GLUE and COPY.
 /// In addition to Insert, Delete, Move, Update.
 /// This is supposed to be an alternative matcher to chawathe96.
-use std::fmt::Debug;
-
-use ast::{Arena, FromNodeId, NodeId, ToNodeId};
-use matchers::{has_same_type, has_same_type_and_label};
 
 use action::{ApplyAction, Copy, Delete, EditScript, Glue, Insert, Move, Update};
+use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use emitters::RenderJson;
-use matchers::EditScriptResult;
+use matchers::{has_same_type, has_same_type_and_label, EditScriptResult};
+
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Debug;
+use std::hash::BuildHasher;
 
 /// Not needed by matching algorithms, but useful for debugging.
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Copy)]
@@ -76,8 +76,9 @@ pub enum EdgeType {
     /// Edge corresponds to a OK operation.
     OK,
 }
+
+/// The initial cost of each edge
 #[derive(Debug, Clone)]
-/// The intial cost of each edge
 pub struct CostEdge {
     /// Edge corresponds to a UPDATE cost operation.
     pub update: usize,
@@ -101,26 +102,23 @@ pub struct CostEdge {
 impl CostEdge {
     /// Create a new cost edge
     /// This shows the cost for each edge defined by the user
-    pub fn new(
-        cost_update_1: usize,
-        cost_insert_1: usize,
-        cost_delete_1: usize,
-        cost_move_1: usize,
-        cost_copy_1: usize,
-        cost_glue_1: usize,
-        cost_null_1: usize,
-        cost_ok_1: usize,
-    ) -> CostEdge {
-        CostEdge {
-            update: cost_update_1,
-            insert: cost_insert_1,
-            delete: cost_delete_1,
-            move_: cost_move_1,
-            copy: cost_copy_1,
-            glue: cost_glue_1,
-            null: cost_null_1,
-            ok: cost_ok_1,
-        }
+    pub fn new(update: usize,
+               insert: usize,
+               delete: usize,
+               move_: usize,
+               copy: usize,
+               glue: usize,
+               null: usize,
+               ok: usize)
+               -> CostEdge {
+        CostEdge { update,
+                   insert,
+                   delete,
+                   move_,
+                   copy,
+                   glue,
+                   null,
+                   ok, }
     }
 }
 
@@ -139,20 +137,19 @@ pub struct Edge {
 
 impl Edge {
     /// Create a new edge
-    pub fn new(
-        new_from_node: NodeId<FromNodeId>,
-        new_to_node: NodeId<ToNodeId>,
-        new_value: usize,
-        new_edge_type: EdgeType,
-    ) -> Edge {
-        Edge {
-            from_node: new_from_node,
-            to_node: new_to_node,
-            value: new_value,
-            edge_type: new_edge_type,
-        }
+    pub fn new(from_node: NodeId<FromNodeId>,
+               to_node: NodeId<ToNodeId>,
+               value: usize,
+               edge_type: EdgeType)
+               -> Edge {
+        Edge { from_node,
+               to_node,
+               value,
+               edge_type, }
     }
 }
+
+type NodeAndEdgeType<T, U> = HashMap<NodeId<T>, (NodeId<U>, EdgeType)>;
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
@@ -171,54 +168,48 @@ pub struct MappingStoreGraph<T: Clone + Debug> {
     /// Find the Cost of all edges
     pub all_edge_cost: CostEdge,
     /// Final mappings for nodes when the pruning are done in particular min-edge cover
-    pub from: RefCell<HashMap<NodeId<FromNodeId>, (NodeId<ToNodeId>, EdgeType)>>,
+    pub from: RefCell<NodeAndEdgeType<FromNodeId, ToNodeId>>,
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `from_map`.
-    pub to: RefCell<HashMap<NodeId<ToNodeId>, (NodeId<FromNodeId>, EdgeType)>>,
+    pub to: RefCell<NodeAndEdgeType<ToNodeId, FromNodeId>>,
 }
 
 impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     /// Implementation of new in mapping store the second version
     pub fn new(base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStoreGraph<T> {
-        MappingStoreGraph {
-            from_arena: RefCell::new(base),
-            to_arena: RefCell::new(diff),
-            list_edges: RefCell::new(Vec::new()),
-            list_node_inserted: RefCell::new(Vec::new()),
-            list_node_deleted: RefCell::new(Vec::new()),
-            // The cost could change in the future but,
-            // we can make the default cost for every edge
-            // which is cost the value of 1.
-            all_edge_cost: CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1),
-            from: RefCell::new(HashMap::new()),
-            to: RefCell::new(HashMap::new()),
-        }
+        MappingStoreGraph { from_arena: RefCell::new(base),
+                            to_arena: RefCell::new(diff),
+                            list_edges: RefCell::new(Vec::new()),
+                            list_node_inserted: RefCell::new(Vec::new()),
+                            list_node_deleted: RefCell::new(Vec::new()),
+                            // The cost could change in the future but,
+                            // we can make the default cost for every edge
+                            // which is cost the value of 1.
+                            all_edge_cost: CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1),
+                            from: RefCell::new(HashMap::new()),
+                            to: RefCell::new(HashMap::new()), }
     }
 
     /// Implementation of the update of the cost edge.
     /// This will renew the cost value for each edge type.
-    pub fn update_cost(
-        &mut self,
-        cost_update: usize,
-        cost_insert: usize,
-        cost_delete: usize,
-        cost_move: usize,
-        cost_copy: usize,
-        cost_glue: usize,
-        cost_null: usize,
-        cost_ok: usize,
-    ) {
-        self.all_edge_cost = CostEdge::new(
-            cost_update,
-            cost_insert,
-            cost_delete,
-            cost_move,
-            cost_copy,
-            cost_glue,
-            cost_null,
-            cost_ok,
-        );
+    pub fn update_cost(&mut self,
+                       cost_update: usize,
+                       cost_insert: usize,
+                       cost_delete: usize,
+                       cost_move: usize,
+                       cost_copy: usize,
+                       cost_glue: usize,
+                       cost_null: usize,
+                       cost_ok: usize) {
+        self.all_edge_cost = CostEdge::new(cost_update,
+                                           cost_insert,
+                                           cost_delete,
+                                           cost_move,
+                                           cost_copy,
+                                           cost_glue,
+                                           cost_null,
+                                           cost_ok);
     }
     /// Push a new mapping into the store.
     pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &EdgeType) {
@@ -261,13 +252,11 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Push New Edge
-    pub fn push_edge(
-        &mut self,
-        new_from_node: NodeId<FromNodeId>,
-        new_to_node: NodeId<ToNodeId>,
-        new_value: usize,
-        new_edge_type: EdgeType,
-    ) {
+    pub fn push_edge(&mut self,
+                     new_from_node: NodeId<FromNodeId>,
+                     new_to_node: NodeId<ToNodeId>,
+                     new_value: usize,
+                     new_edge_type: EdgeType) {
         let new_edge = Edge::new(new_from_node, new_to_node, new_value, new_edge_type);
         self.list_edges.borrow_mut().push(new_edge);
     }
@@ -290,16 +279,15 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     ///     1) from node id &
     ///     2) To node id
     ///     3) Edge Type
-    pub fn contains_edge(
-        &self,
-        from: usize,
-        to: usize,
-        edge_type: &EdgeType,
-        list_edges: &[Edge],
-    ) -> bool {
+    pub fn contains_edge(&self,
+                         from: usize,
+                         to: usize,
+                         edge_type: &EdgeType,
+                         list_edges: &[Edge])
+                         -> bool {
         for edge in list_edges {
             if edge.from_node.id() == from && edge.to_node.id() == to
-                && edge.edge_type == *edge_type
+               && edge.edge_type == *edge_type
             {
                 return true;
             }
@@ -319,20 +307,17 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Print for all the pre order traversal tree2: <Vec<NodeId<ToNodeId>>>
-    pub fn print_preorder_traversal(
-        &self,
-        tree1: Vec<NodeId<FromNodeId>>,
-        tree2: Vec<NodeId<ToNodeId>>,
-    ) -> () {
+    pub fn print_preorder_traversal(&self,
+                                    tree1: Vec<NodeId<FromNodeId>>,
+                                    tree2: Vec<NodeId<ToNodeId>>)
+                                    -> () {
         println!();
         println!("Tree 1");
         print!("|");
         for node in tree1 {
-            print!(
-                "{:?},{:?}|",
-                node.id(),
-                self.from_arena.borrow()[node].label
-            );
+            print!("{:?},{:?}|",
+                   node.id(),
+                   self.from_arena.borrow()[node].label);
         }
         println!();
         println!("Tree 2");
@@ -346,28 +331,24 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     /// This overall checks the subtrees of two trees and whether they are the same.
     /// The check is done by checking if the nodes are equal and as well as their descendants.
     pub fn check_subtree(&self, from_node: NodeId<FromNodeId>, to_node: NodeId<ToNodeId>) -> bool {
-        let descendants_from_node = from_node
-            .descendants(&self.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
-        let descendants_to_node = to_node
-            .descendants(&self.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
-        if has_same_type_and_label(
-            &from_node,
-            &self.from_arena.borrow(),
-            &to_node,
-            &self.to_arena.borrow(),
-        ) {
+        let descendants_from_node = from_node.descendants(&self.from_arena.borrow())
+                                             .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants_to_node = to_node.descendants(&self.to_arena.borrow())
+                                         .collect::<Vec<NodeId<ToNodeId>>>();
+        if has_same_type_and_label(&from_node,
+                                   &self.from_arena.borrow(),
+                                   &to_node,
+                                   &self.to_arena.borrow())
+        {
             if descendants_to_node.len() != descendants_from_node.len() {
                 return false;
             }
             for i in 0..descendants_to_node.len() {
-                if !has_same_type_and_label(
-                    &descendants_from_node[i],
-                    &self.from_arena.borrow(),
-                    &descendants_to_node[i],
-                    &self.to_arena.borrow(),
-                ) {
+                if !has_same_type_and_label(&descendants_from_node[i],
+                                            &self.from_arena.borrow(),
+                                            &descendants_to_node[i],
+                                            &self.to_arena.borrow())
+                {
                     // This means the descendants are !perfect by label and expression
                     return false;
                 }
@@ -379,16 +360,15 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
     /// Check if the subtree is deleted from from_node against to_node.
     /// This checks whether the the descendants are in the deletion edges.
-    pub fn check_tree_deletion(
-        &self,
-        from_node_ancestor: NodeId<FromNodeId>,
-        delete_tree2: NodeId<ToNodeId>,
-        hash_set_deletion: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>,
-    ) -> bool {
+    pub fn check_tree_deletion(&self,
+                               from_node_ancestor: NodeId<FromNodeId>,
+                               delete_tree2: NodeId<ToNodeId>,
+                               hash_set_deletion: &HashSet<(NodeId<FromNodeId>,
+                                        NodeId<ToNodeId>)>)
+                               -> bool {
         let mut output = true;
-        let descendants_from_node = from_node_ancestor
-            .descendants(&self.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
+        let descendants_from_node = from_node_ancestor.descendants(&self.from_arena.borrow())
+                                                      .collect::<Vec<NodeId<FromNodeId>>>();
         for descendant in descendants_from_node {
             if !hash_set_deletion.contains(&(descendant, delete_tree2)) {
                 output = false;
@@ -410,16 +390,15 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
     /// Check if the descendants of to_node are in the insertion edges.
     /// From node would be the insertion node.
-    pub fn check_tree_insertion(
-        &self,
-        insert_tree1: NodeId<FromNodeId>,
-        to_node: NodeId<ToNodeId>,
-        hash_set_insertion: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>,
-    ) -> bool {
+    pub fn check_tree_insertion(&self,
+                                insert_tree1: NodeId<FromNodeId>,
+                                to_node: NodeId<ToNodeId>,
+                                hash_set_insertion: &HashSet<(NodeId<FromNodeId>,
+                                         NodeId<ToNodeId>)>)
+                                -> bool {
         let mut output = true;
-        let descendants_from_node = to_node
-            .descendants(&self.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
+        let descendants_from_node = to_node.descendants(&self.to_arena.borrow())
+                                           .collect::<Vec<NodeId<ToNodeId>>>();
         for descendant in descendants_from_node {
             if !hash_set_insertion.contains(&(insert_tree1, descendant)) {
                 output = false;
@@ -429,10 +408,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Converts vector(To_node_id) to hash set
-    pub fn vector_to_hash_set_to_node_id(
-        &self,
-        tree2: &[NodeId<ToNodeId>],
-    ) -> HashSet<NodeId<ToNodeId>> {
+    pub fn vector_to_hash_set_to_node_id(&self,
+                                         tree2: &[NodeId<ToNodeId>])
+                                         -> HashSet<NodeId<ToNodeId>> {
         let mut hashset = HashSet::<NodeId<ToNodeId>>::new();
         for node in tree2.to_owned() {
             hashset.insert(node);
@@ -441,10 +419,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     }
 
     /// Converts vector(From_node_id) to hash set
-    pub fn vector_to_hash_set_from_node_id(
-        &self,
-        tree2: &[NodeId<FromNodeId>],
-    ) -> HashSet<NodeId<FromNodeId>> {
+    pub fn vector_to_hash_set_from_node_id(&self,
+                                           tree2: &[NodeId<FromNodeId>])
+                                           -> HashSet<NodeId<FromNodeId>> {
         let mut hashset = HashSet::<NodeId<FromNodeId>>::new();
         for node in tree2.to_owned() {
             hashset.insert(node);
@@ -452,15 +429,14 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
         hashset
     }
     /// Generate all lower bound values for all the edges.
-    pub fn make_all_lower_bound_edges(
-        &self,
-        hash_edges: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>,
-    ) -> HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>), usize> {
+    pub fn make_all_lower_bound_edges(&self,
+                                      hash_edges: &HashSet<(NodeId<FromNodeId>,
+                                               NodeId<ToNodeId>)>)
+                                      -> HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>), usize>
+    {
         // May be returner. Of all the lower bound for the edges.
-        let mut hash_map_lower_bound: HashMap<
-            (NodeId<FromNodeId>, NodeId<ToNodeId>),
-            usize,
-        > = HashMap::new();
+        let mut hash_map_lower_bound: HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>),
+                                              usize> = HashMap::new();
         let cost_of_move = self.all_edge_cost.move_;
         let cost_of_update = self.all_edge_cost.update;
         for edge in self.list_edges.borrow().iter() {
@@ -469,10 +445,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
 
             // Cost of forced move calculate
             // Get all the children of m.
-            let m_children = m.children(&self.from_arena.borrow())
-                .collect::<Vec<NodeId<FromNodeId>>>();
-            let n_children = n.children(&self.to_arena.borrow())
-                .collect::<Vec<NodeId<ToNodeId>>>();
+            let m_children =
+                m.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
+            let n_children = n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_forced_move_m_children_n = 0;
@@ -497,28 +472,24 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
 
             // Analogously n_1 to m
 
-            hash_map_lower_bound.insert(
-                (m, n),
-                cost_of_update
-                    + (cmp::min(
-                        sum_cost_forced_move_m_children_n,
-                        sum_cost_forced_move_n_children_m,
-                    ) / 2),
-            );
+            hash_map_lower_bound.insert((m, n),
+                                        cost_of_update
+                                        + (cmp::min(sum_cost_forced_move_m_children_n,
+                                                    sum_cost_forced_move_n_children_m)
+                                           / 2));
         }
         hash_map_lower_bound
     }
 
     /// Generate all the upper bound values for all the edges.
-    pub fn make_all_upper_bound_edges(
-        &self,
-        hash_edges: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)>,
-    ) -> HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>), usize> {
+    pub fn make_all_upper_bound_edges(&self,
+                                      hash_edges: &HashSet<(NodeId<FromNodeId>,
+                                               NodeId<ToNodeId>)>)
+                                      -> HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>), usize>
+    {
         // May be returner. Of all the upper bound for the edges.
-        let mut hash_map_upper_bound: HashMap<
-            (NodeId<FromNodeId>, NodeId<ToNodeId>),
-            usize,
-        > = HashMap::new();
+        let mut hash_map_upper_bound: HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>),
+                                              usize> = HashMap::new();
         let cost_of_move = self.all_edge_cost.move_;
         let cost_of_update = self.all_edge_cost.update;
         let cost_of_copy = self.all_edge_cost.copy;
@@ -529,10 +500,9 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
 
             // Cost of forced move calculate
             // Get all the children of m.
-            let m_children = m.children(&self.from_arena.borrow())
-                .collect::<Vec<NodeId<FromNodeId>>>();
-            let n_children = n.children(&self.to_arena.borrow())
-                .collect::<Vec<NodeId<ToNodeId>>>();
+            let m_children =
+                m.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
+            let n_children = n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_conditional_move_m_children_n = 0;
@@ -559,12 +529,11 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                     cost_of_update
                 };
 
-            hash_map_upper_bound.insert(
-                (m, n),
-                cost_cw
-                    + (sum_cost_conditional_move_m_children_n
-                        + sum_cost_conditional_move_n_children_m) / 2,
-            );
+            hash_map_upper_bound.insert((m, n),
+                                        cost_cw
+                                        + (sum_cost_conditional_move_m_children_n
+                                           + sum_cost_conditional_move_n_children_m)
+                                          / 2);
         }
         hash_map_upper_bound
     }
@@ -591,34 +560,36 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
         println!("List Of edges already mapped to");
         for (index, edge) in self.list_edges.borrow().iter().enumerate() {
             println!(" -- {:?} -- ", index);
-            println!(
-                "TY        :   From node    -> {:?} || to node -> {:?}",
-                self.from_arena.borrow()[edge.from_node].ty,
-                self.to_arena.borrow()[edge.to_node].ty
-            );
-            println!(
-                "Value     :   From node -> {:?} || to node -> {:?}",
-                self.from_arena.borrow()[edge.from_node].label,
-                self.to_arena.borrow()[edge.to_node].label
-            );
-            println!(
-                "From node -> {:?} || to node -> {:?} || Edge type -> {:?}",
-                edge.from_node, edge.to_node, edge.edge_type
-            );
+            println!("TY        :   From node    -> {:?} || to node -> {:?}",
+                     self.from_arena.borrow()[edge.from_node].ty,
+                     self.to_arena.borrow()[edge.to_node].ty);
+            println!("Value     :   From node -> {:?} || to node -> {:?}",
+                     self.from_arena.borrow()[edge.from_node].label,
+                     self.to_arena.borrow()[edge.to_node].label);
+            println!("From node -> {:?} || to node -> {:?} || Edge type -> {:?}",
+                     edge.from_node, edge.to_node, edge.edge_type);
             println!("--");
         }
     }
 }
 
+/// A set of node edges of a particular type and with a cost.
+type NodeEdgeSet<T, U> = HashSet<(NodeId<T>, NodeId<U>, EdgeType, usize)>;
+
+/// A set of nodes with edge types and costs.
+///
+/// Used where one node can be mapped to many destination nodes.
+type NodeVertexSet<T> = HashSet<(NodeId<T>, EdgeType, usize)>;
+
+type OneToManyCostMapping<T, U> = HashMap<NodeId<T>, (NodeVertexSet<U>, usize)>;
+
 /// This is the stage 3 for algorithm
 /// This performs minimum edge cover solver problem
 pub fn edgecover_solver(
-    mut new_matcher_pruning: MappingStoreGraph<String>,
-) -> (
-    MappingStoreGraph<String>,
-    HashMap<NodeId<ToNodeId>, (HashSet<(NodeId<FromNodeId>, EdgeType, usize)>, usize)>,
-    HashMap<NodeId<FromNodeId>, (HashSet<(NodeId<ToNodeId>, EdgeType, usize)>, usize)>,
-) {
+    mut new_matcher_pruning: MappingStoreGraph<String>)
+    -> (MappingStoreGraph<String>,
+       OneToManyCostMapping<ToNodeId, FromNodeId>,
+       OneToManyCostMapping<FromNodeId, ToNodeId>) {
     // This implements greedy solution to get only one edge mapping incidented to -- "To nodes"
     // Lets get rid of move operations where they have glue or copy as a parent
     let helper_mapping = edgecover_helper(&new_matcher_pruning);
@@ -627,26 +598,17 @@ pub fn edgecover_solver(
     let bfs_root_to_tree = root_to.breadth_first_traversal(reference_matcher); // Root To Traversal BFS Search
 
     // Hash Set for different types of edges
-    let mut copy_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
-        HashSet::new();
-    let mut glue_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
-        HashSet::new();
-    let mut move_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
-        HashSet::new();
-    let mut edge_keep: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
-        HashSet::new();
+    let mut copy_edges: NodeEdgeSet<FromNodeId, ToNodeId> = HashSet::new();
+    let mut glue_edges: NodeEdgeSet<FromNodeId, ToNodeId> = HashSet::new();
+    let mut move_edges: NodeEdgeSet<FromNodeId, ToNodeId> = HashSet::new();
+    let mut edge_keep: NodeEdgeSet<FromNodeId, ToNodeId> = HashSet::new();
 
     // Find minimum cost edge
     // By looking at all edges associated with the nodes in the To_Node
 
     for to_node in bfs_root_to_tree {
         let node_mapping = helper_mapping.0.get(&to_node);
-        let mut edge_keep_temp: HashSet<(
-            NodeId<FromNodeId>,
-            NodeId<ToNodeId>,
-            EdgeType,
-            usize,
-        )> = HashSet::new();
+        let mut edge_keep_temp: NodeEdgeSet<FromNodeId, ToNodeId> = HashSet::new();
         // Sorting by cost Keep the lowest cost
         if node_mapping.is_some() {
             let lowest_cost = node_mapping.unwrap().0.iter().map(|x| x.2).min().unwrap();
@@ -670,12 +632,10 @@ pub fn edgecover_solver(
             if edge_keep_temp.len() > 1 {
                 let mut vec_order = edge_keep_temp.clone().into_iter().collect::<Vec<_>>();
                 vec_order.sort_by_key(|k| k.0.id());
-                let mut result_edge: Option<(
-                    NodeId<FromNodeId>,
-                    NodeId<ToNodeId>,
-                    EdgeType,
-                    usize,
-                )> = None;
+                let mut result_edge: Option<(NodeId<FromNodeId>,
+                                            NodeId<ToNodeId>,
+                                            EdgeType,
+                                            usize)> = None;
                 let mut check_base_2 = false; // Edge type is Copy, Glue, Move
 
                 for (from_node, to_node, edge1, value) in vec_order {
@@ -683,7 +643,7 @@ pub fn edgecover_solver(
                     match result_edge {
                         None => {
                             if !(edge1 == EdgeType::OK || edge1 == EdgeType::INSERT
-                                || edge1 == EdgeType::DELETE)
+                                 || edge1 == EdgeType::DELETE)
                             {
                                 check_base_2 = true;
                             }
@@ -694,8 +654,8 @@ pub fn edgecover_solver(
                     }
 
                     if check_base_2
-                        && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
-                            || edge == EdgeType::OK)
+                       && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
+                           || edge == EdgeType::OK)
                     {
                         // our current chosen edges either MOVE, COPY, GLUE
                         // current edge in the for loop is Insert or delete or ok
@@ -709,12 +669,10 @@ pub fn edgecover_solver(
                 }
                 // At the we should have an edge
                 if result_edge.is_some() {
-                    edge_keep.insert((
-                        result_edge.unwrap().0,
-                        result_edge.unwrap().1,
-                        result_edge.unwrap().2,
-                        result_edge.unwrap().3,
-                    ));
+                    edge_keep.insert((result_edge.unwrap().0,
+                                     result_edge.unwrap().1,
+                                     result_edge.unwrap().2,
+                                     result_edge.unwrap().3));
                 }
             }
             // We found the lowest cost in the first go.
@@ -728,20 +686,10 @@ pub fn edgecover_solver(
     // We would check through the edge keep and only retain edges in edge keep;
     let mut edge_filtered: Vec<Edge> = Vec::new();
     for edge in new_matcher_pruning.list_edges.borrow().iter() {
-        if edge_keep.contains(&(edge.from_node, edge.to_node, edge.edge_type, edge.value)) {
-            edge_filtered.push(Edge::new(
-                edge.from_node,
-                edge.to_node,
-                edge.value,
-                edge.edge_type,
-            ));
-        } else if edge.edge_type == EdgeType::DELETE {
-            edge_filtered.push(Edge::new(
-                edge.from_node,
-                edge.to_node,
-                edge.value,
-                edge.edge_type,
-            ));
+        if edge_keep.contains(&(edge.from_node, edge.to_node, edge.edge_type, edge.value))
+           || edge.edge_type == EdgeType::DELETE
+        {
+            edge_filtered.push(Edge::new(edge.from_node, edge.to_node, edge.value, edge.edge_type));
         }
     }
     // Half way breaking point
@@ -761,12 +709,10 @@ pub fn edgecover_solver(
 
     for from_node in bfs_root_from_tree {
         let node_mapping = helper_mapping.1.get(&from_node);
-        let mut edge_keep_temp: HashSet<(
-            NodeId<FromNodeId>,
-            NodeId<ToNodeId>,
-            EdgeType,
-            usize,
-        )> = HashSet::new();
+        let mut edge_keep_temp: HashSet<(NodeId<FromNodeId>,
+                                        NodeId<ToNodeId>,
+                                        EdgeType,
+                                        usize)> = HashSet::new();
         // Sorting by cost Keep the lowest cost
         if node_mapping.is_some() {
             let mut lowest_cost = node_mapping.unwrap().0.iter().map(|x| x.2).min().unwrap();
@@ -783,12 +729,10 @@ pub fn edgecover_solver(
             if edge_keep_temp.len() > 1 {
                 let mut vec_order = edge_keep_temp.clone().into_iter().collect::<Vec<_>>();
                 vec_order.sort_by_key(|k| k.1.id());
-                let mut result_edge: Option<(
-                    NodeId<FromNodeId>,
-                    NodeId<ToNodeId>,
-                    EdgeType,
-                    usize,
-                )> = None;
+                let mut result_edge: Option<(NodeId<FromNodeId>,
+                                            NodeId<ToNodeId>,
+                                            EdgeType,
+                                            usize)> = None;
 
                 let mut check_base_2 = false; // Edge type is Copy, Glue, Move
 
@@ -797,7 +741,7 @@ pub fn edgecover_solver(
                     match result_edge {
                         None => {
                             if !(edge1 == EdgeType::OK || edge1 == EdgeType::INSERT
-                                || edge1 == EdgeType::DELETE)
+                                 || edge1 == EdgeType::DELETE)
                             {
                                 check_base_2 = true;
                             }
@@ -808,8 +752,8 @@ pub fn edgecover_solver(
                     }
 
                     if check_base_2
-                        && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
-                            || edge == EdgeType::OK)
+                       && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
+                           || edge == EdgeType::OK)
                     {
                         // our current chosen edges either MOVE, COPY, GLUE
                         // current edge in the for loop is Insert or delete or ok
@@ -823,12 +767,10 @@ pub fn edgecover_solver(
                 }
                 // At the we should have an edge
                 if result_edge.is_some() {
-                    edge_keep.insert((
-                        result_edge.unwrap().0,
-                        result_edge.unwrap().1,
-                        result_edge.unwrap().2,
-                        result_edge.unwrap().3,
-                    ));
+                    edge_keep.insert((result_edge.unwrap().0,
+                                     result_edge.unwrap().1,
+                                     result_edge.unwrap().2,
+                                     result_edge.unwrap().3));
                 }
             }
             // We found the lowest cost in the first go.
@@ -841,20 +783,10 @@ pub fn edgecover_solver(
     }
 
     for edge in new_matcher_pruning.list_edges.borrow().iter() {
-        if edge_keep.contains(&(edge.from_node, edge.to_node, edge.edge_type, edge.value)) {
-            edge_filtered.push(Edge::new(
-                edge.from_node,
-                edge.to_node,
-                edge.value,
-                edge.edge_type,
-            ));
-        } else if edge.edge_type == EdgeType::INSERT {
-            edge_filtered.push(Edge::new(
-                edge.from_node,
-                edge.to_node,
-                edge.value,
-                edge.edge_type,
-            ));
+        if edge_keep.contains(&(edge.from_node, edge.to_node, edge.edge_type, edge.value))
+           || edge.edge_type == EdgeType::INSERT
+        {
+            edge_filtered.push(Edge::new(edge.from_node, edge.to_node, edge.value, edge.edge_type));
         }
     }
 
@@ -888,7 +820,7 @@ pub fn edgecover_solver(
         // Vice Versa
         // Then easily add the edge. (Type Copy)
         if !visited_to_nodes.contains(&to) && !edges_hash.contains(&(from, to))
-            && (helper.0.get(&to).is_none())
+           && (helper.0.get(&to).is_none())
         {
             // check to the coping node
             edge_to_be_added.push(Edge::new(from, to, value, edge_type));
@@ -928,7 +860,7 @@ pub fn edgecover_solver(
 
     let helper = edgecover_helper(&new_matcher_pruning);
 
-    return (new_matcher_pruning, helper.0, helper.1);
+    (new_matcher_pruning, helper.0, helper.1)
 }
 
 /// Remove edges with parent who are delete edges.
@@ -943,21 +875,19 @@ fn remove_edges_where_delete_is_parent(new_matcher_pruning: &mut MappingStoreGra
     let mut final_edges = new_matcher_pruning.list_edges.borrow().clone();
 
     for edge in &only_delete {
-        let edge_desc = edge.from_node
-            .descendants(&new_matcher_pruning.from_arena.borrow())
-            .collect::<HashSet<NodeId<FromNodeId>>>();
+        let edge_desc = edge.from_node.descendants(&new_matcher_pruning.from_arena.borrow())
+                            .collect::<HashSet<NodeId<FromNodeId>>>();
         let mut get_all_edges_which_have_descendants =
             new_matcher_pruning.list_edges.borrow().clone();
         get_all_edges_which_have_descendants.retain(|&x| {
-            edge_desc.contains(&x.from_node) && x.edge_type != EdgeType::DELETE
-                && edge.to_node.id() >= x.to_node.id()
-        });
+                                                        edge_desc.contains(&x.from_node)
+                                                        && x.edge_type != EdgeType::DELETE
+                                                        && edge.to_node.id() >= x.to_node.id()
+                                                    });
         for edge_descendants_of_delete in get_all_edges_which_have_descendants {
-            edge_to_remove.insert((
-                edge_descendants_of_delete.from_node,
-                edge_descendants_of_delete.to_node,
-                edge_descendants_of_delete.edge_type,
-            ));
+            edge_to_remove.insert((edge_descendants_of_delete.from_node,
+                                  edge_descendants_of_delete.to_node,
+                                  edge_descendants_of_delete.edge_type));
         }
     }
 
@@ -969,7 +899,7 @@ fn remove_edges_where_delete_is_parent(new_matcher_pruning: &mut MappingStoreGra
 /// Remove edges where parents are not edges
 fn remove_edges_where_parent_not_edges(new_matcher_pruning: &mut MappingStoreGraph<String>) {
     // Lets remove edges who do not have parents in the list of edges
-    let helper = edgecover_helper(&new_matcher_pruning);
+    let helper = edgecover_helper(new_matcher_pruning);
 
     // Loop through the to nodes and check if their nodes parent exists
     let mut hash_set_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
@@ -982,34 +912,19 @@ fn remove_edges_where_parent_not_edges(new_matcher_pruning: &mut MappingStoreGra
 
     // Ignoring Cases for now just removing if the parent edge doesn't exist
     for edge in new_matcher_pruning.list_edges.borrow().iter() {
-        if !edge.from_node
-            .is_root(&new_matcher_pruning.from_arena.borrow())
-            && !edge.to_node.is_root(&new_matcher_pruning.to_arena.borrow())
+        if !edge.from_node.is_root(&new_matcher_pruning.from_arena.borrow())
+           && !edge.to_node.is_root(&new_matcher_pruning.to_arena.borrow())
         {
             // Check if they have parent
             let parent_from = new_matcher_pruning.from_arena.borrow()[edge.from_node].parent();
             let parent_to = new_matcher_pruning.to_arena.borrow()[edge.to_node].parent();
 
-            if parent_from.is_some() {
+            if parent_from.is_some() && helper.1.get(&parent_from.unwrap()).is_none() {
                 // If the from node has a parent and they have some sort of mapping.
-                if helper.1.get(&parent_from.unwrap()).is_none() {
-                    hash_set_edges.insert((
-                        edge.from_node,
-                        edge.to_node,
-                        edge.edge_type,
-                        edge.value,
-                    ));
-                }
+                hash_set_edges.insert((edge.from_node, edge.to_node, edge.edge_type, edge.value));
             }
-            if parent_to.is_some() {
-                if helper.0.get(&parent_to.unwrap()).is_none() {
-                    hash_set_edges.insert((
-                        edge.from_node,
-                        edge.to_node,
-                        edge.edge_type,
-                        edge.value,
-                    ));
-                }
+            if parent_to.is_some() && helper.0.get(&parent_to.unwrap()).is_none() {
+                hash_set_edges.insert((edge.from_node, edge.to_node, edge.edge_type, edge.value));
             }
         }
     }
@@ -1027,12 +942,13 @@ fn remove_edges_where_parent_not_edges(new_matcher_pruning: &mut MappingStoreGra
 }
 
 /// Only add move operations where their parents are insert operations.
-fn add_edges_where_parents_are_insert(
-    new_matcher_pruning: &mut MappingStoreGraph<String>,
-    hash_move_edges: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)>,
-) {
+fn add_edges_where_parents_are_insert(new_matcher_pruning: &mut MappingStoreGraph<String>,
+                                      hash_move_edges: &HashSet<(NodeId<FromNodeId>,
+                                               NodeId<ToNodeId>,
+                                               EdgeType,
+                                               usize)>) {
     // Helper
-    let helper = edgecover_helper(&new_matcher_pruning);
+    let helper = edgecover_helper(new_matcher_pruning);
     // List of edges
     // all edges
     let mut hash_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = HashSet::new();
@@ -1066,33 +982,29 @@ fn add_edges_where_parents_are_insert(
     let mut filter_move_only_leaves = hash_move_edges.clone();
     // Only retain moves that are both leafs in the from and to arena
     filter_move_only_leaves.retain(|&x| {
-        x.0.is_leaf(&new_matcher_pruning.from_arena.borrow())
-            && x.1.is_leaf(&new_matcher_pruning.to_arena.borrow())
-    });
+                                       x.0.is_leaf(&new_matcher_pruning.from_arena.borrow())
+                                       && x.1.is_leaf(&new_matcher_pruning.to_arena.borrow())
+                                   });
     // Only get move operations that are "not" in the list of edges
     filter_move_only_leaves.retain(|&x| !hash_edges.contains(&(x.0, x.1)));
     // Only get edges where parents are insert or ok edges
     filter_move_only_leaves.retain(|&x| {
-        (new_matcher_pruning.to_arena.borrow()[x.1]
-            .parent()
-            .is_some()
-            && hash_insert_edges
-                .contains(&new_matcher_pruning.to_arena.borrow()[x.1].parent().unwrap()))
-            || (new_matcher_pruning.to_arena.borrow()[x.1]
-                .parent()
-                .is_some()
-                && new_matcher_pruning.from_arena.borrow()[x.0]
-                    .parent()
-                    .is_some()
-                && hash_ok_edges.contains(&(
-                    new_matcher_pruning.from_arena.borrow()[x.0]
-                        .parent()
-                        .unwrap(),
-                    new_matcher_pruning.to_arena.borrow()[x.1].parent().unwrap(),
-                )))
+        (new_matcher_pruning.to_arena.borrow()[x.1].parent()
+                                                   .is_some()
+         && hash_insert_edges.contains(&new_matcher_pruning.to_arena.borrow()[x.1].parent()
+                                                                                  .unwrap()))
+        || (new_matcher_pruning.to_arena.borrow()[x.1].parent()
+                                                      .is_some()
+            && new_matcher_pruning.from_arena.borrow()[x.0].parent()
+                                                           .is_some()
+            && hash_ok_edges.contains(&(new_matcher_pruning.from_arena.borrow()[x.0].parent()
+                                                                                    .unwrap(),
+                                      new_matcher_pruning.to_arena.borrow()[x.1].parent()
+                                                                                  .unwrap())))
     });
-    filter_move_only_leaves
-        .retain(|&x| !helper.0.contains_key(&x.1) && !helper.1.contains_key(&x.0));
+    filter_move_only_leaves.retain(|&x| {
+                                       !helper.0.contains_key(&x.1) && !helper.1.contains_key(&x.0)
+                                   });
 
     let delete_node: NodeId<ToNodeId> =
         NodeId::new(new_matcher_pruning.to_arena.borrow().size() - 1);
@@ -1105,8 +1017,8 @@ fn add_edges_where_parents_are_insert(
     let mut final_edges = new_matcher_pruning.list_edges.borrow().clone();
     for &(from, to, edge, size) in &filter_move_only_leaves {
         if hash_delete_edges.contains(&from) && hash_insert_edges.contains(&to)
-            && !from_node_moves_added.contains(&from)
-            && !to_node_moves_added.contains(&to)
+           && !from_node_moves_added.contains(&from)
+           && !to_node_moves_added.contains(&to)
         {
             final_edges.push(Edge::new(from, to, size, edge));
             edges_to_remove_hash.insert((from, delete_node));
@@ -1121,19 +1033,18 @@ fn add_edges_where_parents_are_insert(
 }
 
 /// Add Move operations if they do not exist already.
-fn add_edges_move(
-    new_matcher_pruning: &mut MappingStoreGraph<String>,
-    hash_move_edges: &HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)>,
-) {
+fn add_edges_move(new_matcher_pruning: &mut MappingStoreGraph<String>,
+                  hash_move_edges: &HashSet<(NodeId<FromNodeId>,
+                           NodeId<ToNodeId>,
+                           EdgeType,
+                           usize)>) {
     // Helper
-    let helper = edgecover_helper(&new_matcher_pruning);
+    let helper = edgecover_helper(new_matcher_pruning);
     // List of edges
 
     // All edges mapping move
-    let mut hash_map_f_t_move: HashMap<
-        (NodeId<FromNodeId>, NodeId<ToNodeId>),
-        (EdgeType, usize),
-    > = HashMap::new();
+    let mut hash_map_f_t_move: HashMap<(NodeId<FromNodeId>, NodeId<ToNodeId>),
+                                       (EdgeType, usize)> = HashMap::new();
     for edge in hash_move_edges.clone() {
         hash_map_f_t_move.insert((edge.0, edge.1), (edge.2, edge.3));
     }
@@ -1178,14 +1089,12 @@ fn add_edges_move(
     let mut glue_to_descendants: HashSet<NodeId<ToNodeId>> = HashSet::new();
 
     for edges in glue_edges {
-        let desc_from = edges
-            .from_node
-            .descendants(&new_matcher_pruning.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
-        let desc_to = edges
-            .to_node
-            .descendants(&new_matcher_pruning.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
+        let desc_from = edges.from_node
+                             .descendants(&new_matcher_pruning.from_arena.borrow())
+                             .collect::<Vec<NodeId<FromNodeId>>>();
+        let desc_to = edges.to_node
+                           .descendants(&new_matcher_pruning.to_arena.borrow())
+                           .collect::<Vec<NodeId<ToNodeId>>>();
 
         for from in desc_from {
             glue_from_descendants.insert(from);
@@ -1204,11 +1113,13 @@ fn add_edges_move(
     filter_move_only_leaves.retain(|&x| !hash_edges.contains(&(x.0, x.1)));
     // Remove and descendants of move or glue
     filter_move_only_leaves.retain(|&x| {
-        !glue_to_descendants.contains(&(x.1)) && !glue_from_descendants.contains(&(x.0))
-    });
+                                       !glue_to_descendants.contains(&(x.1))
+                                       && !glue_from_descendants.contains(&(x.0))
+                                   });
     // Check if move operation does not already exist.
-    filter_move_only_leaves
-        .retain(|&x| !helper.0.contains_key(&x.1) && !helper.1.contains_key(&x.0));
+    filter_move_only_leaves.retain(|&x| {
+                                       !helper.0.contains_key(&x.1) && !helper.1.contains_key(&x.0)
+                                   });
 
     // Add move where parent are the same
     // This only goes up one level
@@ -1217,12 +1128,14 @@ fn add_edges_move(
         // Get parent and check if they are in insert
         let parent_from = new_matcher_pruning.from_arena.borrow()[edge_move.0].parent();
         let parent_to = new_matcher_pruning.to_arena.borrow()[edge_move.1].parent();
-        if parent_from.is_some() && parent_to.is_some() && hash_move_exist.contains(&(parent_from.unwrap(),parent_to.unwrap()))
+        if parent_from.is_some() && parent_to.is_some()
+            && hash_move_exist.contains(&(parent_from.unwrap(),parent_to.unwrap()))
             // Check if there are no mapping
-            && !helper.0.contains_key(&parent_to.unwrap()) && !helper.1.contains_key(&parent_from.unwrap())
+            && !helper.0.contains_key(&parent_to.unwrap()) &&
+                                      !helper.1.contains_key(&parent_from.unwrap())
             // Check if it is not a descendant of glue or move
             && !glue_to_descendants.contains(&(parent_to.unwrap()))
-            && !glue_from_descendants.contains(&(parent_from.unwrap()))
+           && !glue_from_descendants.contains(&(parent_from.unwrap()))
         {
             let get_move_insert =
                 hash_map_f_t_move.get(&(parent_from.unwrap(), parent_to.unwrap()));
@@ -1232,32 +1145,27 @@ fn add_edges_move(
         }
     }
     let insert_node = NodeId::<FromNodeId>::new(new_matcher_pruning.from_arena.borrow().size() - 1);
-    let mut edges_to_insert_hash: HashSet<(
-        NodeId<FromNodeId>,
-        NodeId<ToNodeId>,
-        EdgeType,
-        usize,
-    )> = HashSet::new();
+    let mut edges_to_insert_hash: HashSet<(NodeId<FromNodeId>,
+                                          NodeId<ToNodeId>,
+                                          EdgeType,
+                                          usize)> = HashSet::new();
     for edge in parent_moves_level {
         // Check whether there descendants are equal
         // To Arena more then add them to insert
         // From Arena has more descendants then add to delete
-        let from_desc = edge.0
-            .descendants(&new_matcher_pruning.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
-        let to_desc = edge.1
-            .descendants(&new_matcher_pruning.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
+        let from_desc = edge.0.descendants(&new_matcher_pruning.from_arena.borrow())
+                            .collect::<Vec<NodeId<FromNodeId>>>();
+        let to_desc = edge.1.descendants(&new_matcher_pruning.to_arena.borrow())
+                          .collect::<Vec<NodeId<ToNodeId>>>();
         if from_desc.len() < to_desc.len() {
             // Add to desc to insert
             let mut checker = true;
             for i in 0..from_desc.len() {
-                if !has_same_type_and_label(
-                    &from_desc[i],
-                    &new_matcher_pruning.from_arena.borrow(),
-                    &to_desc[i],
-                    &new_matcher_pruning.to_arena.borrow(),
-                ) {
+                if !has_same_type_and_label(&from_desc[i],
+                                            &new_matcher_pruning.from_arena.borrow(),
+                                            &to_desc[i],
+                                            &new_matcher_pruning.to_arena.borrow())
+                {
                     checker = false;
                 }
             }
@@ -1265,22 +1173,13 @@ fn add_edges_move(
                 let get_move_insert = hash_map_f_t_move.get(&(edge.0, edge.1));
                 if get_move_insert.is_some() {
                     let mapping_value = *get_move_insert.unwrap();
-                    filter_move_only_leaves.insert((
-                        edge.0,
-                        edge.1,
-                        EdgeType::GLUE,
-                        mapping_value.1,
-                    ));
-                    for i in from_desc.len()..to_desc.len() {
-                        if !hash_insert_edges.contains(&to_desc[i])
-                            && helper.0.get(&to_desc[i]).is_none()
-                        {
-                            edges_to_insert_hash.insert((
-                                insert_node,
-                                to_desc[i],
-                                EdgeType::INSERT,
-                                1,
-                            ));
+                    filter_move_only_leaves.insert((edge.0,
+                                                   edge.1,
+                                                   EdgeType::GLUE,
+                                                   mapping_value.1));
+                    for item in to_desc.iter().skip(from_desc.len()) {
+                        if !hash_insert_edges.contains(item) && helper.0.get(item).is_none() {
+                            edges_to_insert_hash.insert((insert_node, *item, EdgeType::INSERT, 1));
                         }
                     }
                 }
@@ -1302,7 +1201,7 @@ fn add_edges_move(
     }
     new_matcher_pruning.list_edges = RefCell::new(final_edges);
 
-    let helper = edgecover_helper(&new_matcher_pruning);
+    let helper = edgecover_helper(new_matcher_pruning);
     // all edges
     let mut hash_edges: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = HashSet::new();
     let all_edges = new_matcher_pruning.list_edges.borrow().clone();
@@ -1324,7 +1223,7 @@ fn add_edges_move(
         // Insert edge
         // Last node in from _arena (MAPS) ANY Node in To_arena
         if helper.0.get(&to).is_none() && !hash_to_nodes_visited.contains(&to)
-            && !glue_to_descendants.contains(&to)
+           && !glue_to_descendants.contains(&to)
         {
             hash_to_nodes_visited.insert(to);
             final_all_edges.push(Edge::new(from, to, size, edge));
@@ -1341,22 +1240,17 @@ pub struct Config2 {}
 /// 1 - To Node << Mapping to >> From Nodes, Edge Type, Cost.
 /// 2 - From Node << Mapping to >> To Nodes, Edge Type, Cost.
 pub fn edgecover_helper(
-    new_matcher_pruning: &MappingStoreGraph<String>,
-) -> (
-    HashMap<NodeId<ToNodeId>, (HashSet<(NodeId<FromNodeId>, EdgeType, usize)>, usize)>,
-    HashMap<NodeId<FromNodeId>, (HashSet<(NodeId<ToNodeId>, EdgeType, usize)>, usize)>,
-) {
+    new_matcher_pruning: &MappingStoreGraph<String>)
+    -> (OneToManyCostMapping<ToNodeId, FromNodeId>, OneToManyCostMapping<FromNodeId, ToNodeId>) {
     // To Node -> From Node
-    let mut list_t_f: HashMap<
-        NodeId<ToNodeId>,
-        (HashSet<(NodeId<FromNodeId>, EdgeType, usize)>, usize),
-    > = HashMap::new();
+    let mut list_t_f: HashMap<NodeId<ToNodeId>, (NodeVertexSet<FromNodeId>, usize)> =
+        HashMap::new();
     for edge1 in new_matcher_pruning.list_edges.borrow().clone() {
-        let mut set: HashSet<(NodeId<FromNodeId>, EdgeType, usize)> = HashSet::new();
+        let mut set: NodeVertexSet<FromNodeId> = HashSet::new();
         let mut size: usize = 1;
         for edge2 in new_matcher_pruning.list_edges.borrow().clone() {
             if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
-                && edge1.edge_type == edge2.edge_type)
+                 && edge1.edge_type == edge2.edge_type)
             {
                 if edge2.to_node == edge1.to_node {
                     let temp: NodeId<FromNodeId> = edge2.from_node;
@@ -1373,16 +1267,14 @@ pub fn edgecover_helper(
     }
 
     // From_ Node -> To Node
-    let mut list_f_t: HashMap<
-        NodeId<FromNodeId>,
-        (HashSet<(NodeId<ToNodeId>, EdgeType, usize)>, usize),
-    > = HashMap::new();
+    let mut list_f_t: HashMap<NodeId<FromNodeId>, (NodeVertexSet<ToNodeId>, usize)> =
+        HashMap::new();
     for edge1 in new_matcher_pruning.list_edges.borrow().clone() {
-        let mut set: HashSet<(NodeId<ToNodeId>, EdgeType, usize)> = HashSet::new();
+        let mut set: NodeVertexSet<ToNodeId> = HashSet::new();
         let mut size: usize = 1;
         for edge2 in new_matcher_pruning.list_edges.borrow().clone() {
             if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
-                && edge1.edge_type == edge2.edge_type)
+                 && edge1.edge_type == edge2.edge_type)
             {
                 if edge2.from_node == edge1.from_node {
                     let temp: NodeId<ToNodeId> = edge2.to_node;
@@ -1406,7 +1298,7 @@ fn check_to_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingStore
     // If all to nodes are mapped then Good
     // But if nodes in the from_arena are not mapped that means add them to the remove section
     let mut new_edges_final = new_matcher_pruning.list_edges.borrow_mut().clone();
-    let helper_mapping = edgecover_helper(&new_matcher_pruning);
+    let helper_mapping = edgecover_helper(new_matcher_pruning);
     let root_to = new_matcher_pruning.to_arena.borrow().root().unwrap(); // To Tree Root
     let reference_matcher = &new_matcher_pruning.to_arena.borrow().clone();
     let bfs_root_to_tree = root_to.breadth_first_traversal(reference_matcher); // Root To Traversal BFS Search
@@ -1428,14 +1320,14 @@ fn check_to_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingStore
     if !bool_check_if_to_nodes_are_mapped {
         let mut get_descendants_copy_glue: HashSet<NodeId<ToNodeId>> = HashSet::new();
         // Loop through all the edges and get the ones who have copy or glue
-        for edge_traverse in new_edges_final.iter() {
+        for edge_traverse in &new_edges_final {
             if edge_traverse.edge_type == EdgeType::GLUE
-                || edge_traverse.edge_type == EdgeType::COPY
+               || edge_traverse.edge_type == EdgeType::COPY
             {
-                let children_copy_glue = edge_traverse
-                    .to_node
-                    .descendants(&new_matcher_pruning.to_arena.borrow())
-                    .collect::<Vec<NodeId<ToNodeId>>>();
+                let children_copy_glue = edge_traverse.to_node
+                                                      .descendants(&new_matcher_pruning.to_arena
+                                                                                       .borrow())
+                                                      .collect::<Vec<NodeId<ToNodeId>>>();
                 for children in children_copy_glue {
                     get_descendants_copy_glue.insert(children);
                 }
@@ -1462,7 +1354,7 @@ fn check_from_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingSto
     // But if nodes in the from_arena are not mapped that means add them to the remove section
 
     let mut new_edges_final = new_matcher_pruning.list_edges.borrow_mut().clone();
-    let helper_mapping = edgecover_helper(&new_matcher_pruning);
+    let helper_mapping = edgecover_helper(new_matcher_pruning);
     let root_from = new_matcher_pruning.from_arena.borrow().root().unwrap(); // From Tree Root
     let reference_matcher = &new_matcher_pruning.from_arena.borrow().clone();
     let bfs_root_from_tree = root_from.breadth_first_traversal(reference_matcher); // Root From Traversal BFS Search
@@ -1484,14 +1376,14 @@ fn check_from_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingSto
     if !bool_check_if_from_nodes_are_mapped {
         let mut get_descendants_copy_glue: HashSet<NodeId<FromNodeId>> = HashSet::new();
         // Loop through all the edges and get the ones who have copy or glue
-        for edge_traverse in new_edges_final.iter() {
+        for edge_traverse in &new_edges_final {
             if edge_traverse.edge_type == EdgeType::GLUE
-                || edge_traverse.edge_type == EdgeType::COPY
+               || edge_traverse.edge_type == EdgeType::COPY
             {
-                let children_copy_glue = edge_traverse
-                    .from_node
-                    .descendants(&new_matcher_pruning.from_arena.borrow())
-                    .collect::<Vec<NodeId<FromNodeId>>>();
+                let children_copy_glue = edge_traverse.from_node
+                                                      .descendants(&new_matcher_pruning.from_arena
+                                                                                       .borrow())
+                                                      .collect::<Vec<NodeId<FromNodeId>>>();
                 for children in children_copy_glue {
                     get_descendants_copy_glue.insert(children);
                 }
@@ -1512,9 +1404,8 @@ fn check_from_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingSto
 }
 
 /// Apply edit script to the from_arena.
-pub fn edgecover_apply_edit_script(
-    new_matcher_pruning: &mut MappingStoreGraph<String>,
-) -> (EditScript<String>) {
+pub fn edgecover_apply_edit_script(new_matcher_pruning: &mut MappingStoreGraph<String>)
+                                   -> (EditScript<String>) {
     // Final Edit script
     let mut script: EditScript<String> = EditScript::new();
     let mut from_arena = new_matcher_pruning.from_arena.borrow_mut();
@@ -1559,16 +1450,17 @@ pub fn edgecover_apply_edit_script(
                         // if the parent are the same and the position are the same then we dont need to perform the operation
                         let parent_from_node_checker = from_arena[from].parent().unwrap();
                         if !(from_arena[parent_from_node_checker].ty
-                            == from_arena[parent_from_node].ty
-                            && from_arena[parent_from_node_checker].label
+                             == from_arena[parent_from_node].ty
+                             && from_arena[parent_from_node_checker].label
                                 == from_arena[parent_from_node].label
-                            && from.get_child_position(&from_arena).unwrap()
+                             && from.get_child_position(&from_arena).unwrap()
                                 == (get_position.unwrap())
-                            && parent_from_node_checker == parent_from_node)
+                             && parent_from_node_checker == parent_from_node)
                         {
                             let mut move_action =
                                 Move::new(from, parent_from_node, get_position.unwrap() as u16);
-                            move_action.apply(&mut from_arena);
+                            move_action.apply(&mut from_arena)
+                                       .expect("Cannot apply MOVE action to AST.");
                             script.push(move_action);
                             hash_from_ids_inserted.insert(from);
                         }
@@ -1588,7 +1480,8 @@ pub fn edgecover_apply_edit_script(
                             NodeId::new(index_parent_from_index);
                         let mut glue_action =
                             Glue::new(from, from_node_parent, get_position.unwrap() as u16);
-                        glue_action.apply(&mut from_arena);
+                        glue_action.apply(&mut from_arena)
+                                   .expect("Cannot apply GLUE action to AST.");
                         script.push(glue_action);
                     }
                     indexes_t_f.insert(to_node.id(), from.id());
@@ -1609,7 +1502,8 @@ pub fn edgecover_apply_edit_script(
 
                         let mut copy_action =
                             Copy::new(from_node_parent, from, get_position.unwrap() as u16);
-                        copy_action.apply(&mut from_arena);
+                        copy_action.apply(&mut from_arena)
+                                   .expect("Cannot apply COPY action to AST.");
                         script.push(copy_action);
                     }
                     indexes_t_f.insert(to_node.id(), from.id());
@@ -1618,81 +1512,59 @@ pub fn edgecover_apply_edit_script(
                     // Get Parent
                     let parent_index_1 = to_arena[to_node].parent().unwrap().id();
                     let size_from_arena: usize = from_arena.size();
-                    //                    let parent_insert :NodeId<FromNodeId> = NodeId::new(parent_index_1);
-                    let mut index_parent_from_index = parent_index_1;
-                    if indexes_t_f.contains_key(&parent_index_1) {
-                        index_parent_from_index =
-                            *get_index_from_node(&indexes_t_f.clone(), parent_index_1);
-                    }
+
+                    let index_parent_from_index = if indexes_t_f.contains_key(&parent_index_1) {
+                        *get_index_from_node(&indexes_t_f.clone(), parent_index_1)
+                    } else {
+                        parent_index_1
+                    };
                     if index_parent_from_index < size_from_arena {
                         let from_node_parent: NodeId<FromNodeId> =
                             NodeId::new(index_parent_from_index);
-                        let mut new_node: NodeId<FromNodeId> = from_arena.new_node(
-                            to_arena[to_node].ty.clone(),
-                            to_arena[to_node].label.clone(),
-                            to_arena[to_node].col_no,
-                            to_arena[to_node].line_no,
-                            None,
-                            None,
-                        );
+                        let mut new_node: NodeId<FromNodeId> =
+                            from_arena.new_node(to_arena[to_node].ty.clone(),
+                                                to_arena[to_node].label.clone(),
+                                                to_arena[to_node].col_no,
+                                                to_arena[to_node].line_no,
+                                                None,
+                                                None);
 
                         // Check if the parent node are the same
                         // Check if the new inserted node doesn't exist
                         // Get Parents children
-                        let inserting_parent_children = from_node_parent
-                            .children(&from_arena)
-                            .collect::<Vec<NodeId<FromNodeId>>>();
+                        let inserting_parent_children =
+                            from_node_parent.children(&from_arena)
+                                            .collect::<Vec<NodeId<FromNodeId>>>();
                         let size_of_children = inserting_parent_children.len();
-                        if get_position.unwrap() != 0 && size_of_children > get_position.unwrap() {
-                            if get_position.unwrap() > size_of_children {
-                                get_position = Some(size_of_children);
-                            }
-
-                            let mut insert_action = Insert::new(
-                                new_node,
-                                Some(from_node_parent),
-                                get_position.unwrap() as u16,
-                            );
-                            // Parent exists
-                            insert_action.apply(&mut from_arena);
-                            script.push(insert_action);
-
-                            indexes_t_f.insert(to_node.id(), new_node.id());
-                        } else {
-                            if get_position.unwrap() > size_of_children {
-                                get_position = Some(size_of_children);
-                            }
-
-                            let mut insert_action = Insert::new(
-                                new_node,
-                                Some(from_node_parent),
-                                get_position.unwrap() as u16,
-                            );
-                            // Parent exists
-                            insert_action.apply(&mut from_arena);
-                            script.push(insert_action);
-
-                            indexes_t_f.insert(to_node.id(), new_node.id());
+                        if get_position.unwrap() > size_of_children {
+                            get_position = Some(size_of_children);
                         }
+
+                        let mut insert_action = Insert::new(new_node,
+                                                            Some(from_node_parent),
+                                                            get_position.unwrap() as u16);
+                        insert_action.apply(&mut from_arena)
+                                     .expect("Cannot apply INSERT action to AST.");
+                        script.push(insert_action);
+
+                        indexes_t_f.insert(to_node.id(), new_node.id());
                     }
                 } else if edge_type == EdgeType::UPDATE {
                     // Check if the from node parent exists
                     let size_from_arena: usize = from_arena.size();
                     let parent_index_1 = to_arena[to_node].parent().unwrap().id();
-                    let mut index_parent_from_index = parent_index_1;
-                    if indexes_t_f.contains_key(&parent_index_1) {
-                        index_parent_from_index =
-                            *get_index_from_node(&indexes_t_f.clone(), parent_index_1);
-                    }
-
+                    let index_parent_from_index = if indexes_t_f.contains_key(&parent_index_1) {
+                        *get_index_from_node(&indexes_t_f.clone(), parent_index_1)
+                    } else {
+                        parent_index_1
+                    };
                     if index_parent_from_index < size_from_arena {
                         // if the parent exists then do the operation
-                        let mut update_action = Update::new(
-                            from,
-                            to_arena[to_node].ty.clone(),
-                            to_arena[to_node].label.clone(),
-                        );
-                        update_action.apply(&mut from_arena);
+                        let mut update_action = Update::new(from,
+                                                            to_arena[to_node].ty.clone(),
+                                                            to_arena[to_node].label.clone());
+                        update_action.apply(&mut from_arena)
+                                     .expect("Cannot apply UPDATE action to AST.");
                         script.push(update_action);
                     }
                     indexes_t_f.insert(to_node.id(), from.id());
@@ -1704,7 +1576,7 @@ pub fn edgecover_apply_edit_script(
     }
 
     // Do Delete Edit operation first.
-    check_mapper = edgecover_helper(&new_matcher_pruning);
+    check_mapper = edgecover_helper(new_matcher_pruning);
 
     let root_from = from_arena.root().unwrap(); // From Tree Root
     let reference_matcher_from = &from_arena.clone();
@@ -1718,7 +1590,8 @@ pub fn edgecover_apply_edit_script(
                 if edge_type == EdgeType::DELETE {
                     let mut delete_action = Delete::new(from_node);
                     script.push(delete_action.clone());
-                    delete_action.apply(&mut from_arena);
+                    delete_action.apply(&mut from_arena)
+                                 .expect("Cannot apply DELETE action to AST.");
                     vec_delete_actions.push((from_node, to));
                 }
             }
@@ -1728,9 +1601,8 @@ pub fn edgecover_apply_edit_script(
 }
 
 /// Remove all edges of copy and glue that have move as their descendants
-fn edgecover_annotate_helper_remove_move(
-    mut new_matcher_pruning: MappingStoreGraph<String>,
-) -> MappingStoreGraph<String> {
+fn edgecover_annotate_helper_remove_move(mut new_matcher_pruning: MappingStoreGraph<String>)
+                                         -> MappingStoreGraph<String> {
     let all_edges = new_matcher_pruning.list_edges.borrow_mut().clone(); // Vec<Edge> -- type
     let all_edge_run = all_edges.clone();
     let mut remove_index: HashSet<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType, usize)> =
@@ -1743,29 +1615,24 @@ fn edgecover_annotate_helper_remove_move(
     for edge in &all_edge_run {
         if edge.edge_type == EdgeType::COPY || edge.edge_type == EdgeType::GLUE {
             // Look at their descendants
-            let all_from_descendants = edge.from_node
-                .descendants(&new_matcher_pruning.from_arena.borrow())
-                .collect::<HashSet<NodeId<FromNodeId>>>();
+            let all_from_descendants =
+                edge.from_node.descendants(&new_matcher_pruning.from_arena.borrow())
+                    .collect::<HashSet<NodeId<FromNodeId>>>();
             // counter
             for edge_move in all_edge_run.clone() {
                 // Look for edge move
                 if edge_move.edge_type == EdgeType::MOVE
-                    || edge_move.edge_type == EdgeType::GLUE
-                        && all_from_descendants.contains(&edge_move.from_node)
+                   || edge_move.edge_type == EdgeType::GLUE
+                      && all_from_descendants.contains(&edge_move.from_node)
+                      && !remove_index.contains(&(edge_move.from_node,
+                                                edge_move.to_node,
+                                                edge_move.edge_type,
+                                                edge_move.value))
                 {
-                    if !remove_index.contains(&(
-                        edge_move.from_node,
-                        edge_move.to_node,
-                        edge_move.edge_type,
-                        edge_move.value,
-                    )) {
-                        remove_index.insert((
-                            edge_move.from_node,
-                            edge_move.to_node,
-                            edge_move.edge_type,
-                            edge_move.value,
-                        ));
-                    }
+                    remove_index.insert((edge_move.from_node,
+                                        edge_move.to_node,
+                                        edge_move.edge_type,
+                                        edge_move.value));
                 }
             }
         }
@@ -1773,12 +1640,11 @@ fn edgecover_annotate_helper_remove_move(
 
     let mut all_edges_output: Vec<Edge> = Vec::new();
     for edge_iter in all_edges.clone() {
-        if !remove_index.contains(&(
-            edge_iter.from_node,
-            edge_iter.to_node,
-            edge_iter.edge_type,
-            edge_iter.value,
-        )) {
+        if !remove_index.contains(&(edge_iter.from_node,
+                                  edge_iter.to_node,
+                                  edge_iter.edge_type,
+                                  edge_iter.value))
+        {
             all_edges_output.push(edge_iter);
         }
     }
@@ -1805,9 +1671,8 @@ fn edgecover_annotate_helper_remove_move(
     for to_node in bfs_root_to_tree {
         // The to node is an copy edge
         if hash_to_node.contains(&to_node) && !hash_set_copy_visited.contains(&to_node) {
-            let to_node_desc = to_node
-                .descendants(&new_matcher_pruning.to_arena.borrow())
-                .collect::<HashSet<NodeId<ToNodeId>>>();
+            let to_node_desc = to_node.descendants(&new_matcher_pruning.to_arena.borrow())
+                                      .collect::<HashSet<NodeId<ToNodeId>>>();
 
             for t_node_desc in to_node_desc {
                 hash_set_copy_visited.insert(t_node_desc);
@@ -1842,18 +1707,19 @@ impl Config2 {
 }
 
 /// Gets the corresponding From Node Index using the To Node Index.
-pub fn get_index_from_node(map: &HashMap<usize, usize>, to_node: usize) -> &usize {
+pub fn get_index_from_node<T: BuildHasher>(map: &HashMap<usize, usize, T>,
+                                           to_node: usize)
+                                           -> &usize {
     map.get(&to_node).expect("Node not found.")
 }
 
 impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
     /// Perform matches
-    fn match_trees(
-        &self,
-        base: Arena<T, FromNodeId>,
-        diff: Arena<T, ToNodeId>,
-        cost_all: CostEdge,
-    ) -> MappingStoreGraph<T> {
+    fn match_trees(&self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>,
+                   cost_all: CostEdge)
+                   -> MappingStoreGraph<T> {
         let mut store = MappingStoreGraph::new(base.clone(), diff.clone());
         if store.from_arena.borrow().is_empty() || store.to_arena.borrow().is_empty() {
             return store;
@@ -1869,152 +1735,119 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
 
         let last_node_from_node = NodeId::<FromNodeId>::new(base.size() - 1);
         let last_node_to_node = NodeId::<ToNodeId>::new(diff.clone().size() - 1);
-        let base_pre = store
-            .from_arena
-            .borrow()
-            .root()
-            .unwrap()
-            .pre_order_traversal(&store.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
-        let diff_pre = store
-            .to_arena
-            .borrow()
-            .root()
-            .unwrap()
-            .pre_order_traversal(&store.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
+        let base_pre = store.from_arena
+                            .borrow()
+                            .root()
+                            .unwrap()
+                            .pre_order_traversal(&store.from_arena.borrow())
+                            .collect::<Vec<NodeId<FromNodeId>>>();
+        let diff_pre = store.to_arena
+                            .borrow()
+                            .root()
+                            .unwrap()
+                            .pre_order_traversal(&store.to_arena.borrow())
+                            .collect::<Vec<NodeId<ToNodeId>>>();
         // Hash Set See if it contains insertion and deletion
         let mut set_contains_insertion = HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>)>::new();
         let mut set_contains_deletion = HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>)>::new();
         for (from_node_id, from_node) in base_pre.iter().enumerate() {
             let mut bool_check = false;
             for (to_node_id, to_node) in diff_pre.iter().enumerate() {
-                if has_same_type_and_label(
-                    from_node,
-                    &store.from_arena.borrow(),
-                    to_node,
-                    &store.to_arena.borrow(),
-                ) {
+                if has_same_type_and_label(from_node,
+                                           &store.from_arena.borrow(),
+                                           to_node,
+                                           &store.to_arena.borrow())
+                {
                     if from_node_id == to_node_id {
                         let parent_from_node =
                             store.from_arena.borrow()[base_pre[from_node_id]].parent();
                         let parent_to_node = store.to_arena.borrow()[diff_pre[to_node_id]].parent();
                         // Check if their parents are the same
                         // Then OK should be good to go
-                        if base_pre[from_node_id].is_root(&store.from_arena.borrow())
-                            && diff_pre[to_node_id].is_root(&store.to_arena.borrow())
+                        if (base_pre[from_node_id].is_root(&store.from_arena.borrow())
+                            && diff_pre[to_node_id].is_root(&store.to_arena.borrow()))
+                           || (parent_from_node.is_some() && parent_to_node.is_some()
+                               && has_same_type_and_label(&parent_from_node.unwrap(),
+                                                          &store.from_arena.borrow(),
+                                                          &parent_to_node.unwrap(),
+                                                          &store.to_arena.borrow()))
                         {
-                            store.push_edge(
-                                base_pre[from_node_id],
-                                diff_pre[to_node_id],
-                                cost_store_ok + 0,
-                                EdgeType::OK,
-                            );
-                        } else {
-                            if parent_from_node.is_some() && parent_to_node.is_some()
-                                && has_same_type_and_label(
-                                    &parent_from_node.unwrap(),
-                                    &store.from_arena.borrow(),
-                                    &parent_to_node.unwrap(),
-                                    &store.to_arena.borrow(),
-                                ) {
-                                // If the parent are equal if so then OK edge
-                                store.push_edge(
-                                    base_pre[from_node_id],
-                                    diff_pre[to_node_id],
-                                    cost_store_ok,
-                                    EdgeType::OK,
-                                );
-                            }
+                            // If the parent are equal if so then OK edge
+                            store.push_edge(base_pre[from_node_id],
+                                            diff_pre[to_node_id],
+                                            cost_store_ok,
+                                            EdgeType::OK);
                         }
                     } else {
-                        let descendants_from = base_pre[from_node_id]
-                            .descendants(&store.from_arena.borrow())
-                            .collect::<HashSet<NodeId<FromNodeId>>>();
-                        let descendants_to = diff_pre[to_node_id]
-                            .descendants(&store.to_arena.borrow())
-                            .collect::<HashSet<NodeId<ToNodeId>>>();
+                        let descendants_from =
+                            base_pre[from_node_id].descendants(&store.from_arena.borrow())
+                                                  .collect::<HashSet<NodeId<FromNodeId>>>();
+                        let descendants_to =
+                            diff_pre[to_node_id].descendants(&store.to_arena.borrow())
+                                                .collect::<HashSet<NodeId<ToNodeId>>>();
                         if descendants_from.len() == descendants_to.len() {
-                            store.push_edge(
-                                base_pre[from_node_id],
-                                diff_pre[to_node_id],
-                                cost_store_move,
-                                EdgeType::MOVE,
-                            );
+                            store.push_edge(base_pre[from_node_id],
+                                            diff_pre[to_node_id],
+                                            cost_store_move,
+                                            EdgeType::MOVE);
                         }
                     }
                     bool_check = true;
-                } else if has_same_type(
-                    &base_pre[from_node_id],
-                    &store.from_arena.borrow(),
-                    &diff_pre[to_node_id],
-                    &store.to_arena.borrow(),
-                ) {
-                    if from_node_id == to_node_id {
-                        // the same label and value but different position
-                        store.push_edge(
-                            base_pre[from_node_id],
-                            diff_pre[to_node_id],
-                            cost_store_update,
-                            EdgeType::UPDATE,
-                        );
-                    }
+                } else if has_same_type(&base_pre[from_node_id],
+                                        &store.from_arena.borrow(),
+                                        &diff_pre[to_node_id],
+                                        &store.to_arena.borrow())
+                          && from_node_id == to_node_id
+                {
+                    // the same label and value but different position
+                    store.push_edge(base_pre[from_node_id],
+                                    diff_pre[to_node_id],
+                                    cost_store_update,
+                                    EdgeType::UPDATE);
                 }
 
                 // We have reached the last node in the diff tree
                 if !bool_check && to_node_id == diff_pre.len() - 1 {
                     store.delete_node(base_pre[from_node_id]);
-                    store.push_edge(
-                        base_pre[from_node_id],
-                        last_node_to_node,
-                        cost_store_delete,
-                        EdgeType::DELETE,
-                    );
+                    store.push_edge(base_pre[from_node_id],
+                                    last_node_to_node,
+                                    cost_store_delete,
+                                    EdgeType::DELETE);
                     set_contains_deletion.insert((base_pre[from_node_id], last_node_to_node));
                 }
             }
         }
-        for to_node_id in 0..diff_pre.len() {
+        // for to_node_id in 0..diff_pre.len() {
+        for to_node in &diff_pre {
             let mut bool_check = false;
             for (from_node_id, from_node) in base_pre.iter().enumerate() {
-                if has_same_type_and_label(
-                    from_node,
-                    &store.from_arena.borrow(),
-                    &diff_pre[to_node_id],
-                    &store.to_arena.borrow(),
-                ) {
+                if has_same_type_and_label(from_node,
+                                           &store.from_arena.borrow(),
+                                           to_node,
+                                           &store.to_arena.borrow())
+                {
                     bool_check = true;
                 }
                 if !bool_check && from_node_id == base_pre.len() - 1 {
-                    store.push_edge(
-                        last_node_from_node,
-                        diff_pre[to_node_id],
-                        cost_store_insert,
-                        EdgeType::INSERT,
-                    );
-                    set_contains_insertion.insert((last_node_from_node, diff_pre[to_node_id]));
+                    store.push_edge(last_node_from_node,
+                                    *to_node,
+                                    cost_store_insert,
+                                    EdgeType::INSERT);
+                    set_contains_insertion.insert((last_node_from_node, *to_node));
                 }
             }
         }
         let get_all_edges = store.list_edges.borrow().clone();
         // Mappings mean
-        let mut all_move_mapping_t_f: HashMap<
-            NodeId<ToNodeId>,
-            HashSet<NodeId<FromNodeId>>,
-        > = HashMap::new();
-        let mut all_move_mapping_f_t: HashMap<
-            NodeId<FromNodeId>,
-            HashSet<NodeId<ToNodeId>>,
-        > = HashMap::new();
+        let mut all_move_mapping_t_f: HashMap<NodeId<ToNodeId>,
+                                              HashSet<NodeId<FromNodeId>>> = HashMap::new();
+        let mut all_move_mapping_f_t: HashMap<NodeId<FromNodeId>,
+                                              HashSet<NodeId<ToNodeId>>> = HashMap::new();
 
-        let mut all_move_mapping_t_f_leaves: HashMap<
-            NodeId<ToNodeId>,
-            HashSet<NodeId<FromNodeId>>,
-        > = HashMap::new();
-        let mut all_move_mapping_f_t_leaves: HashMap<
-            NodeId<FromNodeId>,
-            HashSet<NodeId<ToNodeId>>,
-        > = HashMap::new();
+        let mut all_move_mapping_t_f_leaves: HashMap<NodeId<ToNodeId>,
+                                                     HashSet<NodeId<FromNodeId>>> = HashMap::new();
+        let mut all_move_mapping_f_t_leaves: HashMap<NodeId<FromNodeId>,
+                                                     HashSet<NodeId<ToNodeId>>> = HashMap::new();
 
         let mut all_edges_move = HashSet::<(NodeId<FromNodeId>, NodeId<ToNodeId>, EdgeType)>::new();
         let mut all_leaves_move =
@@ -2022,35 +1855,29 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         for edge in get_all_edges.clone() {
             if edge.edge_type == EdgeType::MOVE {
                 // start to mappings
-                all_move_mapping_t_f
-                    .entry(edge.to_node)
-                    .or_insert(HashSet::new())
-                    .insert(edge.from_node);
-                all_move_mapping_f_t
-                    .entry(edge.from_node)
-                    .or_insert(HashSet::new())
-                    .insert(edge.to_node);
+                all_move_mapping_t_f.entry(edge.to_node)
+                                    .or_insert_with(HashSet::new)
+                                    .insert(edge.from_node);
+                all_move_mapping_f_t.entry(edge.from_node)
+                                    .or_insert_with(HashSet::new)
+                                    .insert(edge.to_node);
                 // end of mappings
 
-                let edge_copy = edge.clone();
+                let edge_copy = edge;
                 all_edges_move.insert((edge.from_node, edge.to_node, edge.edge_type));
                 let m_check = edge.from_node.is_leaf(&store.from_arena.borrow());
                 let n_check = edge.to_node.is_leaf(&store.to_arena.borrow());
                 if m_check && n_check {
-                    all_move_mapping_t_f_leaves
-                        .entry(edge.to_node)
-                        .or_insert(HashSet::new())
-                        .insert(edge.from_node);
-                    all_move_mapping_f_t_leaves
-                        .entry(edge.from_node)
-                        .or_insert(HashSet::new())
-                        .insert(edge.to_node);
+                    all_move_mapping_t_f_leaves.entry(edge.to_node)
+                                               .or_insert_with(HashSet::new)
+                                               .insert(edge.from_node);
+                    all_move_mapping_f_t_leaves.entry(edge.from_node)
+                                               .or_insert_with(HashSet::new)
+                                               .insert(edge.to_node);
 
-                    all_leaves_move.insert((
-                        edge_copy.from_node,
-                        edge_copy.to_node,
-                        edge_copy.edge_type,
-                    ));
+                    all_leaves_move.insert((edge_copy.from_node,
+                                           edge_copy.to_node,
+                                           edge_copy.edge_type));
                 }
             }
         }
@@ -2062,31 +1889,29 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         )>::new();
         // Check if its nodes are in the leaf move operation
         for edge in all_leaves_move.clone() {
-            let e1_parent = store.from_arena.borrow()[edge.0].parent().unwrap(); // edge.0.parent;
-            let e1_to_node_parent = store.to_arena.borrow()[edge.1].parent().unwrap(); // edge to node parent
+            let e1_parent = store.from_arena.borrow()[edge.0].parent().unwrap();
+            let e1_to_node_parent = store.to_arena.borrow()[edge.1].parent().unwrap();
 
             // first check parent nodes are have move operation
             // Then check thier children also have move operation
             // The children nodes of both from_node parent and to_node_parent
             // should have edges to one another.
             if all_edges_move.contains(&(e1_parent, e1_to_node_parent, EdgeType::MOVE)) {
-                let e1_siblings = e1_parent
-                    .children(&store.from_arena.borrow())
-                    .collect::<Vec<NodeId<FromNodeId>>>();
-                let e1_to_node_siblings = e1_to_node_parent
-                    .children(&store.to_arena.borrow())
-                    .collect::<Vec<NodeId<ToNodeId>>>();
+                let e1_siblings = e1_parent.children(&store.from_arena.borrow())
+                                           .collect::<Vec<NodeId<FromNodeId>>>();
+                let e1_to_node_siblings = e1_to_node_parent.children(&store.to_arena.borrow())
+                                                           .collect::<Vec<NodeId<ToNodeId>>>();
 
                 // First check
-                // See if the parent in the to_nodes have the same number of children as the number of sibilings
+                // See if the parent in the to_nodes have the same number of
+                // children as the number of siblings.
                 if e1_to_node_siblings.len() == e1_siblings.len() {
                     let mut counter_of_children_mapping = 0;
                     for i in 0..e1_siblings.len() {
-                        if all_leaves_move.contains(&(
-                            e1_siblings[i],
-                            e1_to_node_siblings[i],
-                            EdgeType::MOVE,
-                        )) {
+                        if all_leaves_move.contains(&(e1_siblings[i],
+                                                    e1_to_node_siblings[i],
+                                                    EdgeType::MOVE))
+                        {
                             counter_of_children_mapping += 1;
                         }
                     }
@@ -2111,8 +1936,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                     let parent_n = parent_n_option.unwrap();
 
                     if all_edges_move.contains(&(parent_m, parent_n, EdgeType::MOVE))
-                        && !parent_m.is_root(&store.from_arena.borrow())
-                        && !parent_n.is_root(&store.to_arena.borrow())
+                       && !parent_m.is_root(&store.from_arena.borrow())
+                       && !parent_n.is_root(&store.to_arena.borrow())
                     {
                         edge_change = (parent_m, parent_n);
                         vector_input.push((edge_change.0, edge_change.1));
@@ -2128,11 +1953,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             }
         }
         // Add Nodes Copy Tree
-        let mut hash_set_copy_glue_edges: HashSet<(
-            NodeId<FromNodeId>,
-            NodeId<ToNodeId>,
-            EdgeType,
-        )> = HashSet::new();
+        let mut hash_set_copy_glue_edges: HashSet<(NodeId<FromNodeId>,
+                                                  NodeId<ToNodeId>,
+                                                  EdgeType)> = HashSet::new();
         for nodes in end_copy_tree {
             if store.check_subtree(nodes.0, nodes.1) {
                 // - If insertion in sub-tree from tree 2
@@ -2162,7 +1985,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
     fn prune_edges(&self, input: &mut MappingStoreGraph<T>) -> (Vec<Edge>, Vec<Edge>) {
         // Loop Though all the edges
         let ct1 = cmp::max(input.all_edge_cost.move_, input.all_edge_cost.copy);
-        let ct = cmp::max(ct1, input.all_edge_cost.glue); // ct the max value of Move , copy and glue
+        // ct the max value of move, copy and glue.
+        let ct = cmp::max(ct1, input.all_edge_cost.glue);
         let all_edges = input.list_edges.borrow().clone();
         let mut edges_to_be_pruned: Vec<Edge> = Vec::new();
         let mut edges_still_left: Vec<Edge> = Vec::new();
@@ -2176,19 +2000,16 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             }
         }
         // Get lower bounds for all edges.
-
         let all_lower_bound_edges = input.make_all_lower_bound_edges(&hash_edges);
         let all_upper_bound_edges = input.make_all_upper_bound_edges(&hash_edges);
-        let mut list_t_f: HashMap<
-            NodeId<ToNodeId>,
-            (HashSet<(NodeId<FromNodeId>, EdgeType, usize)>, usize),
-        > = HashMap::new();
+        let mut list_t_f: HashMap<NodeId<ToNodeId>, (NodeVertexSet<FromNodeId>, usize)> =
+            HashMap::new();
         for edge1 in input.list_edges.borrow().clone() {
-            let mut set: HashSet<(NodeId<FromNodeId>, EdgeType, usize)> = HashSet::new();
+            let mut set: NodeVertexSet<FromNodeId> = HashSet::new();
             let mut size: usize = 1;
             for edge2 in input.list_edges.borrow().clone() {
                 if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
-                    && edge1.edge_type == edge2.edge_type)
+                     && edge1.edge_type == edge2.edge_type)
                 {
                     if edge2.to_node == edge1.to_node {
                         let temp: NodeId<FromNodeId> = edge2.from_node;
@@ -2205,16 +2026,14 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         }
 
         // From_ Node -> To Node
-        let mut list_f_t: HashMap<
-            NodeId<FromNodeId>,
-            (HashSet<(NodeId<ToNodeId>, EdgeType, usize)>, usize),
-        > = HashMap::new();
+        let mut list_f_t: HashMap<NodeId<FromNodeId>, (NodeVertexSet<ToNodeId>, usize)> =
+            HashMap::new();
         for edge1 in input.list_edges.borrow().clone() {
             let mut set: HashSet<(NodeId<ToNodeId>, EdgeType, usize)> = HashSet::new();
             let mut size: usize = 1;
             for edge2 in input.list_edges.borrow().clone() {
                 if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
-                    && edge1.edge_type == edge2.edge_type)
+                     && edge1.edge_type == edge2.edge_type)
                 {
                     if edge2.from_node == edge1.from_node {
                         let temp: NodeId<ToNodeId> = edge2.to_node;
@@ -2244,34 +2063,26 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
 
             // Lets get edge E2
             let e2_to_node_checker = helper_function.1.get(&m);
-            let mut e2_to_node = None;
-            if e2_to_node_checker.is_some() {
-                e2_to_node = e2_to_node_checker.unwrap().0.iter().nth(0);
-            }
+            let e2_to_node = e2_to_node_checker.map(|x| x.0.iter().nth(0)).unwrap();
 
             let e3_from_node_checker = helper_function.0.get(&n);
-            let mut e3_from_node = None;
-            if e3_from_node_checker.is_some() {
-                e3_from_node = e3_from_node_checker.unwrap().0.iter().nth(0);
-            }
+            let e3_from_node = e3_from_node_checker.map(|x| x.0.iter().nth(0)).unwrap();
             // Get the upper bound of e2
-            let upper_bound_e2 = *all_upper_bound_edges
-                .get(&(m, e2_to_node.unwrap().0))
-                .unwrap_or_else(|| &1);
-            let upper_bound_e3 = *all_upper_bound_edges
-                .get(&(e3_from_node.unwrap().0, n))
-                .unwrap_or_else(|| &1);
+            let upper_bound_e2 = *all_upper_bound_edges.get(&(m, e2_to_node.unwrap().0))
+                                                       .unwrap_or_else(|| &1);
+            let upper_bound_e3 = *all_upper_bound_edges.get(&(e3_from_node.unwrap().0, n))
+                                                       .unwrap_or_else(|| &1);
 
             let lower_bound_e1 = *all_lower_bound_edges.get(&(m, n)).unwrap_or_else(|| &1);
-            let descendants_m_delete = m.descendants(&input.from_arena.borrow())
-                .collect::<Vec<NodeId<FromNodeId>>>();
-            let descendants_n_insert = n.descendants(&input.to_arena.borrow())
-                .collect::<Vec<NodeId<ToNodeId>>>();
+            let descendants_m_delete =
+                m.descendants(&input.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
+            let descendants_n_insert =
+                n.descendants(&input.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
 
             if (lower_bound_e1 >= upper_bound_e2 + upper_bound_e3 + 2 * ct)
-                || (lower_bound_e1
-                    >= input.all_edge_cost.insert * (descendants_n_insert.len() + 1)
-                        + (input.all_edge_cost.delete * descendants_m_delete.len() + 1))
+               || (lower_bound_e1
+                   >= input.all_edge_cost.insert * (descendants_n_insert.len() + 1)
+                      + (input.all_edge_cost.delete * descendants_m_delete.len() + 1))
             {
                 edges_to_be_pruned.push(edge.clone());
             } else {
@@ -2284,23 +2095,22 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         let mut edges_after_pruning_update: Vec<Edge> = Vec::new();
         for e1_update in remaining_edges.clone() {
             if e1_update.edge_type == EdgeType::UPDATE {
-                let m = e1_update
-                    .from_node
-                    .descendants(&input.from_arena.borrow())
-                    .collect::<Vec<NodeId<FromNodeId>>>()
-                    .len();
-                let n = e1_update
-                    .to_node
-                    .descendants(&input.to_arena.borrow())
-                    .collect::<Vec<NodeId<ToNodeId>>>()
-                    .len();
+                let m = e1_update.from_node
+                                 .descendants(&input.from_arena.borrow())
+                                 .collect::<Vec<NodeId<FromNodeId>>>()
+                                 .len();
+                let n = e1_update.to_node
+                                 .descendants(&input.to_arena.borrow())
+                                 .collect::<Vec<NodeId<ToNodeId>>>()
+                                 .len();
                 // if the number of descendants are the same then ok to update
-                // Otherwise you may need to insert nodes and delete etc so update won't make any sense.
+                // Otherwise you may need to insert nodes and delete etc so
+                // update won't make any sense.
                 if m == n {
-                    edges_after_pruning_update.push(e1_update.clone());
+                    edges_after_pruning_update.push(e1_update);
                 }
             } else {
-                edges_after_pruning_update.push(e1_update.clone());
+                edges_after_pruning_update.push(e1_update);
             }
         }
         edges_still_left = edges_after_pruning_update;
@@ -2317,16 +2127,16 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             // Check if its root
 
             if e1_root.from_node.is_root(&input.from_arena.borrow())
-                || e1_root.to_node.is_root(&input.to_arena.borrow())
+               || e1_root.to_node.is_root(&input.to_arena.borrow())
             {
                 // There should be nothing moving the root of a tree.
                 // This is described in the chawathe 98 paper.
                 // Same logic as the if statement above
                 if e1_root.edge_type != EdgeType::MOVE {
-                    remaining_edges_remove_root_move.push(e1_root.clone());
+                    remaining_edges_remove_root_move.push(e1_root);
                 }
             } else {
-                remaining_edges_remove_root_move.push(e1_root.clone());
+                remaining_edges_remove_root_move.push(e1_root);
             }
         }
         edges_still_left = remaining_edges_remove_root_move;
@@ -2346,21 +2156,21 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                     let n_glue = edge_glue.to_node;
 
                     if edge_glue.edge_type == EdgeType::GLUE
-                        && edge_move.edge_type == EdgeType::MOVE
-                        && m_move == m_glue && n_move == n_glue
+                       && edge_move.edge_type == EdgeType::MOVE
+                       && m_move == m_glue && n_move == n_glue
                     {
                         // We have found a copy so the "check" variable is true
                         // so we have found (m,n) which is move and copy
                         check = true;
                         // We add copy edge to the remaining edges
-                        remaining_edges.push(edge_glue.clone());
+                        remaining_edges.push(edge_glue);
                     }
                 }
             } else if edge_move.edge_type != EdgeType::GLUE {
-                remaining_edges.push(edge_move.clone());
+                remaining_edges.push(edge_move);
             }
             if !check && edge_move.edge_type == EdgeType::MOVE {
-                remaining_edges.push(edge_move.clone());
+                remaining_edges.push(edge_move);
             }
         }
         edges_still_left = remaining_edges;
@@ -2376,12 +2186,11 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
 /// define thresholds and weights for a given algorithm.
 pub trait MatchingTreesScriptor<T: Clone + Debug> {
     /// Match two trees and return a store of mappings between them.
-    fn match_trees(
-        &self,
-        base: Arena<T, FromNodeId>,
-        diff: Arena<T, ToNodeId>,
-        costs_edges: CostEdge,
-    ) -> MappingStoreGraph<T>;
+    fn match_trees(&self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>,
+                   costs_edges: CostEdge)
+                   -> MappingStoreGraph<T>;
 
     /// Describe the matcher for the user.
     ///
@@ -2395,29 +2204,22 @@ pub trait MatchingTreesScriptor<T: Clone + Debug> {
 }
 
 /// Test for actual files
-pub fn chawathe_matching_actual(
-    mut from_arena: Arena<String, FromNodeId>,
-    mut to_arena: Arena<String, ToNodeId>,
-    from_path: &str,
-    to_path: &str,
-    user_defined_cost: CostEdge,
-) -> EditScriptResult<String> {
-    from_arena.new_node(
-        String::from("INSERT"),
-        String::from("INSERT"),
-        None,
-        None,
-        None,
-        None,
-    );
-    to_arena.new_node(
-        String::from("DELETE"),
-        String::from("DELETE"),
-        None,
-        None,
-        None,
-        None,
-    );
+pub fn chawathe_matching_actual(mut from_arena: Arena<String, FromNodeId>,
+                                mut to_arena: Arena<String, ToNodeId>,
+                                user_defined_cost: CostEdge)
+                                -> EditScriptResult<String> {
+    from_arena.new_node(String::from("INSERT"),
+                        String::from("INSERT"),
+                        None,
+                        None,
+                        None,
+                        None);
+    to_arena.new_node(String::from("DELETE"),
+                      String::from("DELETE"),
+                      None,
+                      None,
+                      None,
+                      None);
 
     let matching_config = Config2::new();
 
@@ -2437,24 +2239,21 @@ pub fn chawathe_matching_actual(
 
     let from_root = new_matcher_pruning.from_arena.borrow().root().unwrap();
     let to_root = new_matcher_pruning.to_arena.borrow().root().unwrap();
-    let traverse_from = from_root
-        .breadth_first_traversal(&new_matcher_pruning.from_arena.borrow())
-        .collect::<Vec<NodeId<FromNodeId>>>();
-    let traverse_to = to_root
-        .breadth_first_traversal(&new_matcher_pruning.to_arena.borrow())
-        .collect::<Vec<NodeId<ToNodeId>>>();
+    let traverse_from = from_root.breadth_first_traversal(&new_matcher_pruning.from_arena.borrow())
+                                 .collect::<Vec<NodeId<FromNodeId>>>();
+    let traverse_to = to_root.breadth_first_traversal(&new_matcher_pruning.to_arena.borrow())
+                             .collect::<Vec<NodeId<ToNodeId>>>();
 
     let mut values_same = true;
     // Check whether the size of arena's are the same
     assert_eq!(traverse_from.len(), traverse_to.len());
     if traverse_from.len() == traverse_to.len() {
         for i in 0..traverse_from.len() {
-            if !has_same_type_and_label(
-                &traverse_from[i],
-                &new_matcher_pruning.from_arena.borrow(),
-                &traverse_to[i],
-                &new_matcher_pruning.to_arena.borrow(),
-            ) {
+            if !has_same_type_and_label(&traverse_from[i],
+                                        &new_matcher_pruning.from_arena.borrow(),
+                                        &traverse_to[i],
+                                        &new_matcher_pruning.to_arena.borrow())
+            {
                 values_same = false;
             }
         }
@@ -2484,51 +2283,41 @@ mod tests {
     /// Creates a simple tree for tests which is FromNodeId
     pub fn create_arena() -> Arena<String, FromNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node(
-            String::from("Expr"),
-            String::from("+"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Expr"),
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
-        let n2 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("INT"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("INT"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(
-            String::from("INT"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("INT"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n2, &mut arena).unwrap();
 
-        let n1 = arena.new_node(
-            String::from("INT"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("INT"),
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
         arena
     }
@@ -2536,51 +2325,41 @@ mod tests {
     /// Creates a simple tree for tests which is ToNodeId
     pub fn create_arena_2() -> Arena<String, ToNodeId> {
         let mut arena = Arena::new();
-        let root = arena.new_node(
-            String::from("Expr"),
-            String::from("+"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Expr"),
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
-        let n2 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("INT"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("INT"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node(
-            String::from("INT"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("INT"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n2, &mut arena).unwrap();
 
-        let n1 = arena.new_node(
-            String::from("INT"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("INT"),
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
 
         arena
@@ -2590,24 +2369,20 @@ mod tests {
     /// Test for perfect Matching
     pub fn test_chawathe_matching_1() -> () {
         let mut tree1 = create_arena();
-        tree1.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree1.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
 
         let mut tree2 = create_arena_2();
-        tree2.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree2.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
 
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
@@ -2625,89 +2400,71 @@ mod tests {
     pub fn test_chawathe_matching_2() -> () {
         // Tree 1
         let mut arena = Arena::new();
-        let root = arena.new_node(
-            String::from("Expr"),
-            String::from("+"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Expr"),
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
-        let n4 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(root, &mut arena).unwrap();
-        let n5 = arena.new_node(
-            String::from("INT"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n5 = arena.new_node(String::from("INT"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n5.make_child_of(n4, &mut arena).unwrap();
-        let n6 = arena.new_node(
-            String::from("INT"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n6 = arena.new_node(String::from("INT"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n6.make_child_of(n4, &mut arena).unwrap();
 
-        let n1 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(
-            String::from("INT"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("INT"),
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(n1, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("INT"),
-            String::from("2"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("INT"),
+                                String::from("2"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n1, &mut arena).unwrap();
 
-        arena.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        arena.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
         // Tree 2
         let mut tree2 = create_arena_2();
-        tree2.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree2.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
 
@@ -2727,89 +2484,71 @@ mod tests {
     pub fn test_chawathe_matching_3() -> () {
         // Tree 2
         let mut arena = Arena::new();
-        let root = arena.new_node(
-            String::from("Expr"),
-            String::from("+"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Expr"),
+                                  String::from("+"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
-        let n4 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(root, &mut arena).unwrap();
-        let n5 = arena.new_node(
-            String::from("INT"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n5 = arena.new_node(String::from("INT"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n5.make_child_of(n4, &mut arena).unwrap();
-        let n6 = arena.new_node(
-            String::from("INT"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n6 = arena.new_node(String::from("INT"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n6.make_child_of(n4, &mut arena).unwrap();
 
-        let n1 = arena.new_node(
-            String::from("Expr"),
-            String::from("*"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("Expr"),
+                                String::from("*"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(
-            String::from("INT"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("INT"),
+                                String::from("1"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(n1, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("INT"),
-            String::from("2"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("INT"),
+                                String::from("2"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n1, &mut arena).unwrap();
 
-        arena.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        arena.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
         // Tree 1
         let mut tree1 = create_arena();
-        tree1.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree1.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
 
@@ -2828,42 +2567,34 @@ mod tests {
     pub fn test_chawathe_matching_4() -> () {
         // Tree 2
         let mut arena = Arena::new();
-        let root = arena.new_node(
-            String::from("Expr"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Expr"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
         // subtree 1
-        let n1 = arena.new_node(
-            String::from("Expr"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("Expr"),
+                                String::from("f"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(
-            String::from("Expr"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("Expr"),
+                                String::from("b"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(n1, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("Expr"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("Expr"),
+                                String::from("d"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n2, &mut arena).unwrap();
         //      n1
         //     /
@@ -2873,50 +2604,40 @@ mod tests {
 
         // End subtree 1
         // Subtree 2
-        let n4 = arena.new_node(
-            String::from("Expr"),
-            String::from("e"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("Expr"),
+                                String::from("e"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(root, &mut arena).unwrap();
-        let n5 = arena.new_node(
-            String::from("Expr"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n5 = arena.new_node(String::from("Expr"),
+                                String::from("a"),
+                                None,
+                                None,
+                                None,
+                                None);
         n5.make_child_of(n4, &mut arena).unwrap();
-        let n6 = arena.new_node(
-            String::from("Expr"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n6 = arena.new_node(String::from("Expr"),
+                                String::from("f"),
+                                None,
+                                None,
+                                None,
+                                None);
         n6.make_child_of(n4, &mut arena).unwrap();
-        let n7 = arena.new_node(
-            String::from("Expr"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n7 = arena.new_node(String::from("Expr"),
+                                String::from("b"),
+                                None,
+                                None,
+                                None,
+                                None);
         n7.make_child_of(n6, &mut arena).unwrap();
-        let n8 = arena.new_node(
-            String::from("Expr"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n8 = arena.new_node(String::from("Expr"),
+                                String::from("d"),
+                                None,
+                                None,
+                                None,
+                                None);
         n8.make_child_of(n7, &mut arena).unwrap();
         //     n4
         //    /  \
@@ -2928,50 +2649,40 @@ mod tests {
         // End of Subtree 2
 
         // Subtree 3
-        let n9 = arena.new_node(
-            String::from("Expr"),
-            String::from("g"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n9 = arena.new_node(String::from("Expr"),
+                                String::from("g"),
+                                None,
+                                None,
+                                None,
+                                None);
         n9.make_child_of(root, &mut arena).unwrap();
-        let n10 = arena.new_node(
-            String::from("Expr"),
-            String::from("cc"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n10 = arena.new_node(String::from("Expr"),
+                                 String::from("cc"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n10.make_child_of(n9, &mut arena).unwrap();
-        let n11 = arena.new_node(
-            String::from("Expr"),
-            String::from("ac"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n11 = arena.new_node(String::from("Expr"),
+                                 String::from("ac"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n11.make_child_of(n10, &mut arena).unwrap();
-        let n12 = arena.new_node(
-            String::from("Expr"),
-            String::from("cd"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n12 = arena.new_node(String::from("Expr"),
+                                 String::from("cd"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n12.make_child_of(n9, &mut arena).unwrap();
-        let n13 = arena.new_node(
-            String::from("Expr"),
-            String::from("ad"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n13 = arena.new_node(String::from("Expr"),
+                                 String::from("ad"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n13.make_child_of(n12, &mut arena).unwrap();
 
         //                n9
@@ -2981,71 +2692,57 @@ mod tests {
         //         n11         n13
         // End of Subtree 3
 
-        arena.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        arena.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
         // Tree 1
         let mut tree1 = Arena::new();
 
-        let root = tree1.new_node(
-            String::from("Expr"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = tree1.new_node(String::from("Expr"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
 
         // Subtree 2
-        let n4 = tree1.new_node(
-            String::from("Expr"),
-            String::from("e"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = tree1.new_node(String::from("Expr"),
+                                String::from("e"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(root, &mut tree1).unwrap();
-        let n5 = tree1.new_node(
-            String::from("Expr"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n5 = tree1.new_node(String::from("Expr"),
+                                String::from("a"),
+                                None,
+                                None,
+                                None,
+                                None);
         n5.make_child_of(n4, &mut tree1).unwrap();
-        let n6 = tree1.new_node(
-            String::from("Expr"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n6 = tree1.new_node(String::from("Expr"),
+                                String::from("f"),
+                                None,
+                                None,
+                                None,
+                                None);
         n6.make_child_of(n4, &mut tree1).unwrap();
-        let n7 = tree1.new_node(
-            String::from("Expr"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n7 = tree1.new_node(String::from("Expr"),
+                                String::from("b"),
+                                None,
+                                None,
+                                None,
+                                None);
         n7.make_child_of(n6, &mut tree1).unwrap();
-        let n8 = tree1.new_node(
-            String::from("Expr"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n8 = tree1.new_node(String::from("Expr"),
+                                String::from("d"),
+                                None,
+                                None,
+                                None,
+                                None);
         n8.make_child_of(n7, &mut tree1).unwrap();
         //            n4
         //           /  \
@@ -3057,50 +2754,40 @@ mod tests {
         // End of Subtree 2
 
         // Subtree 3
-        let n9 = tree1.new_node(
-            String::from("Expr"),
-            String::from("g"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n9 = tree1.new_node(String::from("Expr"),
+                                String::from("g"),
+                                None,
+                                None,
+                                None,
+                                None);
         n9.make_child_of(root, &mut tree1).unwrap();
-        let n10 = tree1.new_node(
-            String::from("Expr"),
-            String::from("cc"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n10 = tree1.new_node(String::from("Expr"),
+                                 String::from("cc"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n10.make_child_of(n9, &mut tree1).unwrap();
-        let n11 = tree1.new_node(
-            String::from("Expr"),
-            String::from("ac"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n11 = tree1.new_node(String::from("Expr"),
+                                 String::from("ac"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n11.make_child_of(n10, &mut tree1).unwrap();
-        let n12 = tree1.new_node(
-            String::from("Expr"),
-            String::from("cd"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n12 = tree1.new_node(String::from("Expr"),
+                                 String::from("cd"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n12.make_child_of(n9, &mut tree1).unwrap();
-        let n13 = tree1.new_node(
-            String::from("Expr"),
-            String::from("ad"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n13 = tree1.new_node(String::from("Expr"),
+                                 String::from("ad"),
+                                 None,
+                                 None,
+                                 None,
+                                 None);
         n13.make_child_of(n12, &mut tree1).unwrap();
 
         //                n9
@@ -3110,14 +2797,12 @@ mod tests {
         //         n11         n13
 
         // End of Subtree 3
-        tree1.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree1.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
 
@@ -3158,114 +2843,90 @@ mod tests {
     pub fn test_chawathe_matching_5() -> () {
         // Tree 2
         let mut arena: Arena<String, FromNodeId> = Arena::new();
-        let root = arena.new_node(
-            String::from("NUMB"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("NUMB"),
+                                  String::from("1"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         // subtree 1
-        let n1 = arena.new_node(
-            String::from("NUMB"),
-            String::from("2"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("NUMB"),
+                                String::from("2"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node(
-            String::from("NUMB"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("NUMB"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node(
-            String::from("NUMB"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("NUMB"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n1, &mut arena).unwrap();
-        let n4 = arena.new_node(
-            String::from("NUMB"),
-            String::from("5"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("NUMB"),
+                                String::from("5"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n1, &mut arena).unwrap();
-        arena.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        arena.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
         // Tree 1
         let mut tree1: Arena<String, ToNodeId> = Arena::new();
-        let root = tree1.new_node(
-            String::from("NUMB"),
-            String::from("1"),
-            None,
-            None,
-            None,
-            None,
-        );
-        let n2 = tree1.new_node(
-            String::from("NUMB"),
-            String::from("3"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = tree1.new_node(String::from("NUMB"),
+                                  String::from("1"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
+        let n2 = tree1.new_node(String::from("NUMB"),
+                                String::from("3"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut tree1).unwrap();
-        let n1 = tree1.new_node(
-            String::from("NUMB"),
-            String::from("2"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = tree1.new_node(String::from("NUMB"),
+                                String::from("2"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(n2, &mut tree1).unwrap();
-        let n3 = tree1.new_node(
-            String::from("NUMB"),
-            String::from("4"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = tree1.new_node(String::from("NUMB"),
+                                String::from("4"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(n1, &mut tree1).unwrap();
-        let n4 = tree1.new_node(
-            String::from("NUMB"),
-            String::from("5"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = tree1.new_node(String::from("NUMB"),
+                                String::from("5"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(n1, &mut tree1).unwrap();
 
-        tree1.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree1.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
 
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
@@ -3287,250 +2948,198 @@ mod tests {
     pub fn test_chawathe_matching_6() -> () {
         // Tree 1
         let mut arena: Arena<String, FromNodeId> = Arena::new();
-        let root = arena.new_node(
-            String::from("Exp"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = arena.new_node(String::from("Exp"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         // subtree 1
-        let n1 = arena.new_node(
-            String::from("Exp"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = arena.new_node(String::from("Exp"),
+                                String::from("b"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut arena).unwrap();
-        let n1_1 = arena.new_node(
-            String::from("Exp"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1_1 = arena.new_node(String::from("Exp"),
+                                  String::from("d"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n1_1.make_child_of(n1, &mut arena).unwrap();
 
         // Subtree 2
-        let n2 = arena.new_node(
-            String::from("Exp"),
-            String::from("e"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = arena.new_node(String::from("Exp"),
+                                String::from("e"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut arena).unwrap();
-        let n2_1 = arena.new_node(
-            String::from("Exp"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_1 = arena.new_node(String::from("Exp"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_1.make_child_of(n2, &mut arena).unwrap();
-        let n2_2 = arena.new_node(
-            String::from("Exp"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_2 = arena.new_node(String::from("Exp"),
+                                  String::from("f"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_2.make_child_of(n2, &mut arena).unwrap();
         // Subtree 3
-        let n3 = arena.new_node(
-            String::from("Exp"),
-            String::from("cc"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = arena.new_node(String::from("Exp"),
+                                String::from("cc"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(root, &mut arena).unwrap();
-        let n3_1 = arena.new_node(
-            String::from("Exp"),
-            String::from("ac"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3_1 = arena.new_node(String::from("Exp"),
+                                  String::from("ac"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n3_1.make_child_of(n3, &mut arena).unwrap();
         // Subtree 4
-        let n4 = arena.new_node(
-            String::from("Exp"),
-            String::from("cd"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4 = arena.new_node(String::from("Exp"),
+                                String::from("cd"),
+                                None,
+                                None,
+                                None,
+                                None);
         n4.make_child_of(root, &mut arena).unwrap();
-        let n4_1 = arena.new_node(
-            String::from("Exp"),
-            String::from("ad"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n4_1 = arena.new_node(String::from("Exp"),
+                                  String::from("ad"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n4_1.make_child_of(n4, &mut arena).unwrap();
-        arena.new_node(
-            String::from("INSERT"),
-            String::from("INSERT"),
-            None,
-            None,
-            None,
-            None,
-        );
+        arena.new_node(String::from("INSERT"),
+                       String::from("INSERT"),
+                       None,
+                       None,
+                       None,
+                       None);
         // Tree 2
         let mut tree1: Arena<String, ToNodeId> = Arena::new();
-        let root = tree1.new_node(
-            String::from("Exp"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let root = tree1.new_node(String::from("Exp"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         // Subtree 1
-        let n1 = tree1.new_node(
-            String::from("Exp"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1 = tree1.new_node(String::from("Exp"),
+                                String::from("f"),
+                                None,
+                                None,
+                                None,
+                                None);
         n1.make_child_of(root, &mut tree1).unwrap();
-        let n1_1 = tree1.new_node(
-            String::from("Exp"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1_1 = tree1.new_node(String::from("Exp"),
+                                  String::from("b"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n1_1.make_child_of(n1, &mut tree1).unwrap();
-        let n1_2 = tree1.new_node(
-            String::from("Exp"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n1_2 = tree1.new_node(String::from("Exp"),
+                                  String::from("d"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n1_2.make_child_of(n1_1, &mut tree1).unwrap();
 
         // Subtree 2
-        let n2 = tree1.new_node(
-            String::from("Exp"),
-            String::from("e"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2 = tree1.new_node(String::from("Exp"),
+                                String::from("e"),
+                                None,
+                                None,
+                                None,
+                                None);
         n2.make_child_of(root, &mut tree1).unwrap();
-        let n2_1 = tree1.new_node(
-            String::from("Exp"),
-            String::from("a"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_1 = tree1.new_node(String::from("Exp"),
+                                  String::from("a"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_1.make_child_of(n2, &mut tree1).unwrap();
-        let n2_2 = tree1.new_node(
-            String::from("Exp"),
-            String::from("f"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_2 = tree1.new_node(String::from("Exp"),
+                                  String::from("f"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_2.make_child_of(n2, &mut tree1).unwrap();
-        let n2_3 = tree1.new_node(
-            String::from("Exp"),
-            String::from("b"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_3 = tree1.new_node(String::from("Exp"),
+                                  String::from("b"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_3.make_child_of(n2_2, &mut tree1).unwrap();
-        let n2_4 = tree1.new_node(
-            String::from("Exp"),
-            String::from("d"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n2_4 = tree1.new_node(String::from("Exp"),
+                                  String::from("d"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n2_4.make_child_of(n2_3, &mut tree1).unwrap();
 
         // Subtree 3
 
-        let n3 = tree1.new_node(
-            String::from("Exp"),
-            String::from("g"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3 = tree1.new_node(String::from("Exp"),
+                                String::from("g"),
+                                None,
+                                None,
+                                None,
+                                None);
         n3.make_child_of(root, &mut tree1).unwrap();
-        let n3_1 = tree1.new_node(
-            String::from("Exp"),
-            String::from("cc"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3_1 = tree1.new_node(String::from("Exp"),
+                                  String::from("cc"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n3_1.make_child_of(n3, &mut tree1).unwrap();
-        let n3_2 = tree1.new_node(
-            String::from("Exp"),
-            String::from("ac"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3_2 = tree1.new_node(String::from("Exp"),
+                                  String::from("ac"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n3_2.make_child_of(n3_1, &mut tree1).unwrap();
-        let n3_3 = tree1.new_node(
-            String::from("Exp"),
-            String::from("cd"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3_3 = tree1.new_node(String::from("Exp"),
+                                  String::from("cd"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n3_3.make_child_of(n3, &mut tree1).unwrap();
-        let n3_4 = tree1.new_node(
-            String::from("Exp"),
-            String::from("ad"),
-            None,
-            None,
-            None,
-            None,
-        );
+        let n3_4 = tree1.new_node(String::from("Exp"),
+                                  String::from("ad"),
+                                  None,
+                                  None,
+                                  None,
+                                  None);
         n3_4.make_child_of(n3_3, &mut tree1).unwrap();
 
-        tree1.new_node(
-            String::from("DELETE"),
-            String::from("DELETE"),
-            None,
-            None,
-            None,
-            None,
-        );
+        tree1.new_node(String::from("DELETE"),
+                       String::from("DELETE"),
+                       None,
+                       None,
+                       None,
+                       None);
 
         let matching_config = Config2::new();
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
@@ -3582,24 +3191,22 @@ mod tests {
         let mut edit_script = edgecover_apply_edit_script(&mut new_matcher_pruning);
         let from_root = new_matcher_pruning.from_arena.borrow().root().unwrap();
         let to_root = new_matcher_pruning.to_arena.borrow().root().unwrap();
-        let traverse_from = from_root
-            .breadth_first_traversal(&new_matcher_pruning.from_arena.borrow())
-            .collect::<Vec<NodeId<FromNodeId>>>();
-        let traverse_to = to_root
-            .breadth_first_traversal(&new_matcher_pruning.to_arena.borrow())
-            .collect::<Vec<NodeId<ToNodeId>>>();
+        let traverse_from = from_root.breadth_first_traversal(&new_matcher_pruning.from_arena
+                                                                                  .borrow())
+                                     .collect::<Vec<NodeId<FromNodeId>>>();
+        let traverse_to = to_root.breadth_first_traversal(&new_matcher_pruning.to_arena.borrow())
+                                 .collect::<Vec<NodeId<ToNodeId>>>();
 
         assert_eq!(traverse_from.len(), traverse_to.len());
 
         let mut values_same = true;
         if traverse_from.len() == traverse_to.len() {
             for i in 0..traverse_from.len() {
-                if !has_same_type_and_label(
-                    &traverse_from[i],
-                    &new_matcher_pruning.from_arena.borrow(),
-                    &traverse_to[i],
-                    &new_matcher_pruning.to_arena.borrow(),
-                ) {
+                if !has_same_type_and_label(&traverse_from[i],
+                                            &new_matcher_pruning.from_arena.borrow(),
+                                            &traverse_to[i],
+                                            &new_matcher_pruning.to_arena.borrow())
+                {
                     values_same = false;
                 }
             }
