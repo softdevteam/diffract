@@ -187,17 +187,16 @@ pub mod test_common {
     ///     let mult = create_mult_arena();
     ///     ... Arena::<&'static str, ToNodeId>::from(mult) ...
     /// ```
-    pub fn create_mult_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n4.make_child_of(n2, &mut arena).unwrap();
+    pub fn create_mult_arena() -> Arena<String, FromNodeId> {
+        let xml = "<Tree ty=\"Expr\" label=\"+\">
+        <Tree ty=\"INT\" label=\"1\"/>
+        <Tree ty=\"Expr\" label=\"*\">
+            <Tree ty=\"INT\" label=\"3\"/>
+            <Tree ty=\"INT\" label=\"4\"/>
+        </Tree>
+    </Tree>
+    ";
+        let arena = load_xml_ast(xml);
         let expected_format = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -214,13 +213,13 @@ pub mod test_common {
     ///     let plus = create_plus_arena();
     ///     ... Arena::<&'static str, ToNodeId>::from(plus) ...
     /// ```
-    pub fn create_plus_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
+    pub fn create_plus_arena() -> Arena<String, FromNodeId> {
+        let xml = "<Tree ty=\"Expr\" label=\"+\">
+        <Tree ty=\"INT\" label=\"3\"/>
+        <Tree ty=\"INT\" label=\"4\"/>
+    </Tree>
+    ";
+        let arena = load_xml_ast(xml);
         let expected_format = "\"Expr\" +
   \"INT\" 3
   \"INT\" 4

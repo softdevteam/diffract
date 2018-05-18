@@ -267,11 +267,11 @@ mod tests {
     fn is_isomorphic() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store_p = MappingStore::new(plus.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(plus.clone()));
-        let store_m = MappingStore::new(mult.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store_p =
+            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+        let store_m =
+            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -294,11 +294,11 @@ mod tests {
     fn is_isomorphic_hash() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store_p = MappingStore::new(plus.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(plus.clone()));
-        let store_m = MappingStore::new(mult.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store_p =
+            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+        let store_m =
+            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -321,7 +321,7 @@ mod tests {
     fn is_mapping_allowed() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
@@ -343,7 +343,7 @@ mod tests {
     fn is_mapped() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
@@ -368,7 +368,7 @@ mod tests {
         let plus = create_plus_arena();
         let mult = create_mult_arena();
         let matcher = MyersConfig::new();
-        let store = matcher.match_trees(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = matcher.match_trees(plus, Arena::<String, ToNodeId>::from(mult));
         let expected_str = vec!["\"matches\": [",
                                 "{\n\"src\": 1,\n\"dest\": 3\n}",
                                 "{\n\"src\": 0,\n\"dest\": 0\n}",

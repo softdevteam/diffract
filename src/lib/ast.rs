@@ -932,8 +932,8 @@ mod tests {
     #[test]
     fn from_trait_arenas() {
         let from_arena = create_mult_arena();
-        let coerced_to_arena = Arena::<&str, ToNodeId>::from(from_arena.clone());
-        let coerced_from_arena = Arena::<&str, FromNodeId>::from(coerced_to_arena.clone());
+        let coerced_to_arena = Arena::<String, ToNodeId>::from(from_arena.clone());
+        let coerced_from_arena = Arena::<String, FromNodeId>::from(coerced_to_arena.clone());
         let format = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1369,7 +1369,7 @@ mod tests {
         assert_eq!(1, n2_child_ids_del.len());
         assert_eq!(n2_child_ids[0], NodeId::new(3));
         // Add a new node.
-        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
         n5.make_child_of(n2, &mut arena).unwrap();
         let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
                                                                phantom: PhantomData, },
@@ -1380,7 +1380,7 @@ mod tests {
             assert_eq!(expected2[index], n2_child_ids_add[index]);
         }
         // Add a new node as nth child.
-        let n6 = arena.new_node("INT", String::from("-99"), None, None, None, None);
+        let n6 = arena.new_node("INT".to_string(), "-99".to_string(), None, None, None, None);
         n6.make_nth_child_of(n2, 1, &mut arena).unwrap();
         let expected3: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
                                                                phantom: PhantomData, },
@@ -1392,7 +1392,7 @@ mod tests {
             assert_eq!(expected3[index], n2_child_ids_nth[index]);
         }
         // Add a new node as 0th child.
-        let n7 = arena.new_node("INT", String::from("-1"), None, None, None, None);
+        let n7 = arena.new_node("INT".to_string(), "-1".to_string(), None, None, None, None);
         n7.make_nth_child_of(n2, 0, &mut arena).unwrap();
         let expected4: Vec<NodeId<FromNodeId>> = vec![n7,
                                                       NodeId { index: 3,

@@ -117,7 +117,7 @@ mod tests {
     fn num_common_descendants() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(2), &Default::default());
         store.push(NodeId::new(1), NodeId::new(3), &Default::default());
         store.push(NodeId::new(2), NodeId::new(4), &Default::default());

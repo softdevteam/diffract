@@ -685,7 +685,7 @@ mod test {
     #[test]
     fn apply_insert() {
         let mut arena = create_mult_arena();
-        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -708,7 +708,7 @@ mod test {
     #[test]
     fn apply_insert_new_root() {
         let mut arena = create_mult_arena();
-        let n5 = arena.new_node("Expr", String::from("-"), None, None, None, None);
+        let n5 = arena.new_node("Expr".to_string(), "-".to_string(), None, None, None, None);
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -760,7 +760,7 @@ mod test {
     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let mut upd = Update::new(NodeId::new(2), "Expr", String::from("+"));
+        let mut upd = Update::new(NodeId::new(2), "Expr".to_string(), "+".to_string());
         upd.apply(&mut arena).unwrap();
         let format2 = "\"Expr\" +
   \"INT\" 1
@@ -780,11 +780,11 @@ mod test {
     \"INT\" 3
     \"INT\" 4
 ";
-        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
-        let n6 = arena.new_node("INT", String::from("99"), None, None, None, None);
+        let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
+        let n6 = arena.new_node("INT".to_string(), "99".to_string(), None, None, None, None);
         assert_eq!(format1, format!("{:?}", arena));
         // Create action list.
-        let mut actions: EditScript<&str> = EditScript::new();
+        let mut actions: EditScript<String> = EditScript::new();
         assert!(actions.is_empty());
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
@@ -792,7 +792,7 @@ mod test {
         let ins2 = Insert::new(n6, Some(NodeId::new(2)), 1);
         let mov = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
                                                                 // Change "+"" to "*".
-        let upd = Update::new(NodeId::new(0), "Expr", String::from("*"));
+        let upd = Update::new(NodeId::new(0), "Expr".to_string(), "*".to_string());
         actions.push(del1);
         actions.push(del2);
         actions.push(ins1);
@@ -822,9 +822,9 @@ mod test {
     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
-        let n5 = arena.new_node("INT", String::from("2"), None, None, None, None);
+        let n5 = arena.new_node("INT".to_string(), "2".to_string(), None, None, None, None);
         // Create action list.
-        let mut actions: EditScript<&str> = EditScript::new();
+        let mut actions: EditScript<String> = EditScript::new();
         assert!(actions.is_empty());
         let del = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins = Insert { node: n5,
@@ -832,8 +832,8 @@ mod test {
                            nth_child: 0, };
         let upd = Update { // Change "+" to "*".
                            node: NodeId::new(0),
-                           ty: "Expr",
-                           label: String::from("*"), };
+                           ty: "Expr".to_string(),
+                           label: "*".to_string(), };
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
@@ -853,10 +853,10 @@ mod test {
     #[test]
     fn apply_partial_eq() {
         let mut arena1 = create_mult_arena();
-        let n5 = arena1.new_node("INT", String::from("100"), None, None, None, None);
-        let n6 = arena1.new_node("INT", String::from("99"), None, None, None, None);
+        let n5 = arena1.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
+        let n6 = arena1.new_node("INT".to_string(), "99".to_string(), None, None, None, None);
         // Create action list.
-        let mut actions1: EditScript<&str> = EditScript::new();
+        let mut actions1: EditScript<String> = EditScript::new();
         assert!(actions1.is_empty());
         let del1 = Delete::new(NodeId::new(3)); // INT 3
         let del2 = Delete::new(NodeId::new(4)); // INT 4
@@ -869,7 +869,7 @@ mod test {
         assert_eq!(ins2, ins2);
         assert_ne!(ins1, ins2);
         let mov1 = Move::new(NodeId::new(6), NodeId::new(2), 0); // Swap "INT 100" and "INT 99".
-        let upd1 = Update::new(NodeId::new(0), "Expr", String::from("*"));
+        let upd1 = Update::new(NodeId::new(0), "Expr".to_string(), "*".to_string());
         actions1.push(del1);
         actions1.push(del2);
         actions1.push(ins1);
@@ -880,8 +880,8 @@ mod test {
         assert_eq!(6, actions1.size());
         // Second edit script.
         let mut arena2 = create_mult_arena();
-        let n7 = arena2.new_node("INT", String::from("2"), None, None, None, None);
-        let mut actions2: EditScript<&str> = EditScript::new();
+        let n7 = arena2.new_node("INT".to_string(), "2".to_string(), None, None, None, None);
+        let mut actions2: EditScript<String> = EditScript::new();
         assert!(actions2.is_empty());
         let del3 = Delete { node: NodeId::new(4), }; // Remove "4".
         let ins3 = Insert { node: n7,
@@ -889,8 +889,8 @@ mod test {
                             nth_child: 0, };
         let upd2 = Update { // Change "+" to "*".
                             node: NodeId::new(0),
-                            ty: "Expr",
-                            label: String::from("*"), };
+                            ty: "Expr".to_string(),
+                            label: "*".to_string(), };
         actions2.push(del3);
         actions2.push(ins3);
         actions2.push(upd2);
