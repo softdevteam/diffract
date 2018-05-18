@@ -3188,7 +3188,7 @@ mod tests {
 
         let matcher_copy = edgecover_solver(new_matcher_pruning);
         new_matcher_pruning = matcher_copy.0;
-        let mut edit_script = edgecover_apply_edit_script(&mut new_matcher_pruning);
+        edgecover_apply_edit_script(&mut new_matcher_pruning);
         let from_root = new_matcher_pruning.from_arena.borrow().root().unwrap();
         let to_root = new_matcher_pruning.to_arena.borrow().root().unwrap();
         let traverse_from = from_root.breadth_first_traversal(&new_matcher_pruning.from_arena
