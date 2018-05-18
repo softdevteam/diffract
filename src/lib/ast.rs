@@ -887,6 +887,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PreOrderTraversal<'a, T, U>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_common::create_mult_arena;
 
     #[test]
     fn from_trait_node_ids() {
@@ -928,23 +929,9 @@ mod tests {
                    coerced_to.next_sibling());
     }
 
-    fn create_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n4.make_child_of(n2, &mut arena).unwrap();
-        arena
-    }
-
     #[test]
     fn from_trait_arenas() {
-        let from_arena = create_arena();
+        let from_arena = create_mult_arena();
         let coerced_to_arena = Arena::<&str, ToNodeId>::from(from_arena.clone());
         let coerced_from_arena = Arena::<&str, FromNodeId>::from(coerced_to_arena.clone());
         let format = "\"Expr\" +
@@ -1075,7 +1062,7 @@ mod tests {
 
     #[test]
     fn make_child_of_1() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n1 = NodeId::new(1);
         let n2 = NodeId::new(2);
@@ -1293,7 +1280,7 @@ mod tests {
 
     #[test]
     fn get_edges_3() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let edges: Vec<EdgeId<FromNodeId>> = vec![(NodeId::new(0), NodeId::new(1)),
                                                   (NodeId::new(0), NodeId::new(2)),
                                                   (NodeId::new(2), NodeId::new(3)),
@@ -1303,7 +1290,7 @@ mod tests {
 
     #[test]
     fn detach_1() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let root = NodeId::new(0);
         let first_format = "\"Expr\" +
   \"INT\" 1
@@ -1319,7 +1306,7 @@ mod tests {
 
     #[test]
     fn detach_2() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let n2 = NodeId::new(2);
         let first_format = "\"Expr\" +
   \"INT\" 1
@@ -1337,7 +1324,7 @@ mod tests {
 
     #[test]
     fn children_iterator() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
@@ -1364,7 +1351,7 @@ mod tests {
 
     #[test]
     fn children_iterator_with_add_delete() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let n2 = NodeId::new(2);
         // Children of n2.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
@@ -1422,7 +1409,7 @@ mod tests {
 
     #[test]
     fn reverse_children_iterator() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
@@ -1449,7 +1436,7 @@ mod tests {
 
     #[test]
     fn breadth_first_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(0),
                                                       NodeId::new(1),
@@ -1475,7 +1462,7 @@ mod tests {
 
     #[test]
     fn post_order_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(1),
                                                       NodeId::new(3),
@@ -1501,7 +1488,7 @@ mod tests {
 
     #[test]
     fn pre_order_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(0),
                                                       NodeId::new(1),
@@ -1527,7 +1514,7 @@ mod tests {
 
     #[test]
     fn descendants() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(1),
                                                       NodeId::new(2),
@@ -1586,7 +1573,7 @@ mod tests {
 
     #[test]
     fn height() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1603,7 +1590,7 @@ mod tests {
 
     #[test]
     fn size_on_nodeid() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1620,7 +1607,7 @@ mod tests {
 
     #[test]
     fn get_child_position() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         assert_eq!(None, NodeId::new(0).get_child_position(&arena));
         assert_eq!(Some(0), NodeId::new(1).get_child_position(&arena));
         assert_eq!(Some(1), NodeId::new(2).get_child_position(&arena));

@@ -111,3 +111,56 @@ pub mod chawathe98_matcher;
 
 /// Fingerprinting algorithms for tree isomorphism tests.
 pub mod fingerprint;
+
+#[cfg(test)]
+pub mod test_common {
+    use ast::{Arena, FromNodeId};
+
+    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// To use this as a destination parse tree, use the `From` trait:
+    ///  ```
+    ///     let mult = create_mult_arena();
+    ///     ... Arena::<&'static str, ToNodeId>::from(mult) ...
+    /// ```
+    pub fn create_mult_arena() -> Arena<&'static str, FromNodeId> {
+        let mut arena = Arena::new();
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
+        n2.make_child_of(root, &mut arena).unwrap();
+        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
+        n3.make_child_of(n2, &mut arena).unwrap();
+        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
+        n4.make_child_of(n2, &mut arena).unwrap();
+        let expected_format = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
+";
+        assert_eq!(expected_format, format!("{:?}", arena));
+        arena
+    }
+
+    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// To use this as a destination parse tree, use the `From` trait:
+    ///  ```
+    ///     let plus = create_plus_arena();
+    ///     ... Arena::<&'static str, ToNodeId>::from(plus) ...
+    /// ```
+    pub fn create_plus_arena() -> Arena<&'static str, FromNodeId> {
+        let mut arena = Arena::new();
+        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
+        let n1 = arena.new_node("INT", String::from("3"), None, None, None, None);
+        n1.make_child_of(root, &mut arena).unwrap();
+        let n2 = arena.new_node("INT", String::from("4"), None, None, None, None);
+        n2.make_child_of(root, &mut arena).unwrap();
+        let expected_format = "\"Expr\" +
+  \"INT\" 3
+  \"INT\" 4
+";
+        assert_eq!(expected_format, format!("{:?}", arena));
+        arena
+    }
+}

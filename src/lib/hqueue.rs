@@ -179,27 +179,7 @@ mod tests {
     use super::*;
     use ast::FromNodeId;
     use test::Bencher;
-
-    fn create_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n4.make_child_of(n2, &mut arena).unwrap();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
-";
-        assert_eq!(format1, format!("{:?}", arena));
-        arena
-    }
+    use test_common::create_mult_arena;
 
     // Assert that `queue` is in sorted order and has the same size `arena`.
     fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<FromNodeId>,
@@ -229,7 +209,7 @@ mod tests {
 
     #[test]
     fn clear() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let mut queue = arena.get_priority_queue();
         assert!(!queue.is_empty());
         queue.clear();
@@ -253,7 +233,7 @@ mod tests {
 
     #[test]
     fn fmt_debug() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let queue = arena.get_priority_queue();
         let s = format!("{:?}", queue);
         // Three leaves in this arena can be placed in the queue in any order,
@@ -272,7 +252,7 @@ mod tests {
 
     #[test]
     fn open() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let mut queue = HeightQueue::<FromNodeId>::new();
         queue.open(&NodeId::new(0), &arena);
         let expected1 = vec![NodeId::new(2)]; // Expr *
@@ -283,7 +263,7 @@ mod tests {
 
     #[test]
     fn peek_max() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let queue = arena.get_priority_queue();
         let height = queue.peek_max().unwrap();
         assert_eq!(NodeId::new(0).height(&arena), height);
@@ -291,7 +271,7 @@ mod tests {
 
     #[test]
     fn pop() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let mut queue = arena.get_priority_queue();
         assert_eq!(vec![NodeId::new(0)], queue.pop());
         assert_eq!(vec![NodeId::new(2)], queue.pop());
@@ -307,14 +287,14 @@ mod tests {
 
     #[test]
     fn push() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let queue = arena.get_priority_queue();
         assert_sorted(&queue, &arena);
     }
 
     #[test]
     fn push_identical_nodes() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let mut queue = HeightQueue::new();
         queue.push(NodeId::new(0), &arena);
         let formatted = format!("{:?}", queue);
