@@ -50,6 +50,14 @@ extern crate multiset;
 extern crate term;
 extern crate test;
 
+#[cfg(test)]
+extern crate serde;
+#[cfg(test)]
+#[macro_use]
+extern crate serde_derive;
+#[cfg(test)]
+extern crate serde_xml_rs;
+
 /// Actions are operations that transform abstract syntax trees.
 pub mod action;
 
@@ -111,3 +119,216 @@ pub mod chawathe98_matcher;
 
 /// Fingerprinting algorithms for tree isomorphism tests.
 pub mod fingerprint;
+
+#[cfg(test)]
+pub mod test_common {
+    use serde::{Deserialize, Deserializer};
+    use serde_xml_rs::deserialize;
+
+    use ast::{Arena, FromNodeId, NodeId};
+
+    fn to_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+        where D: Deserializer<'de>
+    {
+        Ok(Deserialize::deserialize(deserializer)?)
+    }
+
+    #[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+    struct Tree {
+        label: String,
+        #[serde(deserialize_with = "to_string")]
+        ty: String,
+        #[serde(rename = "Tree", default)]
+        children: Vec<Tree>
+    }
+
+    /// Load an AST from an XML string.
+    /// Intended to be used for small trees needed by unit tests.
+    ///
+    /// To use the result as a destination parse tree, use the `From` trait:
+    ///  ```
+    ///     let xmltree = load_xml_tree(...);
+    ///     ... Arena::<&'static str, ToNodeId>::from(xmltree) ...
+    /// ```
+    pub fn load_xml_ast(xml: &str) -> Arena<String, FromNodeId> {
+        tree_to_arena(load_xml_tree(xml))
+    }
+
+    fn load_xml_tree(xml: &str) -> Tree {
+        deserialize(xml.as_bytes()).unwrap()
+    }
+
+    fn tree_to_arena(tree: Tree) -> Arena<String, FromNodeId> {
+        let mut arena = Arena::new();
+        let mut next_root = vec![tree.clone()];
+        let mut root = arena.new_node(tree.ty.clone(), tree.label.clone(), None, None, None, None);
+        let mut next_node: Vec<NodeId<FromNodeId>> = vec![root];
+        while !next_root.is_empty() {
+            let next_tree = next_root.pop().unwrap();
+            root = next_node.pop().unwrap();
+            for child in next_tree.children.clone() {
+                let node = arena.new_node(child.ty.clone(),
+                                          child.label.clone(),
+                                          None,
+                                          None,
+                                          None,
+                                          None);
+                node.make_child_of(root, &mut arena).ok();
+                next_root.push(child);
+                next_node.push(node);
+            }
+        }
+        arena
+    }
+
+    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// To use this as a destination parse tree, use the `From` trait:
+    ///  ```
+    ///     let mult = create_mult_arena();
+    ///     ... Arena::<&'static str, ToNodeId>::from(mult) ...
+    /// ```
+    pub fn create_mult_arena() -> Arena<String, FromNodeId> {
+        let xml = "<Tree ty=\"Expr\" label=\"+\">
+        <Tree ty=\"INT\" label=\"1\"/>
+        <Tree ty=\"Expr\" label=\"*\">
+            <Tree ty=\"INT\" label=\"3\"/>
+            <Tree ty=\"INT\" label=\"4\"/>
+        </Tree>
+    </Tree>
+    ";
+        let arena = load_xml_ast(xml);
+        let expected_format = "\"Expr\" +
+  \"INT\" 1
+  \"Expr\" *
+    \"INT\" 3
+    \"INT\" 4
+";
+        assert_eq!(expected_format, format!("{:?}", arena));
+        arena
+    }
+
+    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// To use this as a destination parse tree, use the `From` trait:
+    ///  ```
+    ///     let plus = create_plus_arena();
+    ///     ... Arena::<&'static str, ToNodeId>::from(plus) ...
+    /// ```
+    pub fn create_plus_arena() -> Arena<String, FromNodeId> {
+        let xml = "<Tree ty=\"Expr\" label=\"+\">
+        <Tree ty=\"INT\" label=\"3\"/>
+        <Tree ty=\"INT\" label=\"4\"/>
+    </Tree>
+    ";
+        let arena = load_xml_ast(xml);
+        let expected_format = "\"Expr\" +
+  \"INT\" 3
+  \"INT\" 4
+";
+        assert_eq!(expected_format, format!("{:?}", arena));
+        arena
+    }
+
+    #[test]
+    fn load_xml0() {
+        let xml = "<Tree ty=\"0\" label=\"a\"></Tree>";
+        let expected = Tree { ty: String::from("0"),
+                              label: String::from("a"),
+                              children: vec![] };
+        assert_eq!(expected, load_xml_tree(xml));
+    }
+
+    #[test]
+    fn load_xml1() {
+        let xml = "<Tree ty=\"0\" label=\"a\">
+        <Tree ty=\"0\" label=\"b\"/></Tree>
+    </Tree>
+    ";
+        let expected = Tree { ty: "0".to_string(),
+                              label: "a".to_string(),
+                              children: vec![Tree { ty: "0".to_string(),
+                                                    label: "b".to_string(),
+                                                    children: vec![] }] };
+        assert_eq!(expected, load_xml_tree(xml));
+    }
+
+    #[test]
+    fn load_xml2() {
+        let xml = "<Tree ty=\"0\" label=\"a\">
+        <Tree ty=\"0\" label=\"b\"/>
+        <Tree ty=\"0\" label=\"c\">
+            <Tree ty=\"0\" label=\"d\"/>
+            <Tree ty=\"0\" label=\"e\"/>
+            <Tree ty=\"0\" label=\"f\"/>
+        </Tree>
+    </Tree>
+    ";
+        let expected =
+            Tree { ty: "0".to_string(),
+                   label: "a".to_string(),
+                   children: vec![Tree { ty: "0".to_string(),
+                                         label: "b".to_string(),
+                                         children: vec![] },
+                                  Tree { ty: "0".to_string(),
+                                         label: "c".to_string(),
+                                         children: vec![Tree { ty: "0".to_string(),
+                                                               label: "d".to_string(),
+                                                               children: vec![] },
+                                                        Tree { ty: "0".to_string(),
+                                                               label: "e".to_string(),
+                                                               children: vec![] },
+                                                        Tree { ty: "0".to_string(),
+                                                               label: "f".to_string(),
+                                                               children: vec![] }] }] };
+        assert_eq!(expected, load_xml_tree(xml));
+    }
+
+    #[test]
+    fn convert_arena0() {
+        let xml = "<Tree ty=\"0\" label=\"a\"></Tree>";
+        let tree = load_xml_tree(xml);
+        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
+        assert_eq!(format!("{:?}", arena), format!("{:?}", tree_to_arena(tree)));
+    }
+
+    #[test]
+    fn convert_arena1() {
+        let xml = "<Tree ty=\"0\" label=\"a\">
+        <Tree ty=\"0\" label=\"b\"/></Tree>
+    </Tree>
+    ";
+        let tree = load_xml_tree(xml);
+        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let root = arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
+        let b = arena.new_node("0".to_string(), "b".to_string(), None, None, None, None);
+        b.make_child_of(root, &mut arena).unwrap();
+        assert_eq!(format!("{:?}", arena), format!("{:?}", tree_to_arena(tree)));
+    }
+
+    #[test]
+    fn convert_arena2() {
+        let xml = "<Tree ty=\"0\" label=\"a\">
+        <Tree ty=\"0\" label=\"b\"/>
+        <Tree ty=\"0\" label=\"c\">
+            <Tree ty=\"0\" label=\"d\"/>
+            <Tree ty=\"0\" label=\"e\"/>
+            <Tree ty=\"0\" label=\"f\"/>
+        </Tree>
+    </Tree>
+    ";
+        let tree = load_xml_tree(xml);
+        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let a = arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
+        let b = arena.new_node("0".to_string(), "b".to_string(), None, None, None, None);
+        b.make_child_of(a, &mut arena).unwrap();
+        let c = arena.new_node("0".to_string(), "c".to_string(), None, None, None, None);
+        c.make_child_of(a, &mut arena).unwrap();
+        let d = arena.new_node("0".to_string(), "d".to_string(), None, None, None, None);
+        d.make_child_of(c, &mut arena).unwrap();
+        let e = arena.new_node("0".to_string(), "e".to_string(), None, None, None, None);
+        e.make_child_of(c, &mut arena).unwrap();
+        let f = arena.new_node("0".to_string(), "f".to_string(), None, None, None, None);
+        f.make_child_of(c, &mut arena).unwrap();
+        assert_eq!(format!("{:?}", arena), format!("{:?}", tree_to_arena(tree)));
+    }
+}

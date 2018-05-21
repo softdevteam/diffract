@@ -57,7 +57,7 @@ pub enum ArenaError {
     /// Two node ids were unexpectedly identical.
     NodeIdsAreIdentical,
     /// Node has too many children.
-    NodeHasTooManyChildren,
+    NodeHasTooManyChildren
 }
 
 /// Result type returned by AST operations.
@@ -77,7 +77,7 @@ pub enum FromOrToNodeId {
     /// Id for a `from` node.
     FromNodeId(NodeId<FromNodeId>),
     /// Id for a `to` node.
-    ToNodeId(NodeId<ToNodeId>),
+    ToNodeId(NodeId<ToNodeId>)
 }
 
 /// A node identifier used for indexing nodes within a particular `Arena`.
@@ -87,7 +87,7 @@ pub enum FromOrToNodeId {
 #[derive(Clone, Copy, Eq, Hash, PartialEq, PartialOrd)]
 pub struct NodeId<T: PartialEq + Copy> {
     index: usize,
-    phantom: PhantomData<T>,
+    phantom: PhantomData<T>
 }
 
 impl<T: PartialEq + Copy> fmt::Display for NodeId<T> {
@@ -107,13 +107,13 @@ pub type EdgeId<T> = (NodeId<T>, NodeId<T>);
 #[derive(Clone)]
 pub struct Arena<T: Clone, U: PartialEq + Copy> {
     nodes: Vec<Node<T, U>>,
-    root: Option<NodeId<U>>,
+    root: Option<NodeId<U>>
 }
 
 impl<T: Clone, U: PartialEq + Copy> Default for Arena<T, U> {
     fn default() -> Arena<T, U> {
         Arena { nodes: Vec::new(),
-                root: None, }
+                root: None }
     }
 }
 
@@ -140,7 +140,7 @@ impl<T: Clone + PartialEq> From<Arena<T, ToNodeId>> for Arena<T, FromNodeId> {
                            .map(|node| Node::<T, FromNodeId>::from(node))
                            .collect();
         Arena { nodes: coerced,
-                root: arena.root().map(|id| NodeId::<FromNodeId>::from(id)), }
+                root: arena.root().map(|id| NodeId::<FromNodeId>::from(id)) }
     }
 }
 
@@ -153,7 +153,7 @@ impl<T: Clone + PartialEq> From<Arena<T, FromNodeId>> for Arena<T, ToNodeId> {
                            .map(|node| Node::<T, ToNodeId>::from(node))
                            .collect();
         Arena { nodes: coerced,
-                root: arena.root().map(|id| NodeId::<ToNodeId>::from(id)), }
+                root: arena.root().map(|id| NodeId::<ToNodeId>::from(id)) }
     }
 }
 
@@ -274,7 +274,7 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
             let node = &self.nodes[index];
             match node.parent {
                 None => (),
-                Some(par) => edges.push((par, NodeId::<U>::new(index))),
+                Some(par) => edges.push((par, NodeId::<U>::new(index)))
             }
         }
         edges
@@ -309,7 +309,7 @@ impl<T: fmt::Debug + Clone, U: PartialEq + Copy> fmt::Debug for Arena<T, U> {
                     }
                     match self.nodes[current_child.index].previous_sibling {
                         None => break,
-                        Some(id) => current_child = id,
+                        Some(id) => current_child = id
                     };
                 }
             }
@@ -359,7 +359,7 @@ pub struct Node<T: Clone, U: PartialEq + Copy> {
     /// The length of the token this node represents in the original file.
     ///
     /// `None` if this node represents some non-terminal node in the grammar.
-    pub token_len: Option<usize>,
+    pub token_len: Option<usize>
 }
 
 #[cfg(test)]
@@ -381,7 +381,7 @@ impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
                                 line_no: node.line_no,
                                 char_no: node.char_no,
                                 token_len: node.token_len,
-                                hash: node.hash, }
+                                hash: node.hash }
     }
 }
 
@@ -404,7 +404,7 @@ impl<T: Clone> From<Node<T, FromNodeId>> for Node<T, ToNodeId> {
                               line_no: node.line_no,
                               char_no: node.char_no,
                               token_len: node.token_len,
-                              hash: node.hash, }
+                              hash: node.hash }
     }
 }
 
@@ -429,7 +429,7 @@ impl<T: Clone, U: PartialEq + Copy> Node<T, U> {
                line_no,
                char_no,
                token_len,
-               hash: None, }
+               hash: None }
     }
 
     /// Return the Id of the parent node, if there is one.
@@ -493,7 +493,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// Create a new NodeId with a given index.
     pub fn new(index: usize) -> NodeId<U> {
         NodeId { index,
-                 phantom: PhantomData, }
+                 phantom: PhantomData }
     }
 
     /// Return the index of this Node Id.
@@ -744,13 +744,13 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
         Children { arena,
-                   node: arena[self].first_child, }
+                   node: arena[self].first_child }
     }
 
     /// Return an iterator of references to this node’s children, in reverse order.
     pub fn reverse_children<T: Clone>(self, arena: &Arena<T, U>) -> ReverseChildren<T, U> {
         ReverseChildren { arena,
-                          node: arena[self].last_child, }
+                          node: arena[self].last_child }
     }
 
     /// Return a breadth-first iterator of references to this node's descendants.
@@ -768,7 +768,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
         stack1.push_front(self);
         PostOrderTraversal { arena,
                              stack1,
-                             stack2: VecDeque::new(), }
+                             stack2: VecDeque::new() }
     }
 
     /// Return a pre-order iterator of references to this node's descendants.
@@ -808,14 +808,14 @@ macro_rules! impl_node_iterator {
 /// An iterator of references to the children of a given node.
 pub struct Children<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
-    node: Option<NodeId<U>>,
+    node: Option<NodeId<U>>
 }
 impl_node_iterator!(Children, |node: &Node<T, U>| node.next_sibling);
 
 /// An iterator of references to the children of a given node.
 pub struct ReverseChildren<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
-    node: Option<NodeId<U>>,
+    node: Option<NodeId<U>>
 }
 impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| {
     node.previous_sibling
@@ -824,7 +824,7 @@ impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| {
 /// A breadth-first iterator of references to the descendants of a given node.
 pub struct BreadthFirstTraversal<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
-    queue: VecDeque<NodeId<U>>,
+    queue: VecDeque<NodeId<U>>
 }
 
 impl<'a, T: Clone, U: PartialEq + Copy> Iterator for BreadthFirstTraversal<'a, T, U> {
@@ -837,7 +837,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for BreadthFirstTraversal<'a, T
                 }
                 Some(node)
             }
-            None => None,
+            None => None
         }
     }
 }
@@ -846,7 +846,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for BreadthFirstTraversal<'a, T
 pub struct PostOrderTraversal<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
     stack1: VecDeque<NodeId<U>>,
-    stack2: VecDeque<NodeId<U>>,
+    stack2: VecDeque<NodeId<U>>
 }
 
 impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PostOrderTraversal<'a, T, U> {
@@ -867,7 +867,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PostOrderTraversal<'a, T, U
 /// A pre-order iterator of references to the descendants of a given node.
 pub struct PreOrderTraversal<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
-    stack: VecDeque<NodeId<U>>,
+    stack: VecDeque<NodeId<U>>
 }
 
 impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PreOrderTraversal<'a, T, U> {
@@ -887,6 +887,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PreOrderTraversal<'a, T, U>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_common::create_mult_arena;
 
     #[test]
     fn from_trait_node_ids() {
@@ -928,25 +929,11 @@ mod tests {
                    coerced_to.next_sibling());
     }
 
-    fn create_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::<&str, FromNodeId>::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n4.make_child_of(n2, &mut arena).unwrap();
-        arena
-    }
-
     #[test]
     fn from_trait_arenas() {
-        let from_arena = create_arena();
-        let coerced_to_arena = Arena::<&str, ToNodeId>::from(from_arena.clone());
-        let coerced_from_arena = Arena::<&str, FromNodeId>::from(coerced_to_arena.clone());
+        let from_arena = create_mult_arena();
+        let coerced_to_arena = Arena::<String, ToNodeId>::from(from_arena.clone());
+        let coerced_from_arena = Arena::<String, FromNodeId>::from(coerced_to_arena.clone());
         let format = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1075,7 +1062,7 @@ mod tests {
 
     #[test]
     fn make_child_of_1() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n1 = NodeId::new(1);
         let n2 = NodeId::new(2);
@@ -1293,7 +1280,7 @@ mod tests {
 
     #[test]
     fn get_edges_3() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let edges: Vec<EdgeId<FromNodeId>> = vec![(NodeId::new(0), NodeId::new(1)),
                                                   (NodeId::new(0), NodeId::new(2)),
                                                   (NodeId::new(2), NodeId::new(3)),
@@ -1303,7 +1290,7 @@ mod tests {
 
     #[test]
     fn detach_1() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let root = NodeId::new(0);
         let first_format = "\"Expr\" +
   \"INT\" 1
@@ -1319,7 +1306,7 @@ mod tests {
 
     #[test]
     fn detach_2() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let n2 = NodeId::new(2);
         let first_format = "\"Expr\" +
   \"INT\" 1
@@ -1337,14 +1324,14 @@ mod tests {
 
     #[test]
     fn children_iterator() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 1,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       NodeId { index: 2,
-                                                               phantom: PhantomData, }];
+                                                               phantom: PhantomData }];
         let root_child_ids = root.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
@@ -1352,9 +1339,9 @@ mod tests {
         }
         // Children of n2.
         let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       NodeId { index: 4,
-                                                               phantom: PhantomData, }];
+                                                               phantom: PhantomData }];
         let n2_child_ids = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
@@ -1364,13 +1351,13 @@ mod tests {
 
     #[test]
     fn children_iterator_with_add_delete() {
-        let mut arena = create_arena();
+        let mut arena = create_mult_arena();
         let n2 = NodeId::new(2);
         // Children of n2.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       NodeId { index: 4,
-                                                               phantom: PhantomData, }];
+                                                               phantom: PhantomData }];
         let n2_child_ids = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), n2_child_ids.len());
         for index in 0..expected1.len() {
@@ -1382,10 +1369,10 @@ mod tests {
         assert_eq!(1, n2_child_ids_del.len());
         assert_eq!(n2_child_ids[0], NodeId::new(3));
         // Add a new node.
-        let n5 = arena.new_node("INT", String::from("100"), None, None, None, None);
+        let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
         n5.make_child_of(n2, &mut arena).unwrap();
         let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       n5];
         let n2_child_ids_add = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids_add.len());
@@ -1393,10 +1380,10 @@ mod tests {
             assert_eq!(expected2[index], n2_child_ids_add[index]);
         }
         // Add a new node as nth child.
-        let n6 = arena.new_node("INT", String::from("-99"), None, None, None, None);
+        let n6 = arena.new_node("INT".to_string(), "-99".to_string(), None, None, None, None);
         n6.make_nth_child_of(n2, 1, &mut arena).unwrap();
         let expected3: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 3,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       n6,
                                                       n5];
         let n2_child_ids_nth = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
@@ -1405,11 +1392,11 @@ mod tests {
             assert_eq!(expected3[index], n2_child_ids_nth[index]);
         }
         // Add a new node as 0th child.
-        let n7 = arena.new_node("INT", String::from("-1"), None, None, None, None);
+        let n7 = arena.new_node("INT".to_string(), "-1".to_string(), None, None, None, None);
         n7.make_nth_child_of(n2, 0, &mut arena).unwrap();
         let expected4: Vec<NodeId<FromNodeId>> = vec![n7,
                                                       NodeId { index: 3,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       n6,
                                                       n5];
         let n2_child_ids_0th = n2.children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
@@ -1422,14 +1409,14 @@ mod tests {
 
     #[test]
     fn reverse_children_iterator() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let root = NodeId::new(0);
         let n2 = NodeId::new(2);
         // Children of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 2,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       NodeId { index: 1,
-                                                               phantom: PhantomData, }];
+                                                               phantom: PhantomData }];
         let root_child_ids = root.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
@@ -1437,9 +1424,9 @@ mod tests {
         }
         // Children of n2.
         let expected2: Vec<NodeId<FromNodeId>> = vec![NodeId { index: 4,
-                                                               phantom: PhantomData, },
+                                                               phantom: PhantomData },
                                                       NodeId { index: 3,
-                                                               phantom: PhantomData, }];
+                                                               phantom: PhantomData }];
         let n2_child_ids = n2.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
@@ -1449,7 +1436,7 @@ mod tests {
 
     #[test]
     fn breadth_first_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(0),
                                                       NodeId::new(1),
@@ -1475,7 +1462,7 @@ mod tests {
 
     #[test]
     fn post_order_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(1),
                                                       NodeId::new(3),
@@ -1501,7 +1488,7 @@ mod tests {
 
     #[test]
     fn pre_order_traversal() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(0),
                                                       NodeId::new(1),
@@ -1527,7 +1514,7 @@ mod tests {
 
     #[test]
     fn descendants() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         // Descendants  of root.
         let expected1: Vec<NodeId<FromNodeId>> = vec![NodeId::new(1),
                                                       NodeId::new(2),
@@ -1555,7 +1542,7 @@ mod tests {
         let n1 = arena.new_node("1", String::from("INT"), None, None, None, None);
         assert!(arena.contains(n1));
         assert!(!arena.contains(NodeId { index: 1,
-                                         phantom: PhantomData, }));
+                                         phantom: PhantomData }));
     }
 
     #[test]
@@ -1586,7 +1573,7 @@ mod tests {
 
     #[test]
     fn height() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1603,7 +1590,7 @@ mod tests {
 
     #[test]
     fn size_on_nodeid() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         let format1 = "\"Expr\" +
   \"INT\" 1
   \"Expr\" *
@@ -1620,7 +1607,7 @@ mod tests {
 
     #[test]
     fn get_child_position() {
-        let arena = create_arena();
+        let arena = create_mult_arena();
         assert_eq!(None, NodeId::new(0).get_child_position(&arena));
         assert_eq!(Some(0), NodeId::new(1).get_child_position(&arena));
         assert_eq!(Some(1), NodeId::new(2).get_child_position(&arena));

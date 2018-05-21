@@ -52,14 +52,14 @@ pub struct GumTreeConfig {
     pub min_dice: f32,
 
     /// Only consider sub-trees for matching if they have a height `< MIN_HEIGHT`.
-    pub min_height: u16,
+    pub min_height: u16
 }
 
 impl Default for GumTreeConfig {
     fn default() -> GumTreeConfig {
         GumTreeConfig { max_size: 100,
                         min_dice: 0.3,
-                        min_height: 2, }
+                        min_height: 2 }
     }
 }
 

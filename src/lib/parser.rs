@@ -64,18 +64,18 @@ pub enum ParseError {
     /// File contained lexical error and could not be lexed.
     LexicalError,
     /// File contained syntax error and could not be parsed.
-    SyntaxError,
+    SyntaxError
 }
 
 /// Given a filename (with extension), return a suitable lex file.
 pub fn get_lexer(path: &str) -> PathBuf {
     let ext = match Path::new(&path).extension() {
         Some(ext) => ext.to_str().unwrap(),
-        None => ".txt",
+        None => ".txt"
     };
     match ext {
         "java" | "calc" => canonicalize(format!("grammars/{}.l", ext)).unwrap(),
-        _ => canonicalize("grammars/txt.l".to_string()).unwrap(),
+        _ => canonicalize("grammars/txt.l".to_string()).unwrap()
     }
 }
 
@@ -83,11 +83,11 @@ pub fn get_lexer(path: &str) -> PathBuf {
 pub fn get_parser(path: &str) -> PathBuf {
     let ext = match Path::new(&path).extension() {
         Some(ext) => ext.to_str().unwrap(),
-        None => ".txt",
+        None => ".txt"
     };
     match ext {
         "java" | "calc" => canonicalize(format!("grammars/{}.y", ext)).unwrap(),
-        _ => canonicalize("grammars/txt.y".to_string()).unwrap(),
+        _ => canonicalize("grammars/txt.y".to_string()).unwrap()
     }
 }
 
@@ -179,7 +179,7 @@ fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16>,
                 };
             }
             parser::Node::Nonterm { nonterm_idx,
-                                    ref nodes, } => {
+                                    ref nodes } => {
                 // A non-terminal has no label of its own, but has a node type.
                 child_node = arena.new_node(grm.nonterm_name(nonterm_idx).to_string(),
                                             "".to_string(),

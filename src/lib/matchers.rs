@@ -62,7 +62,7 @@ pub enum MappingType {
     /// A mapping added by the algorithm that generates the edit script.
     ///
     /// See Chawathe et al. (1996).
-    EDIT,
+    EDIT
 }
 
 impl Default for MappingType {
@@ -86,7 +86,7 @@ pub struct MappingStore<T: Clone + Debug + ToString> {
     /// Source arena (treat as mutable).
     pub from_arena: RefCell<Arena<T, FromNodeId>>,
     /// Destination arena (treat as immutable).
-    pub to_arena: RefCell<Arena<T, ToNodeId>>,
+    pub to_arena: RefCell<Arena<T, ToNodeId>>
 }
 
 impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
@@ -114,7 +114,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         MappingStore { from: RefCell::new(HashMap::new()),
                        to: RefCell::new(HashMap::new()),
                        from_arena: RefCell::new(base),
-                       to_arena: RefCell::new(diff), }
+                       to_arena: RefCell::new(diff) }
     }
 
     /// Push a new mapping into the store.
@@ -261,52 +261,17 @@ pub fn has_same_type<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn create_mult_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("1"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("Expr", String::from("*"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let n3 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n3.make_child_of(n2, &mut arena).unwrap();
-        let n4 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n4.make_child_of(n2, &mut arena).unwrap();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
-";
-        assert_eq!(format1, format!("{:?}", arena));
-        arena
-    }
-
-    fn create_plus_arena() -> Arena<&'static str, FromNodeId> {
-        let mut arena = Arena::new();
-        let root = arena.new_node("Expr", String::from("+"), None, None, None, None);
-        let n1 = arena.new_node("INT", String::from("3"), None, None, None, None);
-        n1.make_child_of(root, &mut arena).unwrap();
-        let n2 = arena.new_node("INT", String::from("4"), None, None, None, None);
-        n2.make_child_of(root, &mut arena).unwrap();
-        let format1 = "\"Expr\" +
-  \"INT\" 3
-  \"INT\" 4
-";
-        assert_eq!(format1, format!("{:?}", arena));
-        arena
-    }
+    use test_common::{create_mult_arena, create_plus_arena};
 
     #[test]
     fn is_isomorphic() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store_p = MappingStore::new(plus.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(plus.clone()));
-        let store_m = MappingStore::new(mult.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store_p =
+            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+        let store_m =
+            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -329,11 +294,11 @@ mod tests {
     fn is_isomorphic_hash() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store_p = MappingStore::new(plus.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(plus.clone()));
-        let store_m = MappingStore::new(mult.clone(),
-                                        Arena::<&'static str, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store_p =
+            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+        let store_m =
+            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -356,7 +321,7 @@ mod tests {
     fn is_mapping_allowed() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
@@ -378,7 +343,7 @@ mod tests {
     fn is_mapped() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
@@ -403,7 +368,7 @@ mod tests {
         let plus = create_plus_arena();
         let mult = create_mult_arena();
         let matcher = MyersConfig::new();
-        let store = matcher.match_trees(plus, Arena::<&'static str, ToNodeId>::from(mult));
+        let store = matcher.match_trees(plus, Arena::<String, ToNodeId>::from(mult));
         let expected_str = vec!["\"matches\": [",
                                 "{\n\"src\": 1,\n\"dest\": 3\n}",
                                 "{\n\"src\": 0,\n\"dest\": 0\n}",

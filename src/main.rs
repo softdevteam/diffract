@@ -107,26 +107,26 @@ enum DebugLevel {
     Error,
     Info,
     Trace,
-    Warn,
+    Warn
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
 enum EditScriptGenerator {
     Chawathe96, // Default.
-    Chawathe98,
+    Chawathe98
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
 enum Matchers {
     GumTree, // Default.
-    Myers,
+    Myers
 }
 
 #[derive(Debug, Eq, PartialEq, RustcDecodable)]
 enum Output {
     Terminal, // Default.
     JSON,
-    None,
+    None
 }
 
 #[derive(RustcDecodable, Debug)]
@@ -147,7 +147,7 @@ struct Args {
     flag_min_height: Option<u16>,
     flag_output: Option<Output>,
     flag_store: Option<String>,
-    flag_version: bool,
+    flag_version: bool
 }
 
 fn exit_with_message(message: &str) -> ! {
@@ -162,7 +162,7 @@ fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
             CouldNotCreateFile => "create",
             CouldNotWriteToFile => "write to",
             CouldNotOpenFile => "open",
-            CouldNotReadFile => "read from",
+            CouldNotReadFile => "read from"
         };
         exit_with_message(&format!("Could not {} file {}.", action, filepath));
     }
@@ -180,7 +180,7 @@ fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
             &s
         }
         NodeHasTooManyChildren => "Could not create edit script, NodeId had more than one child.",
-        NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical.",
+        NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical."
     };
     exit_with_message(message);
 }
@@ -253,7 +253,7 @@ fn parse_file<T: Copy + PartialEq>(filename: &str,
             BrokenParser => format!("Could not build parser {:?}.", yacc_path),
             LexicalError => format!("Lexical error in {}.", filename),
             SyntaxError => format!("Syntax error in {}.", filename),
-            _ => format!("Error parsing {}.", filename),
+            _ => format!("Error parsing {}.", filename)
         }
     };
     parser::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
@@ -288,14 +288,12 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     // TODO: create a HashMap of file extensions -> lex/yacc files.
     match env::current_exe() {
         Ok(p) => p,
-        Err(_) => exit_with_message("Cannot determine which directory the executable is in."),
+        Err(_) => exit_with_message("Cannot determine which directory the executable is in.")
     };
 
     match Path::new(&args.arg_base_file).extension() {
         Some(_) => (),
-        None => {
-            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
-        }
+        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
     };
     // Lexer path for first input file.
     let lexer1 = if !args.flag_grammar.is_empty() {
@@ -320,9 +318,7 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 
     match Path::new(&args.arg_diff_file).extension() {
         Some(_) => (),
-        None => {
-            exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
-        }
+        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
     };
     // Lexer path for second input file.
     let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
@@ -478,7 +474,7 @@ fn main() {
 
     let edit_script = match generator_config.generate_script(&store) {
         Ok(script) => script,
-        Err(err) => consume_edit_script_err(&err),
+        Err(err) => consume_edit_script_err(&err)
     };
 
     if args.flag_store.is_some() {
