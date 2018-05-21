@@ -51,7 +51,7 @@ use ast::{Arena, NodeId};
 #[derive(Clone, Eq, PartialEq)]
 struct PriorityNodeId<T: PartialEq + Copy> {
     index: NodeId<T>,
-    height: u32,
+    height: u32
 }
 
 impl<T: PartialEq + Copy> PriorityNodeId<T> {
@@ -83,7 +83,7 @@ impl<T: Eq + PartialEq + Copy> PartialOrd for PriorityNodeId<T> {
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 #[derive(Clone, Eq, PartialEq)]
 pub struct HeightQueue<T: PartialEq + Copy> {
-    queue: Vec<PriorityNodeId<T>>, // Use Vec so we can call `sort()`.
+    queue: Vec<PriorityNodeId<T>> // Use Vec so we can call `sort()`.
 }
 
 impl<T: PartialEq + Copy> Default for HeightQueue<T> {

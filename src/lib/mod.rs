@@ -139,7 +139,7 @@ pub mod test_common {
         #[serde(deserialize_with = "to_string")]
         ty: String,
         #[serde(rename = "Tree", default)]
-        children: Vec<Tree>,
+        children: Vec<Tree>
     }
 
     /// Load an AST from an XML string.
@@ -233,7 +233,7 @@ pub mod test_common {
         let xml = "<Tree ty=\"0\" label=\"a\"></Tree>";
         let expected = Tree { ty: String::from("0"),
                               label: String::from("a"),
-                              children: vec![], };
+                              children: vec![] };
         assert_eq!(expected, load_xml_tree(xml));
     }
 
@@ -247,7 +247,7 @@ pub mod test_common {
                               label: "a".to_string(),
                               children: vec![Tree { ty: "0".to_string(),
                                                     label: "b".to_string(),
-                                                    children: vec![], }], };
+                                                    children: vec![] }] };
         assert_eq!(expected, load_xml_tree(xml));
     }
 
@@ -267,18 +267,18 @@ pub mod test_common {
                    label: "a".to_string(),
                    children: vec![Tree { ty: "0".to_string(),
                                          label: "b".to_string(),
-                                         children: vec![], },
+                                         children: vec![] },
                                   Tree { ty: "0".to_string(),
                                          label: "c".to_string(),
                                          children: vec![Tree { ty: "0".to_string(),
                                                                label: "d".to_string(),
-                                                               children: vec![], },
+                                                               children: vec![] },
                                                         Tree { ty: "0".to_string(),
                                                                label: "e".to_string(),
-                                                               children: vec![], },
+                                                               children: vec![] },
                                                         Tree { ty: "0".to_string(),
                                                                label: "f".to_string(),
-                                                               children: vec![], }], }], };
+                                                               children: vec![] }] }] };
         assert_eq!(expected, load_xml_tree(xml));
     }
 

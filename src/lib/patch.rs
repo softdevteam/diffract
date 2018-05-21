@@ -53,7 +53,7 @@ const DIST_THRESHOLD: u64 = 3 * 80;
 pub struct Patch {
     action: ActionType,
     start: usize,
-    length: usize,
+    length: usize
 }
 
 impl Patch {
@@ -61,7 +61,7 @@ impl Patch {
     pub fn new(action: ActionType, start: usize, length: usize) -> Patch {
         Patch { action,
                 start,
-                length, }
+                length }
     }
 
     /// Character number where this patch begins in the original file.
@@ -95,7 +95,7 @@ impl Patch {
 pub struct Hunk {
     patches: Vec<Patch>,
     start: usize,
-    length: usize,
+    length: usize
 }
 
 impl Hunk {
@@ -103,7 +103,7 @@ impl Hunk {
     pub fn new(patch: &Patch) -> Hunk {
         Hunk { patches: vec![patch.clone()],
                start: patch.start,
-               length: patch.length, }
+               length: patch.length }
     }
 
     fn end(&self) -> usize {

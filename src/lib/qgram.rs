@@ -53,14 +53,14 @@ const DEFAULT_PADDING: char = REPLACEMENT_CHARACTER;
 struct QGram {
     q: u32,
     filter: bool,
-    padding: String,
+    padding: String
 }
 
 impl QGram {
     fn new(q: u32, padding: String) -> QGram {
         QGram { q,
                 filter: false,
-                padding, }
+                padding }
     }
 
     fn compare<T: Clone + Eq + Hash>(&self, a: &HashMultiSet<T>, b: &HashMultiSet<T>) -> f64 {

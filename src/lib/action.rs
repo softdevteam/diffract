@@ -64,7 +64,7 @@ pub enum ActionType {
     /// Copy takes the node or subtree 'from tree' and and copies it into 'to tree'.
     COPY,
     /// GLUE takes a subtree/node 'from tree' and inserts it into 'to tree'
-    GLUE,
+    GLUE
 }
 
 /// Apply an action to an AST node.
@@ -114,7 +114,7 @@ pub trait Patchify<T: Clone + fmt::Debug + ToString> {
 /// `apply()` on each element.
 #[derive(Debug)]
 pub struct EditScript<T: fmt::Debug + PartialEq> {
-    actions: Vec<Box<ApplyAction<T>>>,
+    actions: Vec<Box<ApplyAction<T>>>
 }
 
 /// Delete a node from a given AST.
@@ -122,7 +122,7 @@ pub struct EditScript<T: fmt::Debug + PartialEq> {
 /// It is only valid to delete leaf nodes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Delete {
-    node: NodeId<FromNodeId>,
+    node: NodeId<FromNodeId>
 }
 
 /// Insert a new node into an AST as the `position`th child of an existing node.
@@ -132,7 +132,7 @@ pub struct Insert {
     node: NodeId<FromNodeId>,
     nth_child: u16,
     /// New parent in to-arena.
-    new_parent: Option<NodeId<FromNodeId>>,
+    new_parent: Option<NodeId<FromNodeId>>
 }
 
 /// Move a node from one place to another within an AST.
@@ -140,7 +140,7 @@ pub struct Insert {
 pub struct Move {
     from_node: NodeId<FromNodeId>,
     parent: NodeId<FromNodeId>,
-    pos: u16,
+    pos: u16
 }
 
 /// Update the data inside an AST node.
@@ -148,7 +148,7 @@ pub struct Move {
 pub struct Update<T: Clone + fmt::Debug> {
     node: NodeId<FromNodeId>,
     ty: T,
-    label: String,
+    label: String
 }
 
 /// Copy a subtree from one place to another with an AST.
@@ -156,7 +156,7 @@ pub struct Update<T: Clone + fmt::Debug> {
 pub struct Copy {
     from_node: NodeId<FromNodeId>,
     parent: NodeId<FromNodeId>,
-    pos: u16,
+    pos: u16
 }
 
 /// Glue a subtree from one place to another with an AST.
@@ -164,7 +164,7 @@ pub struct Copy {
 pub struct Glue {
     from_node: NodeId<FromNodeId>,
     node: NodeId<FromNodeId>,
-    pos: u16,
+    pos: u16
 }
 
 impl Delete {
@@ -182,7 +182,7 @@ impl Insert {
                -> Insert {
         Insert { node,
                  new_parent,
-                 nth_child, }
+                 nth_child }
     }
 }
 
@@ -191,7 +191,7 @@ impl Move {
     pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Move {
         Move { from_node,
                parent,
-               pos, }
+               pos }
     }
 }
 
@@ -207,7 +207,7 @@ impl Copy {
     pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Copy {
         Copy { from_node,
                parent,
-               pos, }
+               pos }
     }
 }
 
@@ -216,7 +216,7 @@ impl Glue {
     pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Glue {
         Glue { from_node: from,
                node: parent,
-               pos: position, }
+               pos: position }
     }
 }
 
@@ -241,7 +241,7 @@ impl RenderJson for Insert {
         json.push(format!("{}\"tree\": {},", &ind_s, self.node.id()));
         match self.new_parent {
             Some(ref p) => json.push(format!("{}\"parent\": {},", &ind_s, p.id())),
-            None => json.push(format!("{}\"parent\": {},", &ind_s, "")),
+            None => json.push(format!("{}\"parent\": {},", &ind_s, ""))
         }
         json.push(format!("{}\"at\": {}", &ind_s, self.nth_child));
         json.push(" ".repeat(indent) + "}");
@@ -503,7 +503,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Inser
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
         match self.new_parent {
             Some(p) => self.node.make_nth_child_of(p, self.nth_child, arena),
-            None => arena.new_root(self.node),
+            None => arena.new_root(self.node)
         }
     }
     impl_compare!();
@@ -826,14 +826,14 @@ mod test {
         // Create action list.
         let mut actions: EditScript<String> = EditScript::new();
         assert!(actions.is_empty());
-        let del = Delete { node: NodeId::new(4), }; // Remove "4".
+        let del = Delete { node: NodeId::new(4) }; // Remove "4".
         let ins = Insert { node: n5,
                            new_parent: Some(NodeId::new(2)),
-                           nth_child: 0, };
+                           nth_child: 0 };
         let upd = Update { // Change "+" to "*".
                            node: NodeId::new(0),
                            ty: "Expr".to_string(),
-                           label: "*".to_string(), };
+                           label: "*".to_string() };
         actions.push(del);
         actions.push(ins);
         actions.push(upd);
@@ -883,14 +883,14 @@ mod test {
         let n7 = arena2.new_node("INT".to_string(), "2".to_string(), None, None, None, None);
         let mut actions2: EditScript<String> = EditScript::new();
         assert!(actions2.is_empty());
-        let del3 = Delete { node: NodeId::new(4), }; // Remove "4".
+        let del3 = Delete { node: NodeId::new(4) }; // Remove "4".
         let ins3 = Insert { node: n7,
                             new_parent: Some(NodeId::new(2)),
-                            nth_child: 0, };
+                            nth_child: 0 };
         let upd2 = Update { // Change "+" to "*".
                             node: NodeId::new(0),
                             ty: "Expr".to_string(),
-                            label: "*".to_string(), };
+                            label: "*".to_string() };
         actions2.push(del3);
         actions2.push(ins3);
         actions2.push(upd2);
@@ -951,7 +951,7 @@ mod test {
         \"tree\": 0,
         \"label\": \"*\"
     }
-]",
+]"
         );
         assert_eq!(expected, actions.render_json(0));
     }

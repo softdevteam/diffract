@@ -74,7 +74,7 @@ pub enum EdgeType {
     /// Edge corresponds to a NULL operation.
     NULL,
     /// Edge corresponds to a OK operation.
-    OK,
+    OK
 }
 
 /// The initial cost of each edge
@@ -95,7 +95,7 @@ pub struct CostEdge {
     /// Edge corresponds to a NULL cost operation.
     pub null: usize,
     /// Edge corresponds to a OK cost operation.
-    pub ok: usize,
+    pub ok: usize
 }
 
 /// This shows the Cost Edge Struct where the user can define the cost of different edge type.
@@ -118,7 +118,7 @@ impl CostEdge {
                    copy,
                    glue,
                    null,
-                   ok, }
+                   ok }
     }
 }
 
@@ -132,7 +132,7 @@ pub struct Edge {
     /// The value of the edge
     pub value: usize,
     /// The edge type
-    pub edge_type: EdgeType,
+    pub edge_type: EdgeType
 }
 
 impl Edge {
@@ -145,7 +145,7 @@ impl Edge {
         Edge { from_node,
                to_node,
                value,
-               edge_type, }
+               edge_type }
     }
 }
 
@@ -172,7 +172,7 @@ pub struct MappingStoreGraph<T: Clone + Debug> {
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `from_map`.
-    pub to: RefCell<NodeAndEdgeType<ToNodeId, FromNodeId>>,
+    pub to: RefCell<NodeAndEdgeType<ToNodeId, FromNodeId>>
 }
 
 impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
@@ -188,7 +188,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                             // which is cost the value of 1.
                             all_edge_cost: CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1),
                             from: RefCell::new(HashMap::new()),
-                            to: RefCell::new(HashMap::new()), }
+                            to: RefCell::new(HashMap::new()) }
     }
 
     /// Implementation of the update of the cost edge.

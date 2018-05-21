@@ -61,7 +61,7 @@ pub enum EmitterError {
     /// Could not read from a file.
     CouldNotReadFile,
     /// Could not open an existing file.
-    CouldNotOpenFile,
+    CouldNotOpenFile
 }
 
 /// Result returned by emitters.
@@ -251,11 +251,8 @@ fn escape_string(label: &str) -> String {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str,
-                                               graph: &T)
-                                               -> EmitterResult {
-    let mut stream =
-        File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
+pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
+    let mut stream = File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
     graph.render_dotfile(&mut stream)
          .map_err(|_| EmitterError::CouldNotWriteToFile)
 }
@@ -400,7 +397,7 @@ impl RenderDotfile for MappingStore<String> {
                 MappingType::ANCHOR => "[style=dashed, color=blue, ",
                 MappingType::CONTAINER => "[style=dashed, color=red, ",
                 MappingType::RECOVERY => "[style=dotted, color=green, ",
-                MappingType::EDIT => "[style=dotted, color=indigo, ",
+                MappingType::EDIT => "[style=dotted, color=indigo, "
             };
             line = format!("\t{{ rank=same FROM{} -> TO{}{}{}]; }}\n",
                            from.id(),
@@ -508,7 +505,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
                 EdgeType::COPY => "[style = dotted, color=purple, ",
                 EdgeType::GLUE => "[style = dotted, color=orange, ",
                 EdgeType::NULL => "[style = dotted, color=grey, ",
-                EdgeType::OK => "[style = dotted, color=brown, ",
+                EdgeType::OK => "[style = dotted, color=brown, "
             };
             line = format!("\t FROM{} -> TO{}{}{}]; \n",
                            edge.from_node.id(),

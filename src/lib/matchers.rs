@@ -62,7 +62,7 @@ pub enum MappingType {
     /// A mapping added by the algorithm that generates the edit script.
     ///
     /// See Chawathe et al. (1996).
-    EDIT,
+    EDIT
 }
 
 impl Default for MappingType {
@@ -86,7 +86,7 @@ pub struct MappingStore<T: Clone + Debug + ToString> {
     /// Source arena (treat as mutable).
     pub from_arena: RefCell<Arena<T, FromNodeId>>,
     /// Destination arena (treat as immutable).
-    pub to_arena: RefCell<Arena<T, ToNodeId>>,
+    pub to_arena: RefCell<Arena<T, ToNodeId>>
 }
 
 impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
@@ -114,7 +114,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         MappingStore { from: RefCell::new(HashMap::new()),
                        to: RefCell::new(HashMap::new()),
                        from_arena: RefCell::new(base),
-                       to_arena: RefCell::new(diff), }
+                       to_arena: RefCell::new(diff) }
     }
 
     /// Push a new mapping into the store.

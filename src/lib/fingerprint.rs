@@ -123,13 +123,13 @@ pub trait HashGenerator<T: Clone + Debug + Eq + Hash + ToString> {
 
 /// The md5 rolling hash generator from GumTree.
 pub struct Md5HashGenerator {
-    generator: Md5,
+    generator: Md5
 }
 
 impl Md5HashGenerator {
     /// Create a new md5 rolling hash generator.
     pub fn new() -> Md5HashGenerator {
-        Md5HashGenerator { generator: Md5::new(), }
+        Md5HashGenerator { generator: Md5::new() }
     }
 }
 
