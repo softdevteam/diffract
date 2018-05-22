@@ -148,7 +148,7 @@ pub mod test_common {
     /// To use the result as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let xmltree = load_xml_tree(...);
-    ///     ... Arena::<&'static str, ToNodeId>::from(xmltree) ...
+    ///     ... Arena::<String, ToNodeId>::from(xmltree) ...
     /// ```
     pub fn load_xml_ast(xml: &str) -> Arena<String, FromNodeId> {
         tree_to_arena(load_xml_tree(xml))
@@ -185,7 +185,7 @@ pub mod test_common {
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let mult = create_mult_arena();
-    ///     ... Arena::<&'static str, ToNodeId>::from(mult) ...
+    ///     ... Arena::<String, ToNodeId>::from(mult) ...
     /// ```
     pub fn create_mult_arena() -> Arena<String, FromNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
@@ -211,7 +211,7 @@ pub mod test_common {
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let plus = create_plus_arena();
-    ///     ... Arena::<&'static str, ToNodeId>::from(plus) ...
+    ///     ... Arena::<String, ToNodeId>::from(plus) ...
     /// ```
     pub fn create_plus_arena() -> Arena<String, FromNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
