@@ -734,6 +734,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
         Ok(())
     }
 
+    /// Return the nth child of this node, if one exists.
+    pub fn get_nth_child<T: Clone>(self, nth: usize, arena: &Arena<T, U>) -> Option<NodeId<U>> {
+        self.children(arena).nth(nth)
+    }
+
     /// If `self` is the *nth* child of its parent, return *n*.
     pub fn get_child_position<T: Clone>(self, arena: &Arena<T, U>) -> Option<usize> {
         arena[self].parent?
@@ -1199,6 +1204,22 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(format2, format!("{:?}", arena));
+    }
+
+    #[test]
+    fn get_nth_child() {
+        let arena = create_mult_arena();
+        let root = arena.root().unwrap();
+        assert_eq!(NodeId::new(1), root.get_nth_child(0, &arena).unwrap());
+        assert_eq!(NodeId::new(2), root.get_nth_child(1, &arena).unwrap());
+        assert_eq!(None, root.get_nth_child(2, &arena));
+        assert_eq!(None, NodeId::new(1).get_nth_child(0, &arena));
+        let times = NodeId::new(2);
+        assert_eq!(NodeId::new(3), times.get_nth_child(0, &arena).unwrap());
+        assert_eq!(NodeId::new(4), times.get_nth_child(1, &arena).unwrap());
+        assert_eq!(None, root.get_nth_child(5, &arena));
+        assert_eq!(None, NodeId::new(3).get_nth_child(0, &arena));
+        assert_eq!(None, NodeId::new(4).get_nth_child(0, &arena));
     }
 
     #[test]
