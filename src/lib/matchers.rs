@@ -117,6 +117,11 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
                        to_arena: RefCell::new(diff) }
     }
 
+    /// Return the number of mappings in this store.
+    pub fn size(&self) -> usize {
+        self.from.borrow().len()
+    }
+
     /// Push a new mapping into the store.
     pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &MappingType) {
         self.from.borrow_mut().insert(from, (to, ty.clone()));
@@ -333,6 +338,7 @@ mod tests {
         // Mapping already exists.
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
+        assert_eq!(2, store.size());
         assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
         assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
         assert!(!store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
@@ -348,6 +354,7 @@ mod tests {
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
         assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(4)));
+        assert_eq!(2, store.size());
         // Not mapped.
         assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(1)));
         assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(2)));
