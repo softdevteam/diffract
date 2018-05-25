@@ -254,6 +254,18 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
         false
     }
 
+    /// Return the id of the first leaf node in this arena, if there is one.
+    pub fn get_first_leaf(&self) -> Option<NodeId<U>> {
+        if let Some(mut node) = self.root {
+            while !node.is_leaf(self) {
+                node = node.children(self).collect::<Vec<NodeId<U>>>()[0]
+            }
+            Some(node)
+        } else {
+            None
+        }
+    }
+
     /// Return a queue of `NodeId`s sorted by height.
     pub fn get_priority_queue(&self) -> HeightQueue<U> {
         let mut queue = HeightQueue::<U>::new();
@@ -734,6 +746,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
         Ok(())
     }
 
+    /// Return the nth child of this node, if one exists.
+    pub fn get_nth_child<T: Clone>(self, nth: usize, arena: &Arena<T, U>) -> Option<NodeId<U>> {
+        self.children(arena).nth(nth)
+    }
+
     /// If `self` is the *nth* child of its parent, return *n*.
     pub fn get_child_position<T: Clone>(self, arena: &Arena<T, U>) -> Option<usize> {
         arena[self].parent?
@@ -887,7 +904,7 @@ impl<'a, T: Clone, U: PartialEq + Copy> Iterator for PreOrderTraversal<'a, T, U>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_common::create_mult_arena;
+    use test_common::{create_mult_arena, create_plus_arena, load_xml_ast};
 
     #[test]
     fn from_trait_node_ids() {
@@ -969,6 +986,36 @@ mod tests {
         assert_eq!(1, n1.index);
         assert_eq!(String::from("foobar"), arena[n1].label);
         assert_eq!("STR", arena[n1].ty);
+    }
+
+    #[test]
+    fn get_first_leaf() {
+        let empty: Arena<String, FromNodeId> = Arena::new();
+        assert_eq!(None, empty.get_first_leaf());
+        let mult = create_mult_arena();
+        assert_eq!(Some(NodeId::new(1)), mult.get_first_leaf());
+        let plus = create_plus_arena();
+        assert_eq!(Some(NodeId::new(1)), plus.get_first_leaf());
+        let xml = "<Tree ty=\"Expr\" label=\"+\">
+    <Tree ty=\"Expr\" label=\"+\">
+        <Tree ty=\"Expr\" label=\"+\">
+            <Tree ty=\"Expr\" label=\"+\">
+                <Tree ty=\"INT\" label=\"0\"/>
+                <Tree ty=\"INT\" label=\"1\"/>
+            </Tree>
+            <Tree ty=\"INT\" label=\"2\"/>
+            <Tree ty=\"INT\" label=\"3\"/>
+        </Tree>
+        <Tree ty=\"INT\" label=\"4\"/>
+        <Tree ty=\"INT\" label=\"5\"/>
+    </Tree>
+    <Tree ty=\"INT\" label=\"6\"/>
+</Tree>
+";
+        let unbalanced = load_xml_ast(xml);
+        assert_eq!(Some(NodeId::new(9)), unbalanced.get_first_leaf());
+        assert_eq!("\"INT\" 0".to_string(),
+                   format!("{:?}", unbalanced[unbalanced.get_first_leaf().unwrap()]));
     }
 
     #[test]
@@ -1199,6 +1246,22 @@ mod tests {
   \"INT\" 2
 ";
         assert_eq!(format2, format!("{:?}", arena));
+    }
+
+    #[test]
+    fn get_nth_child() {
+        let arena = create_mult_arena();
+        let root = arena.root().unwrap();
+        assert_eq!(NodeId::new(1), root.get_nth_child(0, &arena).unwrap());
+        assert_eq!(NodeId::new(2), root.get_nth_child(1, &arena).unwrap());
+        assert_eq!(None, root.get_nth_child(2, &arena));
+        assert_eq!(None, NodeId::new(1).get_nth_child(0, &arena));
+        let times = NodeId::new(2);
+        assert_eq!(NodeId::new(3), times.get_nth_child(0, &arena).unwrap());
+        assert_eq!(NodeId::new(4), times.get_nth_child(1, &arena).unwrap());
+        assert_eq!(None, root.get_nth_child(5, &arena));
+        assert_eq!(None, NodeId::new(3).get_nth_child(0, &arena));
+        assert_eq!(None, NodeId::new(4).get_nth_child(0, &arena));
     }
 
     #[test]
