@@ -86,7 +86,7 @@ Code Differencing.";
     }
 
     /// Match locations in distinct ASTs.
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
+    fn match_trees(&mut self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         let store = MappingStore::new(base, diff);
         if store.from_arena.borrow().size() == 0 || store.to_arena.borrow().size() == 0 {
             return store;

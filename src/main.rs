@@ -357,7 +357,7 @@ fn main() {
     env_logger::init().unwrap();
 
     // Matcher configuration object.
-    let matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
+    let mut matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
 
     let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 

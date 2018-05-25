@@ -236,7 +236,10 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
 /// define thresholds and weights for a given algorithm.
 pub trait MatchTrees<T: Clone + Debug + ToString> {
     /// Match two trees and return a store of mappings between them.
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T>;
+    fn match_trees(&mut self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
+                   -> MappingStore<T>;
 
     /// Describe the matcher for the user.
     ///
@@ -374,7 +377,7 @@ mod tests {
         use myers_matcher::MyersConfig;
         let plus = create_plus_arena();
         let mult = create_mult_arena();
-        let matcher = MyersConfig::new();
+        let mut matcher = MyersConfig::new();
         let store = matcher.match_trees(plus, Arena::<String, ToNodeId>::from(mult));
         let expected_str = vec!["\"matches\": [",
                                 "{\n\"src\": 1,\n\"dest\": 3\n}",
