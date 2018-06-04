@@ -273,7 +273,11 @@ impl<U: Copy + Eq + Hash + PartialEq> ZSTree<U> {
         debug_assert_eq!(tree.ids.len(), node_count);
         let mut idx = 1;
         let mut tmp_data: HashMap<NodeId<U>, usize> = HashMap::new();
-        assert!(ast.root().is_some(), "AST has no root node.");
+        if ast.root().is_none() {
+            // Assume client code has just constructed a tree in order to call
+            // describe() on the ZhangShashaConfig trait.
+            return tree;
+        }
         let root = ast.root().unwrap();
         for node in root.post_order_traversal(ast) {
             tmp_data.insert(node, idx);
