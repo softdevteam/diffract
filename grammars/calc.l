@@ -1,5 +1,5 @@
 %%
-\+ PLUS
-\* MULT
-[0-9]+ INT
-[ \t\n\r]+ WHITESPACE
+\+ "PLUS"
+\* "MULT"
+[0-9]+ "INT"
+[ \t\n\r]+ "WHITESPACE"
