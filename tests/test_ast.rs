@@ -59,13 +59,13 @@ fn compare_ast_dump_to_lrpar_output(filepath: &str, expected: &str) {
 fn test_empty_calc() {
     compare_ast_dump_to_lrpar_output(
         "tests/empty.calc",
-        "\"^~\"
-  \"~\"
-    \"WHITESPACE\"  \n
-    \"~\"
-  \"Expr\"
-    \"Term\"
-      \"Factor\"
+        "000: \"^~\"
+001:   \"~\"
+002:     \"WHITESPACE\"  \n
+003:     \"~\"
+004:   \"Expr\"
+005:     \"Term\"
+006:       \"Factor\"
 ",
     );
 }
@@ -74,15 +74,15 @@ fn test_empty_calc() {
 fn test_one_calc() {
     compare_ast_dump_to_lrpar_output(
         "tests/one.calc",
-        "\"^~\"
-  \"~\"
-  \"Expr\"
-    \"Term\"
-      \"Factor\"
-        \"INT\" 1
-        \"~\"
-          \"WHITESPACE\" \n
-          \"~\"
+        "000: \"^~\"
+001:   \"~\"
+002:   \"Expr\"
+003:     \"Term\"
+004:       \"Factor\"
+005:         \"INT\" 1
+006:         \"~\"
+007:           \"WHITESPACE\" \n
+008:           \"~\"
 ",
     );
 }
@@ -91,22 +91,22 @@ fn test_one_calc() {
 fn test_add_calc() {
     compare_ast_dump_to_lrpar_output(
         "tests/add.calc",
-        "\"^~\"
-  \"~\"
-  \"Expr\"
-    \"Term\"
-      \"Factor\"
-        \"INT\" 1
-        \"~\"
-    \"PLUS\" +
-    \"~\"
-    \"Expr\"
-      \"Term\"
-        \"Factor\"
-          \"INT\" 2
-          \"~\"
-            \"WHITESPACE\" \n
-            \"~\"
+        "000: \"^~\"
+001:   \"~\"
+002:   \"Expr\"
+003:     \"Term\"
+004:       \"Factor\"
+005:         \"INT\" 1
+006:         \"~\"
+007:     \"PLUS\" +
+008:     \"~\"
+009:     \"Expr\"
+010:       \"Term\"
+011:         \"Factor\"
+012:           \"INT\" 2
+013:           \"~\"
+014:             \"WHITESPACE\" \n
+015:             \"~\"
 ",
     );
 }
@@ -115,28 +115,28 @@ fn test_add_calc() {
 fn test_mult_calc() {
     compare_ast_dump_to_lrpar_output(
         "tests/mult.calc",
-        "\"^~\"
-  \"~\"
-  \"Expr\"
-    \"Term\"
-      \"Factor\"
-        \"INT\" 3
-        \"~\"
-      \"MULT\" *
-      \"~\"
-      \"Term\"
-        \"Factor\"
-          \"INT\" 1
-          \"~\"
-    \"PLUS\" +
-    \"~\"
-    \"Expr\"
-      \"Term\"
-        \"Factor\"
-          \"INT\" 2
-          \"~\"
-            \"WHITESPACE\" \n
-            \"~\"
+        "000: \"^~\"
+001:   \"~\"
+002:   \"Expr\"
+003:     \"Term\"
+004:       \"Factor\"
+005:         \"INT\" 3
+006:         \"~\"
+007:       \"MULT\" *
+008:       \"~\"
+009:       \"Term\"
+010:         \"Factor\"
+011:           \"INT\" 1
+012:           \"~\"
+013:     \"PLUS\" +
+014:     \"~\"
+015:     \"Expr\"
+016:       \"Term\"
+017:         \"Factor\"
+018:           \"INT\" 2
+019:           \"~\"
+020:             \"WHITESPACE\" \n
+021:             \"~\"
 ",
     );
 }
@@ -145,43 +145,41 @@ fn test_mult_calc() {
 fn test_nested_comment_java() {
     compare_ast_dump_to_lrpar_output(
         "tests/NestedComment.java",
-        "\"^~\"
-  \"~\"
-    \"COMMENT\" /*
- * // Single line comment nested in multi-line comment.
- */
-    \"~\"
-      \"WHITESPACE\" \n\n      \"~\"
-  \"goal\"
-    \"compilation_unit\"
-      \"type_declarations_opt\"
-        \"type_declarations\"
-          \"type_declaration\"
-            \"class_declaration\"
-              \"modifiers_opt\"
-                \"modifiers\"
-                  \"modifier\"
-                    \"PUBLIC\" public
-                    \"~\"
-                      \"WHITESPACE\"  \n                      \"~\"
-              \"CLASS\" class
-              \"~\"
-                \"WHITESPACE\"  \n                \"~\"
-              \"IDENTIFIER\" NestedComment
-              \"~\"
-                \"WHITESPACE\"  \n                \"~\"
-              \"type_parameters_opt\"
-              \"super_opt\"
-              \"interfaces_opt\"
-              \"class_body\"
-                \"LBRACE\" {
-                \"~\"
-                \"class_body_declarations_opt\"
-                \"RBRACE\" }
-                \"~\"
-                  \"WHITESPACE\" \n\n                  \"~\"
-",
-    );
+        "000: \"^~\"
+001:   \"~\"
+002:     \"COMMENT\" /*\n * // Single line comment nested in multi-line comment.\n */
+003:     \"~\"
+004:       \"WHITESPACE\" \n
+005:       \"~\"
+006:   \"goal\"
+007:     \"compilation_unit\"
+008:       \"type_declarations_opt\"
+009:         \"type_declarations\"
+010:           \"type_declaration\"
+011:             \"class_declaration\"
+012:               \"modifiers_opt\"
+013:                 \"modifiers\"
+014:                   \"modifier\"
+015:                     \"PUBLIC\" public
+016:                     \"~\"
+017:                       \"WHITESPACE\"  \n018:                       \"~\"
+019:               \"CLASS\" class
+020:               \"~\"
+021:                 \"WHITESPACE\"  \n022:                 \"~\"
+023:               \"IDENTIFIER\" NestedComment
+024:               \"~\"
+025:                 \"WHITESPACE\"  \n026:                 \"~\"
+027:               \"type_parameters_opt\"
+028:               \"super_opt\"
+029:               \"interfaces_opt\"
+030:               \"class_body\"
+031:                 \"LBRACE\" {
+032:                 \"~\"
+033:                 \"class_body_declarations_opt\"
+034:                 \"RBRACE\" }
+035:                 \"~\"
+036:                   \"WHITESPACE\" \n
+037:                   \"~\"\n");
 }
 
 #[test]

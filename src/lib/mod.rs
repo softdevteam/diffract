@@ -197,11 +197,11 @@ pub mod test_common {
     </Tree>
     ";
         let arena = load_xml_ast(xml);
-        let expected_format = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let expected_format = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(expected_format, format!("{:?}", arena));
         arena
@@ -220,9 +220,9 @@ pub mod test_common {
     </Tree>
     ";
         let arena = load_xml_ast(xml);
-        let expected_format = "\"Expr\" +
-  \"INT\" 3
-  \"INT\" 4
+        let expected_format = "000: \"Expr\" +
+001:   \"INT\" 3
+002:   \"INT\" 4
 ";
         assert_eq!(expected_format, format!("{:?}", arena));
         arena

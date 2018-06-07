@@ -648,11 +648,11 @@ mod test {
     #[test]
     fn apply_delete_leaf() {
         let mut arena = create_mult_arena();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
 
         assert_eq!(format1, format!("{:?}", arena));
@@ -660,9 +660,9 @@ mod test {
         del1.apply(&mut arena).unwrap();
         let mut del2 = Delete::new(NodeId::new(4));
         del2.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
+        let format2 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -671,11 +671,11 @@ mod test {
     #[should_panic]
     fn apply_delete_branch() {
         let mut arena = create_mult_arena();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut del = Delete::new(NodeId::new(2));
@@ -686,21 +686,21 @@ mod test {
     fn apply_insert() {
         let mut arena = create_mult_arena();
         let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, Some(NodeId::new(2)), 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 100
-    \"INT\" 3
-    \"INT\" 4
+        let format2 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+005:     \"INT\" 100
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -709,21 +709,21 @@ mod test {
     fn apply_insert_new_root() {
         let mut arena = create_mult_arena();
         let n5 = arena.new_node("Expr".to_string(), "-".to_string(), None, None, None, None);
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut ins = Insert::new(n5, None, 0);
         ins.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" -
-  \"Expr\" +
-    \"INT\" 1
-    \"Expr\" *
-      \"INT\" 3
-      \"INT\" 4
+        let format2 = "005: \"Expr\" -
+000:   \"Expr\" +
+001:     \"INT\" 1
+002:     \"Expr\" *
+003:       \"INT\" 3
+004:       \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -731,20 +731,20 @@ mod test {
     #[test]
     fn apply_move() {
         let mut arena = create_mult_arena();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut mov = Move::new(NodeId::new(4), NodeId::new(2), 0);
         mov.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 4
-    \"INT\" 3
+        let format2 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+004:     \"INT\" 4
+003:     \"INT\" 3
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -753,20 +753,20 @@ mod test {
     fn apply_update() {
         let mut arena = create_mult_arena();
         assert_eq!(5, arena.size());
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let mut upd = Update::new(NodeId::new(2), "Expr".to_string(), "+".to_string());
         upd.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" +
-    \"INT\" 3
-    \"INT\" 4
+        let format2 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" +
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -774,11 +774,11 @@ mod test {
     #[test]
     fn apply_to_list1() {
         let mut arena = create_mult_arena();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         let n5 = arena.new_node("INT".to_string(), "100".to_string(), None, None, None, None);
         let n6 = arena.new_node("INT".to_string(), "99".to_string(), None, None, None, None);
@@ -803,11 +803,11 @@ mod test {
         assert_eq!(6, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" *
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 99
-    \"INT\" 100
+        let format2 = "000: \"Expr\" *
+001:   \"INT\" 1
+002:   \"Expr\" *
+006:     \"INT\" 99
+005:     \"INT\" 100
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }
@@ -815,11 +815,11 @@ mod test {
     #[test]
     fn apply_to_list2() {
         let mut arena = create_mult_arena();
-        let format1 = "\"Expr\" +
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 3
-    \"INT\" 4
+        let format1 = "000: \"Expr\" +
+001:   \"INT\" 1
+002:   \"Expr\" *
+003:     \"INT\" 3
+004:     \"INT\" 4
 ";
         assert_eq!(format1, format!("{:?}", arena));
         let n5 = arena.new_node("INT".to_string(), "2".to_string(), None, None, None, None);
@@ -841,11 +841,11 @@ mod test {
         assert_eq!(3, actions.size());
         // Apply action list.
         actions.apply(&mut arena).unwrap();
-        let format2 = "\"Expr\" *
-  \"INT\" 1
-  \"Expr\" *
-    \"INT\" 2
-    \"INT\" 3
+        let format2 = "000: \"Expr\" *
+001:   \"INT\" 1
+002:   \"Expr\" *
+005:     \"INT\" 2
+003:     \"INT\" 3
 ";
         assert_eq!(format2, format!("{:?}", arena));
     }

@@ -40,6 +40,7 @@
 
 extern crate diffract;
 
+use diffract::ast::{Arena, FromNodeId, ToNodeId};
 use diffract::edit_script::{Chawathe96Config, EditScriptGenerator, TMP_ROOT};
 use diffract::matchers::MatchTrees;
 use diffract::parser::{get_lexer, get_parser, parse_file};
@@ -90,11 +91,11 @@ pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
-    assert_eq!(format!("{:?}", store.from_arena.borrow()),
-               format!("{:?}", store.to_arena.borrow()),
-               "ASTs not isomorphic for files: {} and {}.",
-               path1,
-               path2);
+    assert!(check_pretty_printed(&store.from_arena.borrow(),
+                                 &store.to_arena.borrow()),
+            "ASTs not isomorphic for files: {} and {}.",
+            path1,
+            path2);
     // Test 3: final from and to ASTs should be isomorphic.
     // In this test isomorphism is determined by examining the hashes of the
     // two trees.
@@ -115,4 +116,21 @@ pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
             assert!(false, "TMP_ROOT not removed from {:?}", path2);
         }
     }
+}
+
+fn check_pretty_printed(from: &Arena<String, FromNodeId>, to: &Arena<String, ToNodeId>) -> bool {
+    let from_pretty = format!("{:?}", from);
+    let to_pretty = format!("{:?}", to);
+    let from_lines = from_pretty.split("\n").collect::<Vec<&str>>();
+    let to_lines = to_pretty.split("\n").collect::<Vec<&str>>();
+    if from_lines.len() != to_lines.len() {
+        return false;
+    }
+    for line in 0..from_lines.len() {
+        if from_lines[line].len() > 4 && to_lines[line].len() > 4 &&
+             from_lines[line][4..] != to_lines[line][4..] {
+            return false;
+        }
+    }
+    true
 }
