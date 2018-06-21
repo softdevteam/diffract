@@ -42,6 +42,7 @@ use std::fmt::Debug;
 use std::f64;
 use std::hash::Hash;
 
+use f64_eq;
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use matchers::{has_same_type, MappingStore, MappingType, MatchTrees};
 use qgram::trigram_distance;
@@ -146,8 +147,8 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
                    -> MappingStore<T> {
         let store = MappingStore::new(base, diff);
         self.compute_tree_distance(&store);
-        // Implementation of Algorithm Y from Wagner and Fischer (1974).
-
+        // Implementation of Algorithm Y from Wagner and Fischer (1974), with
+        // an outer loop to iterate over pairs of sub-forests.
         let mut tree_pairs: Vec<(usize, usize)> = vec![];
         tree_pairs.push((self.src.node_count, self.dst.node_count));
         while !tree_pairs.is_empty() {
@@ -158,32 +159,34 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
             let first_col = self.dst.lld(last_col) - 1;
             let mut row = last_row;
             let mut col = last_col;
+            // Algorithm Y.
             while row > first_row || col > first_col {
                 if row > first_row
-                   && self.forest_dist[row - 1][col] + DELETION_COST == self.forest_dist[row][col]
+                   && f64_eq(self.forest_dist[row - 1][col] + DELETION_COST,
+                             self.forest_dist[row][col])
                 {
                     // Node with left-right postorder id `row` is DELETEd from
                     // edit distance tree `src`.
                     row -= 1;
                 } else if col > first_col
-                          && self.forest_dist[row][col - 1] + INSERTION_COST == self.forest_dist[row][col]
+                          && f64_eq(self.forest_dist[row][col - 1] + INSERTION_COST,
+                                    self.forest_dist[row][col])
                 {
                     // Node with left-right postorder id `col` is INSERTed into
                     // edit distance tree `dst`.
                     col -= 1;
                 } else if self.src.lld(row) - 1 == self.src.lld(last_row) - 1
                           && self.dst.lld(col) - 1 == self.dst.lld(last_col) - 1
+                          && has_same_type(&self.src.id(row),
+                                           &store.from_arena.borrow(),
+                                           &self.dst.id(col),
+                                           &store.to_arena.borrow())
                 {
                     // Both sub-forests are trees, so match id node row (in src)
                     // to col (in dst). The matcher does not use left-right
                     // postorder notation, so we retrieve the original node ids.
                     let src_node = self.src.id(row);
                     let dst_node = self.dst.id(col);
-                    assert!(has_same_type(&src_node,
-                                          &store.from_arena.borrow(),
-                                          &dst_node,
-                                          &store.to_arena.borrow()),
-                            "Cannot map nodes with different types.");
                     store.push(src_node, dst_node, &MappingType::ANCHOR);
                     row -= 1;
                     col -= 1;

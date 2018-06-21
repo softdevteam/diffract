@@ -178,10 +178,8 @@ pub fn trigram_distance(s1: &str, s2: &str) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use f64_eq;
     use super::*;
-
-    // Floating-point numbers must differ by no more than `DELTA`.
-    const DELTA: f64 = 0.0000001;
 
     #[test]
     fn test_qgram_padding() {
@@ -200,7 +198,7 @@ mod tests {
     }
 
     fn check_distance(s1: &str, s2: &str, dist: f64) {
-        assert!((dist - qgram_distance(3, s1, s2)).abs() < DELTA);
+        assert!(f64_eq(dist, qgram_distance(3, s1, s2)));
     }
 
     #[test]
@@ -227,7 +225,7 @@ mod tests {
     fn test_qgram_sentence() {
         let s1 = "A quirky thing it is. This is a sentence.";
         let s2 = "This sentence is similar. A quirky thing it is.";
-        check_distance(s1, s2, 0.695652186870575);
+        check_distance(s1, s2, 0.6956521739130435);
     }
 
     #[test]
