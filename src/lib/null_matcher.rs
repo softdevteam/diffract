@@ -66,7 +66,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for NullConfig {
     }
 
     /// Perform no matching operations.
-    fn match_trees(&self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
+    fn match_trees(&mut self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
         MappingStore::new(base, diff)
     }
 }

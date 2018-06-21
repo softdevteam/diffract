@@ -120,12 +120,100 @@ pub mod chawathe98_matcher;
 /// Fingerprinting algorithms for tree isomorphism tests.
 pub mod fingerprint;
 
+use std::f64::{EPSILON, MAX};
+/// Compare floating-point numbers for equality.
+///
+/// Since floating point numbers are not exact, in the general case we do not
+/// wish to use a simple comparison. In general, we use a relative error, which
+/// compares the difference between the two arguments to their magnitude. This
+/// captures the case where the arguments are very large, but their difference
+/// might be bigger than machine epsilon. However, when the inputs are close to
+/// zero, a relative error can result in a division by zero or a NaN, and so in
+/// this case we use an absolute difference. Note that this function will return
+/// `false` if the inputs are both very small but differently signed, even if
+/// they are both the smallest possible positive / negative f64s.
+///
+/// See also: http://floating-point-gui.de/errors/comparison/
+pub fn f64_eq(val1: f64, val2: f64) -> bool {
+    // Simple case (works with infinities).
+    if val1 == val2 {
+        return true;
+    }
+    // Absolute difference - suitable where the numbers are close to zero.
+    let diff = (val1 - val2).abs();
+    if val1 == 0.0 || val2 == 0.0 || diff <= EPSILON {
+        return diff <= EPSILON;
+    }
+    // Use relative error.
+    diff / f64::min(val1.abs() + val2.abs(), MAX) < EPSILON
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::f64_eq;
+    use std::f64::{EPSILON, INFINITY, MAX, MIN, MIN_POSITIVE, NAN, NEG_INFINITY};
+
+    #[test]
+    fn test_f64_eq_same() {
+        assert!(f64_eq(0.0, 0.0));
+        assert!(f64_eq(0.0, -0.0));
+        assert!(f64_eq(-0.0, 0.0));
+        assert!(f64_eq(0.1, 0.1));
+        assert!(f64_eq(1.0, 1.0));
+    }
+
+    #[test]
+    fn test_f64_eq_infinity() {
+        assert!(f64_eq(INFINITY, INFINITY));
+        assert!(f64_eq(NEG_INFINITY, NEG_INFINITY));
+    }
+
+    #[test]
+    fn test_f64_eq_min_max() {
+        assert!(f64_eq(MAX, MAX));
+        assert!(f64_eq(MIN, MIN));
+        assert!(f64_eq(MIN_POSITIVE, MIN_POSITIVE));
+    }
+
+    #[test]
+    fn test_f64_eq_nan() {
+        assert!(!f64_eq(NAN, NAN));
+        assert!(!f64_eq(NAN, 0.0));
+        assert!(!f64_eq(0.0, NAN));
+    }
+
+    #[test]
+    fn test_f64_eq_differ_by_epsilon() {
+        assert!(f64_eq(0.0, 0.0 + EPSILON));
+        assert!(f64_eq(1.0, 1.0 + EPSILON));
+        assert!(f64_eq(MAX, MAX + EPSILON));
+        assert!(f64_eq(MIN, MIN + EPSILON));
+        assert!(f64_eq(MIN_POSITIVE, MIN_POSITIVE + EPSILON));
+        assert!(f64_eq(INFINITY, INFINITY + EPSILON));
+        assert!(f64_eq(NEG_INFINITY, NEG_INFINITY + EPSILON));
+    }
+
+    #[test]
+    fn test_f64_eq_differ_by_more_than_epsilon() {
+        let delta = 2.5 * EPSILON;
+        assert!(!f64_eq(0.0, 0.0 + delta));
+        assert!(!f64_eq(1.0, -1.0 + delta));
+        assert!(!f64_eq(-1.0, 1.0 + delta));
+        assert!(!f64_eq(MIN_POSITIVE, MIN_POSITIVE + delta));
+        assert!(!f64_eq(0.6956521739130435, 0.6956521739130455));
+        assert!(!f64_eq(-0.6956521739130435, -0.6956521739130456));
+        assert!(!f64_eq(-0.6956521739130435, 0.6956521739130456));
+        assert!(!f64_eq(0.6956521739130435, -0.6956521739130456));
+    }
+}
+
+/// Helper functions to load data used by test cases across the crate.
 #[cfg(test)]
 pub mod test_common {
     use serde::{Deserialize, Deserializer};
     use serde_xml_rs::deserialize;
 
-    use ast::{Arena, FromNodeId, NodeId};
+    use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 
     fn to_string<'de, D>(deserializer: D) -> Result<String, D::Error>
         where D: Deserializer<'de>
@@ -148,7 +236,7 @@ pub mod test_common {
     /// To use the result as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let xmltree = load_xml_tree(...);
-    ///     ... Arena::<&'static str, ToNodeId>::from(xmltree) ...
+    ///     ... Arena::<String, ToNodeId>::from(xmltree) ...
     /// ```
     pub fn load_xml_ast(xml: &str) -> Arena<String, FromNodeId> {
         tree_to_arena(load_xml_tree(xml))
@@ -185,7 +273,7 @@ pub mod test_common {
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let mult = create_mult_arena();
-    ///     ... Arena::<&'static str, ToNodeId>::from(mult) ...
+    ///     ... Arena::<String, ToNodeId>::from(mult) ...
     /// ```
     pub fn create_mult_arena() -> Arena<String, FromNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
@@ -211,7 +299,7 @@ pub mod test_common {
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let plus = create_plus_arena();
-    ///     ... Arena::<&'static str, ToNodeId>::from(plus) ...
+    ///     ... Arena::<String, ToNodeId>::from(plus) ...
     /// ```
     pub fn create_plus_arena() -> Arena<String, FromNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
@@ -226,6 +314,107 @@ pub mod test_common {
 ";
         assert_eq!(expected_format, format!("{:?}", arena));
         arena
+    }
+
+    /// Example from Fig 4. of Zhang and Shasha (1989).
+    pub fn create_zs_paper_src_arena() -> Arena<String, FromNodeId> {
+        load_xml_ast(
+            "<Tree ty=\"node\" label=\"f\">
+    <Tree ty=\"node\" label=\"d\">
+        <Tree ty=\"node\" label=\"a\"/>
+        <Tree ty=\"node\" label=\"c\">
+            <Tree ty=\"node\" label=\"b\"/>
+        </Tree>
+    </Tree>
+    <Tree ty=\"node\" label=\"e\">
+    </Tree>
+</Tree>
+"
+        )
+    }
+
+    /// Example from Fig 4. of Zhang and Shasha (1989).
+    pub fn create_zs_paper_dst_arena() -> Arena<String, ToNodeId> {
+        let ast = load_xml_ast(
+            "<Tree ty=\"node\" label=\"f\">
+    <Tree ty=\"node\" label=\"c\">
+        <Tree ty=\"node\" label=\"d\">
+            <Tree ty=\"node\" label=\"a\"/>
+            <Tree ty=\"node\" label=\"b\"/>
+        </Tree>
+    </Tree>
+    <Tree ty=\"node\" label=\"e\">
+    </Tree>
+</Tree>
+"
+        );
+        Arena::<String, ToNodeId>::from(ast)
+    }
+
+    /// Example from GT test cases.
+    pub fn create_zs_src_arena() -> Arena<String, FromNodeId> {
+        load_xml_ast(
+            "<Tree ty=\"0\" label=\"a\">
+    <Tree ty=\"0\" label=\"b\"/>
+    <Tree ty=\"0\" label=\"c\">
+        <Tree ty=\"0\" label=\"d\"/>
+        <Tree ty=\"0\" label=\"e\"/>
+        <Tree ty=\"0\" label=\"f\"/>
+    </Tree>
+</Tree>
+"
+        )
+    }
+
+    /// Example from GT test cases.
+    pub fn create_zs_dst_arena() -> Arena<String, ToNodeId> {
+        let ast = load_xml_ast(
+            "<Tree ty=\"0\" label=\"z\">
+    <Tree ty=\"0\" label=\"a\">
+        <Tree ty=\"0\" label=\"b\" />
+        <Tree ty=\"0\" label=\"c\">
+            <Tree ty=\"0\" label=\"y\" />
+            <Tree ty=\"1\" label=\"e\" />
+            <Tree ty=\"0\" label=\"f\" />
+        </Tree>
+    </Tree>
+</Tree>
+"
+        );
+        Arena::<String, ToNodeId>::from(ast)
+    }
+
+    /// Example from GT test cases.
+    pub fn create_slide_src_arena() -> Arena<String, FromNodeId> {
+        load_xml_ast(
+            "<Tree ty=\"0\" label=\"6\">
+    <Tree ty=\"0\" label=\"5\">
+        <Tree ty=\"0\" label=\"2\">
+            <Tree ty=\"0\" label=\"1\" />
+        </Tree>
+        <Tree ty=\"0\" label=\"3\" />
+        <Tree ty=\"0\" label=\"4\" />
+    </Tree>
+</Tree>
+"
+        )
+    }
+
+    /// Example from GT test cases.
+    pub fn create_slide_dst_arena() -> Arena<String, ToNodeId> {
+        let ast = load_xml_ast(
+            "<Tree ty=\"0\" label=\"6\">
+    <Tree ty=\"0\" label=\"2\">
+        <Tree ty=\"0\" label=\"1\" />
+    </Tree>
+    <Tree ty=\"0\" label=\"4\">
+        <Tree ty=\"0\" label=\"3\" />
+    </Tree>
+    <Tree ty=\"0\" label=\"5\" />
+</Tree>
+"
+        );
+        Arena::<String, ToNodeId>::from(ast)
     }
 
     #[test]

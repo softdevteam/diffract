@@ -55,6 +55,7 @@ use diffract::emitters;
 use diffract::fingerprint;
 use diffract::gt_matcher;
 use diffract::myers_matcher;
+use diffract::zs_matcher;
 use diffract::matchers::MatchTrees;
 use diffract::parser;
 use diffract::chawathe98_matcher;
@@ -83,7 +84,7 @@ Options:
     -l, --list          print information about the available matchers and exit.
     --map FILE          write out GraphViz representation of the mapping store.
     -m, --matcher ALGO  use a given matching algorithm. Valid (case sensitive)
-                        values for ALGO are: GumTree (default), Myers.
+                        values for ALGO are: GumTree (default), Myers, ZhangShasha.
     --max-size VAL      consider subtrees for matching only if they have a size
                         less than VAL. GumTree only.
     --min-dice VAL      set the similarity threshold used for matching ASTs.
@@ -119,7 +120,8 @@ enum EditScriptGenerator {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
 enum Matchers {
     GumTree, // Default.
-    Myers
+    Myers,
+    ZhangShasha
 }
 
 #[derive(Debug, Eq, PartialEq, RustcDecodable)]
@@ -191,7 +193,10 @@ fn write_dotfile_to_disk<T: diffract::emitters::RenderDotfile>(filepath: &str, o
 
 // Set any global constants requested by the user.
 // This should be the ONLY block of code that mutates these values.
-fn process_matcher_configs(args: &Args) -> Box<MatchTrees<String>> {
+fn process_matcher_configs(args: &Args,
+                           ast_base: &ast::Arena<String, ast::FromNodeId>,
+                           ast_diff: &ast::Arena<String, ast::ToNodeId>)
+                           -> Box<MatchTrees<String>> {
     let config: Box<MatchTrees<String>>;
     if args.flag_matcher != None && args.flag_matcher != Some(Matchers::GumTree) {
         if args.flag_max_size.is_some() {
@@ -208,6 +213,9 @@ fn process_matcher_configs(args: &Args) -> Box<MatchTrees<String>> {
         // Longest common subsequence matcher from Myers (1986).
         info!("Selecting the Myers matching algorithm.");
         config = Box::new(myers_matcher::MyersConfig::new());
+    } else if args.flag_matcher == Some(Matchers::ZhangShasha) {
+        info!("Selecting the Zhang-Shasha matching algorithm.");
+        config = Box::new(zs_matcher::ZhangShashaConfig::new(ast_base, ast_diff));
     } else {
         // GumTree default.
         info!("Selecting the GumTree matching algorithm.");
@@ -236,8 +244,12 @@ fn get_matcher_descriptions() -> String {
     let mut descriptions = vec![];
     let myers: Box<MatchTrees<u16>> = Box::new(myers_matcher::MyersConfig::new());
     let gt: Box<MatchTrees<u16>> = Box::new(gt_matcher::GumTreeConfig::new());
+    let dummy_src: ast::Arena<String, ast::FromNodeId> = ast::Arena::new();
+    let zs: Box<MatchTrees<u16>> =
+        Box::new(zs_matcher::ZhangShashaConfig::new(&dummy_src, &ast::Arena::new()));
     descriptions.push(format!("{}\n-----{}\n", "Myers:", myers.describe()));
     descriptions.push(format!("{}\n-------{}\n", "GumTree", gt.describe()));
+    descriptions.push(format!("{}\n-------{}\n", "Zhang-Shasha", zs.describe()));
     descriptions.join("\n")
 }
 
@@ -356,14 +368,15 @@ fn main() {
     }
     env_logger::init().unwrap();
 
-    // Matcher configuration object.
-    let matcher_config: Box<MatchTrees<String>> = process_matcher_configs(&args);
-
     let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 
     // Parse both input files.
     let ast_base = parse_file::<ast::FromNodeId>(&args.arg_base_file, &lexer1, &parser1);
     let ast_diff = parse_file::<ast::ToNodeId>(&args.arg_diff_file, &lexer2, &parser2);
+
+    // Matcher configuration object.
+    let mut matcher_config: Box<MatchTrees<String>> =
+        process_matcher_configs(&args, &ast_base, &ast_diff);
 
     // Dump ASTs to STDOUT, if requested.
     if args.flag_ast {

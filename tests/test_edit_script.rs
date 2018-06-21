@@ -53,7 +53,7 @@ use common::check_files;
 fn test_both_arenas_empty() {
     let ast_from: Arena<String, _> = Arena::new();
     let ast_to = Arena::new();
-    let matcher_config = MyersConfig::new();
+    let mut matcher_config = MyersConfig::new();
     let store = matcher_config.match_trees(ast_from, ast_to);
     assert!(store.from.borrow().is_empty());
     assert!(store.to.borrow().is_empty());
@@ -66,7 +66,7 @@ fn test_both_arenas_empty() {
 fn test_from_arena_empty() {
     let ast_from = Arena::new();
     let ast_to = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
-    let matcher_config = MyersConfig::new();
+    let mut matcher_config = MyersConfig::new();
     let store = matcher_config.match_trees(ast_from, ast_to);
     assert!(store.from.borrow().is_empty());
     assert!(store.to.borrow().is_empty());
@@ -79,7 +79,7 @@ fn test_from_arena_empty() {
 fn test_to_arena_empty() {
     let ast_from = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
     let ast_to = Arena::new();
-    let matcher_config = MyersConfig::new();
+    let mut matcher_config = MyersConfig::new();
     let store = matcher_config.match_trees(ast_from, ast_to);
     assert!(store.from.borrow().is_empty());
     assert!(store.to.borrow().is_empty());

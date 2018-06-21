@@ -254,18 +254,6 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
         false
     }
 
-    /// Return the id of the first leaf node in this arena, if there is one.
-    pub fn get_first_leaf(&self) -> Option<NodeId<U>> {
-        if let Some(mut node) = self.root {
-            while !node.is_leaf(self) {
-                node = node.children(self).collect::<Vec<NodeId<U>>>()[0]
-            }
-            Some(node)
-        } else {
-            None
-        }
-    }
-
     /// Return a queue of `NodeId`s sorted by height.
     pub fn get_priority_queue(&self) -> HeightQueue<U> {
         let mut queue = HeightQueue::<U>::new();
@@ -762,6 +750,15 @@ impl<U: PartialEq + Copy> NodeId<U> {
                    .position(|val| val == self)
     }
 
+    /// Return the id of the first leaf of the subtree rooted on this node, if there is one.
+    pub fn get_first_leaf<T: Clone>(self, arena: &Arena<T, U>) -> NodeId<U> {
+        let mut node = self;
+        while !node.is_leaf(arena) {
+            node = node.children(&arena).nth(0).unwrap();
+        }
+        node
+    }
+
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
         Children { arena,
@@ -994,12 +991,10 @@ mod tests {
 
     #[test]
     fn get_first_leaf() {
-        let empty: Arena<String, FromNodeId> = Arena::new();
-        assert_eq!(None, empty.get_first_leaf());
         let mult = create_mult_arena();
-        assert_eq!(Some(NodeId::new(1)), mult.get_first_leaf());
+        assert_eq!(NodeId::new(1), mult.root.unwrap().get_first_leaf(&mult));
         let plus = create_plus_arena();
-        assert_eq!(Some(NodeId::new(1)), plus.get_first_leaf());
+        assert_eq!(NodeId::new(1), plus.root.unwrap().get_first_leaf(&plus));
         let xml = "<Tree ty=\"Expr\" label=\"+\">
     <Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"Expr\" label=\"+\">
@@ -1017,9 +1012,10 @@ mod tests {
 </Tree>
 ";
         let unbalanced = load_xml_ast(xml);
-        assert_eq!(Some(NodeId::new(9)), unbalanced.get_first_leaf());
+        let u_root = unbalanced.root.unwrap();
+        assert_eq!(NodeId::new(9), u_root.get_first_leaf(&unbalanced));
         assert_eq!("\"INT\" 0".to_string(),
-                   format!("{:?}", unbalanced[unbalanced.get_first_leaf().unwrap()]));
+                   format!("{:?}", unbalanced[u_root.get_first_leaf(&unbalanced)]));
     }
 
     #[test]

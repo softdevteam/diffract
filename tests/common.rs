@@ -47,7 +47,7 @@ use diffract::parser::{get_lexer, get_parser, parse_file};
 
 /// Check that the Chawathe 1996 edit script generator correctly generates an
 /// edit script for two files and a given matcher.
-pub fn check_files(path1: &str, path2: &str, matcher: Box<MatchTrees<String>>) {
+pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>>) {
     let ast_from = parse_file(path1, &get_lexer(path1), &get_parser(path1)).unwrap();
     let ast_to = parse_file(path2, &get_lexer(path2), &get_parser(path2)).unwrap();
     // Generate mappings between ASTs.
