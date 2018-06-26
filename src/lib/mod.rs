@@ -67,33 +67,37 @@ pub mod action;
 /// into an AST.
 pub mod ast;
 
+/// Algorithms which were described in Myers(1996).
+pub mod chawathe98_matcher;
+
 /// Algorithms to generate edit scripts, based on an existing AST matching.
 pub mod edit_script;
 
 /// Emitters generate output for the user in a variety of formats (e.g. JSON, Graphviz).
 pub mod emitters;
 
-/// Matchers create mappings between abstract syntax trees.
-pub mod matchers;
+/// Fingerprinting algorithms for tree isomorphism tests.
+pub mod fingerprint;
 
 /// GT matching algorithm.
 pub mod gt_matcher;
+
+/// A queue of `NodeId`s sorted on the height of their respective nodes.
+pub mod hqueue;
+
+/// Store AST labels as small, unsigned integers.
+pub mod labelmaps;
+
+/// Matchers create mappings between abstract syntax trees.
+pub mod matchers;
 
 /// Longest common subsequence matching algorithm.
 ///
 /// Described in Myers (1986).
 pub mod myers_matcher;
 
-/// Zhang-Shasha matching algorithm.
-///
-/// Described in Zhang & Shasha (1989).
-pub mod zs_matcher;
-
 /// The null matcher produces no matches and is only used for testing.
 pub mod null_matcher;
-
-/// A queue of `NodeId`s sorted on the height of their respective nodes.
-pub mod hqueue;
 
 /// Parse strings and files into `ast::Arena` types.
 pub mod parser;
@@ -112,13 +116,10 @@ pub mod sequence;
 /// Compute the similarity of two subtrees in a `MappingStore`.
 pub mod similarity;
 
-/// Algorithms which were described in Myers(1996).
+/// Zhang-Shasha matching algorithm.
 ///
-/// Induced, pruning algorithms currently implemented.
-pub mod chawathe98_matcher;
-
-/// Fingerprinting algorithms for tree isomorphism tests.
-pub mod fingerprint;
+/// Described in Zhang & Shasha (1989).
+pub mod zs_matcher;
 
 use std::f64::{EPSILON, MAX};
 /// Compare floating-point numbers for equality.
