@@ -86,7 +86,7 @@ pub mod gt_matcher;
 pub mod hqueue;
 
 /// Store AST labels as small, unsigned integers.
-pub mod labelmaps;
+pub mod label_maps;
 
 /// Matchers create mappings between abstract syntax trees.
 pub mod matchers;
