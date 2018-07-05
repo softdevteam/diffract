@@ -36,7 +36,6 @@
 // SOFTWARE.
 
 #![warn(missing_docs)]
-#![allow(dead_code)]  // Temporary, this module will be used in RTED.
 
 /// Store AST labels as small, unsigned integers.
 /// This scheme is similar to modules in GumTree and Approxlib.
