@@ -134,8 +134,8 @@ impl Chawathe96Config {
         // partners are children of w.
         let mut s1: Vec<NodeId<FromNodeId>> = vec![];
         for child in w.children(&store.from_arena.borrow()) {
-            if store.contains_from(&child) {
-                let mapped = store.get_to(&child).unwrap();
+            if store.contains_from(child) {
+                let mapped = store.get_to(child).unwrap();
                 if x.children(&store.to_arena.borrow()).any(|c| c == mapped) {
                     s1.push(child);
                 }
@@ -143,8 +143,8 @@ impl Chawathe96Config {
         }
         let mut s2: Vec<NodeId<ToNodeId>> = vec![];
         for child in x.children(&store.to_arena.borrow()) {
-            if store.contains_to(&child) {
-                let mapped = store.get_from(&child).unwrap();
+            if store.contains_to(child) {
+                let mapped = store.get_from(child).unwrap();
                 if w.children(&store.from_arena.borrow()).any(|c| c == mapped) {
                     s2.push(child);
                 }
@@ -164,7 +164,7 @@ impl Chawathe96Config {
         // order". Note, the paper says M (for the store), but should say M'.
         for a in &s1 {
             for b in &s2 {
-                if store.is_mapped(a, b) && !lcs.contains(&(*a, *b)) {
+                if store.is_mapped(*a, *b) && !lcs.contains(&(*a, *b)) {
                     let k = self.find_pos(store, *b, from_in_order, to_in_order);
                     let mut mov = Move::new(*a, w, k);
                     debug!("Edit script align_children: MOV {:?} {} Parent: {:?} {} Child: {}",
@@ -221,7 +221,7 @@ impl Chawathe96Config {
             return 0;
         }
         // 4. Let u be the partner of v in T_1.
-        let u_opt = store.get_from(v.unwrap());
+        let u_opt = store.get_from(*v.unwrap());
         assert!(u_opt.is_some(), "find_pos() could not find a partner for v");
         let u = u_opt.unwrap();
         // 5. Suppose u is the i'th child of its parent that is marked
@@ -257,7 +257,7 @@ impl Chawathe96Config {
                          "Cost matrix not sized correctly.");
         for (i, n1) in seq1.iter().enumerate() {
             for (j, n2) in seq2.iter().enumerate() {
-                if store.is_mapped(n1, n2) {
+                if store.is_mapped(*n1, *n2) {
                     grid[i + 1][j + 1] = 1 + grid[i][j];
                 } else {
                     grid[i + 1][j + 1] = max(grid[i + 1][j], grid[i][j + 1]);
@@ -309,13 +309,13 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
         // lone child of y. Hereafter we assume without loss of generality that
         // the roots of T_1 and T_2 are matched in M.
         let mut fake_roots = false;
-        if !store.is_mapped(&store.from_arena.borrow().root().unwrap(),
-                            &store.to_arena.borrow().root().unwrap())
+        if !store.is_mapped(store.from_arena.borrow().root().unwrap(),
+                            store.to_arena.borrow().root().unwrap())
         {
             fake_roots = true;
             assert!(!store.from_arena
                           .borrow()
-                          .contains_type_and_label(Default::default(), TMP_ROOT),
+                          .contains_type_and_label(&Default::default(), TMP_ROOT),
                     "'from' AST already contains a node like TMP_ROOT.");
             let new_from_root = store.from_arena.borrow_mut().new_node(Default::default(),
                                                                        String::from(TMP_ROOT),
@@ -326,7 +326,7 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
             store.from_arena.borrow_mut().new_root(new_from_root)?;
             assert!(!store.to_arena
                           .borrow()
-                          .contains_type_and_label(Default::default(), TMP_ROOT),
+                          .contains_type_and_label(&Default::default(), TMP_ROOT),
                     "'to' AST already contains a node like TMP_ROOT.");
             let new_to_root = store.to_arena.borrow_mut().new_node(Default::default(),
                                                                    String::from(TMP_ROOT),
@@ -344,9 +344,9 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
         for x in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
             let mut w: Option<NodeId<FromNodeId>> = None;
             // Insertion phase.
-            if !store.contains_to(&x) {
+            if !store.contains_to(x) {
                 let y = store.to_arena.borrow()[x].parent().unwrap();
-                let z = store.get_from(&y).unwrap();
+                let z = store.get_from(y).unwrap();
                 // (b) if x has no partner in M': i. let k<-find_pos(x),
                 let k = self.find_pos(store, x, &from_in_order, &to_in_order);
                 debug!("Edit script: INS {:?} Parent: {:?}",
@@ -371,7 +371,7 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
                 // (c) else if x is not a root (x has a partner in M').
                 // i. Let w be the partner of x in M' and let v be the parent
                 // of w in T_1.
-                w = Some(store.get_from(&x).unwrap());
+                w = Some(store.get_from(x).unwrap());
                 let v = store.from_arena.borrow()[w.unwrap()].parent().unwrap();
                 // ii. if value_of(w) != value_of(x):
                 if store.from_arena.borrow()[w.unwrap()].label != store.to_arena.borrow()[x].label {
@@ -390,7 +390,7 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
                 // iii. If (y, v) not in M':
                 let y = store.to_arena.borrow()[x].parent().unwrap();
                 // A. Let z be the partner of y in M'.
-                let z = store.get_from(&y).unwrap();
+                let z = store.get_from(y).unwrap();
                 if z != v {
                     // B. Let k<-find_pos(x).
                     let k = self.find_pos(store, x, &from_in_order, &to_in_order);
@@ -428,7 +428,7 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
         for w in root_from.post_order_traversal(&store.from_arena.borrow()) {
             // (b) If w has no partner in M' then append DEL(w) to E and apply
             // DEL(w) to T_1.
-            if !store.contains_from(&w) {
+            if !store.contains_from(w) {
                 debug!("Edit script: DEL {:?} {}",
                        store.from_arena.borrow()[w].ty,
                        store.from_arena.borrow()[w].label);
@@ -444,7 +444,7 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
             let tmp_to_root = store.to_arena.borrow().root().unwrap();
             store.from_arena.borrow_mut().delete_root()?;
             store.to_arena.borrow_mut().delete_root()?;
-            store.remove(&tmp_from_root, &tmp_to_root);
+            store.remove(tmp_from_root, tmp_to_root);
         }
         debug_assert!(store.is_isomorphic(root_from, root_to));
         Ok(script)

@@ -135,37 +135,37 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     }
 
     /// Remove mapping from store.
-    pub fn remove(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) {
-        self.from.borrow_mut().remove(from);
-        self.to.borrow_mut().remove(to);
+    pub fn remove(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) {
+        self.from.borrow_mut().remove(&from);
+        self.to.borrow_mut().remove(&to);
     }
 
     /// `true` if the store has a mapping from `from` to another node.
-    pub fn contains_from(&self, from: &NodeId<FromNodeId>) -> bool {
-        self.from.borrow().contains_key(from)
+    pub fn contains_from(&self, from: NodeId<FromNodeId>) -> bool {
+        self.from.borrow().contains_key(&from)
     }
 
     /// `true` if the store has a mapping from a node to `to`.
-    pub fn contains_to(&self, to: &NodeId<ToNodeId>) -> bool {
-        self.to.borrow().contains_key(to)
+    pub fn contains_to(&self, to: NodeId<ToNodeId>) -> bool {
+        self.to.borrow().contains_key(&to)
     }
 
     /// Get the `NodeId` that `to` is mapped from.
-    pub fn get_from(&self, to: &NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
-        self.to.borrow().get(to).and_then(|x| Some(x.0))
+    pub fn get_from(&self, to: NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
+        self.to.borrow().get(&to).and_then(|x| Some(x.0))
     }
 
     /// Get the `NodeId` that `from` is mapped to.
-    pub fn get_to(&self, from: &NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
-        self.from.borrow().get(from).and_then(|x| Some(x.0))
+    pub fn get_to(&self, from: NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
+        self.from.borrow().get(&from).and_then(|x| Some(x.0))
     }
 
     /// Test whether `from` is mapped to `to` in this store.
-    pub fn is_mapped(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
+    pub fn is_mapped(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
         if !self.contains_from(from) {
             return false;
         }
-        self.get_to(from).map_or(false, |x| x == *to)
+        self.get_to(from).map_or(false, |x| x == to)
     }
 
     /// Compute whether two sub-trees are isomorphic, based on their hashes.
@@ -224,8 +224,8 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     }
 
     /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
-    pub fn is_mapping_allowed(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
-        self.from_arena.borrow()[*from].ty == self.to_arena.borrow()[*to].ty
+    pub fn is_mapping_allowed(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
+        self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty
         && !(self.contains_from(from) || self.contains_to(to))
     }
 }
@@ -249,21 +249,21 @@ pub trait MatchTrees<T: Clone + Debug + ToString> {
 }
 
 /// Test that two nodes have the same label and type.
-pub fn has_same_type_and_label<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
+pub fn has_same_type_and_label<T: Clone + Debug + Eq>(n1: NodeId<FromNodeId>,
                                                       arena1: &Arena<T, FromNodeId>,
-                                                      n2: &NodeId<ToNodeId>,
+                                                      n2: NodeId<ToNodeId>,
                                                       arena2: &Arena<T, ToNodeId>)
                                                       -> bool {
-    arena1[*n1].label == arena2[*n2].label && arena1[*n1].ty == arena2[*n2].ty
+    arena1[n1].label == arena2[n2].label && arena1[n1].ty == arena2[n2].ty
 }
 
 /// Test that two nodes have the same type.
-pub fn has_same_type<T: Clone + Debug + Eq>(n1: &NodeId<FromNodeId>,
+pub fn has_same_type<T: Clone + Debug + Eq>(n1: NodeId<FromNodeId>,
                                             arena1: &Arena<T, FromNodeId>,
-                                            n2: &NodeId<ToNodeId>,
+                                            n2: NodeId<ToNodeId>,
                                             arena2: &Arena<T, ToNodeId>)
                                             -> bool {
-    arena1[*n1].ty == arena2[*n2].ty
+    arena1[n1].ty == arena2[n2].ty
 }
 
 #[cfg(test)]
@@ -330,22 +330,22 @@ mod tests {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
         let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
-        assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
-        assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
-        assert!(store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
-        assert!(store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(0)));
+        assert!(store.is_mapping_allowed(NodeId::new(0), NodeId::new(2)));
+        assert!(store.is_mapping_allowed(NodeId::new(1), NodeId::new(3)));
+        assert!(store.is_mapping_allowed(NodeId::new(2), NodeId::new(4)));
+        assert!(store.is_mapping_allowed(NodeId::new(0), NodeId::new(0)));
         // Not allowed.
-        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(1)));
-        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(3)));
-        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(4)));
+        assert!(!store.is_mapping_allowed(NodeId::new(0), NodeId::new(1)));
+        assert!(!store.is_mapping_allowed(NodeId::new(0), NodeId::new(3)));
+        assert!(!store.is_mapping_allowed(NodeId::new(0), NodeId::new(4)));
         // Mapping already exists.
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert_eq!(2, store.size());
-        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(2)));
-        assert!(store.is_mapping_allowed(&NodeId::new(1), &NodeId::new(3)));
-        assert!(!store.is_mapping_allowed(&NodeId::new(2), &NodeId::new(4)));
-        assert!(!store.is_mapping_allowed(&NodeId::new(0), &NodeId::new(0)));
+        assert!(!store.is_mapping_allowed(NodeId::new(0), NodeId::new(2)));
+        assert!(store.is_mapping_allowed(NodeId::new(1), NodeId::new(3)));
+        assert!(!store.is_mapping_allowed(NodeId::new(2), NodeId::new(4)));
+        assert!(!store.is_mapping_allowed(NodeId::new(0), NodeId::new(0)));
     }
 
     #[test]
@@ -355,23 +355,22 @@ mod tests {
         let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
-        assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
-        assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(4)));
+        assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(2), NodeId::new(4)));
         assert_eq!(2, store.size());
         // Not mapped.
-        assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(1)));
-        assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(2)));
-        assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(3)));
-        assert!(!store.is_mapped(&NodeId::new(0), &NodeId::new(4)));
-        assert!(!store.is_mapped(&NodeId::new(1), &NodeId::new(1)));
-        assert!(!store.is_mapped(&NodeId::new(1), &NodeId::new(2)));
-        assert!(!store.is_mapped(&NodeId::new(1), &NodeId::new(3)));
-        assert!(!store.is_mapped(&NodeId::new(1), &NodeId::new(4)));
-        assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(1)));
-        assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(2)));
-        assert!(!store.is_mapped(&NodeId::new(2), &NodeId::new(3)));
+        assert!(!store.is_mapped(NodeId::new(0), NodeId::new(1)));
+        assert!(!store.is_mapped(NodeId::new(0), NodeId::new(2)));
+        assert!(!store.is_mapped(NodeId::new(0), NodeId::new(3)));
+        assert!(!store.is_mapped(NodeId::new(0), NodeId::new(4)));
+        assert!(!store.is_mapped(NodeId::new(1), NodeId::new(1)));
+        assert!(!store.is_mapped(NodeId::new(1), NodeId::new(2)));
+        assert!(!store.is_mapped(NodeId::new(1), NodeId::new(3)));
+        assert!(!store.is_mapped(NodeId::new(1), NodeId::new(4)));
+        assert!(!store.is_mapped(NodeId::new(2), NodeId::new(1)));
+        assert!(!store.is_mapped(NodeId::new(2), NodeId::new(2)));
+        assert!(!store.is_mapped(NodeId::new(2), NodeId::new(3)));
     }
-
     #[test]
     fn render_json() {
         use myers_matcher::MyersConfig;

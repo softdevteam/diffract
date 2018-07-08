@@ -104,17 +104,17 @@ impl ZhangShashaConfig {
                                                                        store: &MappingStore<T>) {
         self.forest_dist[self.src.lld(i) - 1][self.dst.lld(j) - 1] = 0.0;
         for di in self.src.lld(i)..i + 1 {
-            let cost_del = get_deletion_cost(&self.src.id(di), &store.from_arena.borrow());
+            let cost_del = get_deletion_cost(self.src.id(di), &store.from_arena.borrow());
             self.forest_dist[di][self.dst.lld(j) - 1] =
                 self.forest_dist[di - 1][self.dst.lld(j) - 1] + cost_del;
             for dj in self.dst.lld(j)..j + 1 {
-                let cost_ins = get_insertion_cost(&self.dst.id(dj), &store.to_arena.borrow());
+                let cost_ins = get_insertion_cost(self.dst.id(dj), &store.to_arena.borrow());
                 self.forest_dist[self.src.lld(i) - 1][dj] =
                     self.forest_dist[self.src.lld(i) - 1][dj - 1] + cost_ins;
                 if self.src.lld(di) == self.src.lld(i) && self.dst.lld(dj) == self.dst.lld(j) {
-                    let cost_upd = get_update_cost(&self.src.id(di),
+                    let cost_upd = get_update_cost(self.src.id(di),
                                                    &store.from_arena.borrow(),
-                                                   &self.dst.id(dj),
+                                                   self.dst.id(dj),
                                                    &store.to_arena.borrow());
                     self.forest_dist[di][dj] =
                         f64::min(f64::min(self.forest_dist[di - 1][dj] + cost_del,
@@ -177,9 +177,9 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
                     col -= 1;
                 } else if self.src.lld(row) - 1 == self.src.lld(last_row) - 1
                           && self.dst.lld(col) - 1 == self.dst.lld(last_col) - 1
-                          && has_same_type(&self.src.id(row),
+                          && has_same_type(self.src.id(row),
                                            &store.from_arena.borrow(),
-                                           &self.dst.id(col),
+                                           self.dst.id(col),
                                            &store.to_arena.borrow())
                 {
                     // Both sub-forests are trees, so match id node row (in src)
@@ -204,24 +204,24 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
 }
 
 /// Return cost of a deletion action.
-fn get_deletion_cost<T: Clone>(_node: &NodeId<FromNodeId>, _arena: &Arena<T, FromNodeId>) -> f64 {
+fn get_deletion_cost<T: Clone>(_node: NodeId<FromNodeId>, _arena: &Arena<T, FromNodeId>) -> f64 {
     DELETION_COST
 }
 
 /// Return cost of an insertion action.
-fn get_insertion_cost<T: Clone>(_node: &NodeId<ToNodeId>, _arena: &Arena<T, ToNodeId>) -> f64 {
+fn get_insertion_cost<T: Clone>(_node: NodeId<ToNodeId>, _arena: &Arena<T, ToNodeId>) -> f64 {
     INSERTION_COST
 }
 
 /// Return cost of an update action.
-fn get_update_cost<T: Clone + Eq + ToString>(from: &NodeId<FromNodeId>,
+fn get_update_cost<T: Clone + Eq + ToString>(from: NodeId<FromNodeId>,
                                              from_arena: &Arena<T, FromNodeId>,
-                                             to: &NodeId<ToNodeId>,
+                                             to: NodeId<ToNodeId>,
                                              to_arena: &Arena<T, ToNodeId>)
                                              -> f64 {
-    if from_arena[*from].ty == to_arena[*to].ty {
-        let from_s = from_arena[*from].label.to_string();
-        let to_s = to_arena[*to].label.to_string();
+    if from_arena[from].ty == to_arena[to].ty {
+        let from_s = from_arena[from].label.to_string();
+        let to_s = to_arena[to].label.to_string();
         if from_s.is_empty() || to_s.is_empty() {
             return 1.0;
         } else {
@@ -360,7 +360,7 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
     }
 
    #[test]
@@ -383,7 +383,7 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(&from_root, &to_root));
+        assert!(store.is_mapped(from_root, to_root));
     }
 
     #[test]
@@ -399,7 +399,7 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(&from_root, &to_root));
+        assert!(store.is_mapped(from_root, to_root));
     }
 
     #[test]
@@ -415,7 +415,7 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(&from_root, &to_root));
+        assert!(store.is_mapped(from_root, to_root));
     }
 
     #[test]
@@ -429,11 +429,11 @@ mod tests {
         assert_eq!(5, store.size());
         // These are not in a loop because we want assertion failures to
         // give the node id at the command line.
-        assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
-        assert!(store.is_mapped(&NodeId::new(1), &NodeId::new(1)));
-        assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(2)));
-        assert!(store.is_mapped(&NodeId::new(3), &NodeId::new(3)));
-        assert!(store.is_mapped(&NodeId::new(4), &NodeId::new(4)));
+        assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(1), NodeId::new(1)));
+        assert!(store.is_mapped(NodeId::new(2), NodeId::new(2)));
+        assert!(store.is_mapped(NodeId::new(3), NodeId::new(3)));
+        assert!(store.is_mapped(NodeId::new(4), NodeId::new(4)));
     }
 
     #[test]
@@ -479,11 +479,11 @@ mod tests {
         assert_eq!(5, store.size());
         // These are not in a loop because we want assertion failures to
         // give the node id at the command line.
-        assert!(store.is_mapped(&NodeId::new(1), &NodeId::new(0)));
-        assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(1)));
-        assert!(store.is_mapped(&NodeId::new(5), &NodeId::new(5)));
-        assert!(store.is_mapped(&NodeId::new(3), &NodeId::new(4)));
-        assert!(store.is_mapped(&NodeId::new(4), &NodeId::new(3)));
+        assert!(store.is_mapped(NodeId::new(1), NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(2), NodeId::new(1)));
+        assert!(store.is_mapped(NodeId::new(5), NodeId::new(5)));
+        assert!(store.is_mapped(NodeId::new(3), NodeId::new(4)));
+        assert!(store.is_mapped(NodeId::new(4), NodeId::new(3)));
     }
 
 
@@ -520,12 +520,12 @@ mod tests {
         assert_eq!(6, store.size());
         // These are not in a loop because we want assertion failures to
         // give the node id at the command line.
-        assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
-        assert!(store.is_mapped(&NodeId::new(1), &NodeId::new(1)));
-        assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(2)));
-        assert!(store.is_mapped(&NodeId::new(3), &NodeId::new(3)));
-        assert!(store.is_mapped(&NodeId::new(4), &NodeId::new(4)));
-        assert!(store.is_mapped(&NodeId::new(5), &NodeId::new(5)));
+        assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(1), NodeId::new(1)));
+        assert!(store.is_mapped(NodeId::new(2), NodeId::new(2)));
+        assert!(store.is_mapped(NodeId::new(3), NodeId::new(3)));
+        assert!(store.is_mapped(NodeId::new(4), NodeId::new(4)));
+        assert!(store.is_mapped(NodeId::new(5), NodeId::new(5)));
     }
 
     #[test]
@@ -548,11 +548,11 @@ mod tests {
                              vec![0.0, 5.0, 5.0, 3.0, 3.0, 5.0, 2.0]];
         assert_eq!(tree_dist, matcher_config.tree_dist);
         assert_eq!(5, store.size());
-        assert!(store.is_mapped(&NodeId::new(0), &NodeId::new(0)));
-        assert!(store.is_mapped(&NodeId::new(2), &NodeId::new(2)));
-        assert!(store.is_mapped(&NodeId::new(1), &NodeId::new(3)));
-        assert!(store.is_mapped(&NodeId::new(3), &NodeId::new(4)));
-        assert!(store.is_mapped(&NodeId::new(5), &NodeId::new(5)));
+        assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
+        assert!(store.is_mapped(NodeId::new(2), NodeId::new(2)));
+        assert!(store.is_mapped(NodeId::new(1), NodeId::new(3)));
+        assert!(store.is_mapped(NodeId::new(3), NodeId::new(4)));
+        assert!(store.is_mapped(NodeId::new(5), NodeId::new(5)));
     }
 
     #[test]
@@ -569,24 +569,24 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(5, store.size());
-        assert!(store.is_mapped(&from_root, &to_children[0]));
-        assert!(store.is_mapped(&from_children[0],
-                                &to_children[0].children(&store.to_arena.borrow())
-                                               .nth(0)
-                                               .unwrap()));
-        assert!(store.is_mapped(&from_children[1], &to_grandchild));
-        assert!(store.is_mapped(&from_children[1].children(&store.from_arena.borrow())
-                                                 .nth(0)
-                                                 .unwrap(),
-                                &to_grandchild.children(&store.to_arena.borrow())
-                                               .nth(0)
-                                               .unwrap()));
-        assert!(store.is_mapped(&from_children[1].children(&store.from_arena.borrow())
-                                                 .nth(2)
-                                                 .unwrap(),
-                                &to_grandchild.children(&store.to_arena.borrow())
-                                               .nth(2)
-                                               .unwrap()));
+        assert!(store.is_mapped(from_root, to_children[0]));
+        assert!(store.is_mapped(from_children[0],
+                                to_children[0].children(&store.to_arena.borrow())
+                                              .nth(0)
+                                              .unwrap()));
+        assert!(store.is_mapped(from_children[1], to_grandchild));
+        assert!(store.is_mapped(from_children[1].children(&store.from_arena.borrow())
+                                                .nth(0)
+                                                .unwrap(),
+                                to_grandchild.children(&store.to_arena.borrow())
+                                             .nth(0)
+                                             .unwrap()));
+        assert!(store.is_mapped(from_children[1].children(&store.from_arena.borrow())
+                                                .nth(2)
+                                                .unwrap(),
+                                to_grandchild.children(&store.to_arena.borrow())
+                                             .nth(2)
+                                             .unwrap()));
     }
 
     #[test]
@@ -604,23 +604,23 @@ mod tests {
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(5, store.size());
-        assert!(store.is_mapped(&from_root, &to_root));
-        assert!(store.is_mapped(&from_grandchild, &to_children[0]));
-        assert!(store.is_mapped(&from_grandchild.children(&store.from_arena.borrow())
-                                                 .nth(0)
-                                                 .unwrap(),
-                                &to_children[0].children(&store.to_arena.borrow())
-                                               .nth(0)
-                                               .unwrap()));
-        assert!(store.is_mapped(&from_children[0].children(&store.from_arena.borrow())
-                                                 .nth(1)
-                                                 .unwrap(),
-                                &to_children[1].children(&store.to_arena.borrow())
-                                               .nth(0)
-                                               .unwrap()));
-        assert!(store.is_mapped(&from_children[0].children(&store.from_arena.borrow())
-                                                 .nth(2)
-                                                 .unwrap(),
-                                &to_children[2]));
+        assert!(store.is_mapped(from_root, to_root));
+        assert!(store.is_mapped(from_grandchild, to_children[0]));
+        assert!(store.is_mapped(from_grandchild.children(&store.from_arena.borrow())
+                                                .nth(0)
+                                                .unwrap(),
+                                to_children[0].children(&store.to_arena.borrow())
+                                              .nth(0)
+                                              .unwrap()));
+        assert!(store.is_mapped(from_children[0].children(&store.from_arena.borrow())
+                                                .nth(1)
+                                                .unwrap(),
+                                to_children[1].children(&store.to_arena.borrow())
+                                              .nth(0)
+                                              .unwrap()));
+        assert!(store.is_mapped(from_children[0].children(&store.from_arena.borrow())
+                                                .nth(2)
+                                                .unwrap(),
+                                to_children[2]));
     }
 }

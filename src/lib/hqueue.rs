@@ -166,7 +166,7 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     }
 
     /// Insert all the children of `parent` into this queue, keeping it sorted.
-    pub fn open<U: Clone>(&mut self, parent: &NodeId<T>, arena: &Arena<U, T>) {
+    pub fn open<U: Clone>(&mut self, parent: NodeId<T>, arena: &Arena<U, T>) {
         let children = parent.children(arena).collect::<Vec<NodeId<T>>>();
         for child in children {
             self.push(child, arena);
@@ -254,7 +254,7 @@ mod tests {
     fn open() {
         let arena = create_mult_arena();
         let mut queue = HeightQueue::<FromNodeId>::new();
-        queue.open(&NodeId::new(0), &arena);
+        queue.open(NodeId::new(0), &arena);
         let expected1 = vec![NodeId::new(2)]; // Expr *
         assert_eq!(expected1, queue.pop());
         let expected2 = vec![NodeId::new(1)]; // INT 1

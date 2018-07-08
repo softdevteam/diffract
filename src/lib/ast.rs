@@ -245,9 +245,9 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
     }
 
     /// Test whether this arena contains a node with a given type and label.
-    pub fn contains_type_and_label(&self, ty: T, label: &str) -> bool {
+    pub fn contains_type_and_label(&self, ty: &T, label: &str) -> bool {
         for n in &self.nodes {
-            if ty == n.ty && label == n.label {
+            if *ty == n.ty && label == n.label {
                 return true;
             }
         }
@@ -501,38 +501,38 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Return the index of this Node Id.
-    pub fn id(&self) -> usize {
+    pub fn id(self) -> usize {
         self.index
     }
 
     /// `true` if this node has no children.
-    pub fn is_leaf<T: Clone>(&self, arena: &Arena<T, U>) -> bool {
-        arena[*self].first_child.is_none()
+    pub fn is_leaf<T: Clone>(self, arena: &Arena<T, U>) -> bool {
+        arena[self].first_child.is_none()
     }
 
     /// `true` if this node has no parent.
     ///
     /// If a node has been added to the arena without being given a parent, or
     /// a node has been detached from its parent, this method will return `true`.
-    pub fn is_root<T: Clone>(&self, arena: &Arena<T, U>) -> bool {
-        arena[*self].parent.is_none()
+    pub fn is_root<T: Clone>(self, arena: &Arena<T, U>) -> bool {
+        arena[self].parent.is_none()
     }
 
     /// Return the hash associated with this node.
-    pub fn get_hash<T: Clone>(&self, arena: &Arena<T, U>) -> Option<HashType> {
-        arena[*self].hash
+    pub fn get_hash<T: Clone>(self, arena: &Arena<T, U>) -> Option<HashType> {
+        arena[self].hash
     }
 
     /// Set the hash associated with this node.
-    pub fn set_hash<T: Clone>(&self, hash: Option<HashType>, arena: &mut Arena<T, U>) {
-        arena[*self].hash = hash;
+    pub fn set_hash<T: Clone>(self, hash: Option<HashType>, arena: &mut Arena<T, U>) {
+        arena[self].hash = hash;
     }
 
     /// Get the height of this node.
     ///
     /// The height of a leaf node is 1, the height of a branch node is 1 +
     /// the height of its tallest child node.
-    pub fn height<T: Clone>(&self, arena: &Arena<T, U>) -> u32 {
+    pub fn height<T: Clone>(self, arena: &Arena<T, U>) -> u32 {
         if self.is_leaf(arena) {
             return 1;
         }
@@ -545,7 +545,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     ///
     /// The size of a leaf node is 1, the size of a branch node is 1 + the
     /// number of descendants of that node.
-    pub fn size<T: Clone>(&self, arena: &Arena<T, U>) -> u32 {
+    pub fn size<T: Clone>(self, arena: &Arena<T, U>) -> u32 {
         if self.is_leaf(arena) {
             return 1;
         }
@@ -557,7 +557,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// This is distinct from the rolling hash generator implemented in the
     /// fingerprinting module. As a static hash, this function assumes that the
     /// AST does not change.
-    pub fn to_static_hash_string<T: Clone + ToString>(&self, arena: &Arena<T, U>) -> String {
+    pub fn to_static_hash_string<T: Clone + ToString>(self, arena: &Arena<T, U>) -> String {
         let mut hash: String = String::from(OPEN_SYMBOL) + &self.to_short_string(arena);
         for child in self.children(arena) {
             hash.push_str(&child.to_static_hash_string(arena));
@@ -566,8 +566,8 @@ impl<U: PartialEq + Copy> NodeId<U> {
         hash
     }
 
-    fn to_short_string<T: Clone + ToString>(&self, arena: &Arena<T, U>) -> String {
-        arena[*self].ty.to_string() + SEPARATE_SYMBOL + &arena[*self].label
+    fn to_short_string<T: Clone + ToString>(self, arena: &Arena<T, U>) -> String {
+        arena[self].ty.to_string() + SEPARATE_SYMBOL + &arena[self].label
     }
 
     /// Detach this node, leaving its children unaffected.
@@ -576,12 +576,12 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach<T: Clone + PartialEq>(&self, arena: &mut Arena<T, U>) -> ArenaResult {
-        if !arena.contains(*self) {
+    pub fn detach<T: Clone + PartialEq>(self, arena: &mut Arena<T, U>) -> ArenaResult {
+        if !arena.contains(self) {
             return Err(ArenaError::NodeIdNotFound);
         }
         let (parent, previous_sibling, next_sibling) = {
-            let node = &mut arena[*self];
+            let node = &mut arena[self];
             (node.parent.take(), node.previous_sibling.take(), node.next_sibling.take())
         };
         if let Some(next_sibling) = next_sibling {
@@ -603,7 +603,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// actually removed from the arena, because `NodeId`s should be immutable.
     /// This means that if you detach the root of the tree, any iterator will
     /// still be able to reach the root (but not any of the other nodes).
-    pub fn detach_with_children<T: Clone + PartialEq>(&self,
+    pub fn detach_with_children<T: Clone + PartialEq>(self,
                                                       arena: &mut Arena<T, U>)
                                                       -> ArenaResult {
         self.detach(arena)?;
@@ -615,7 +615,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     }
 
     /// Make self the next (i.e. last) child of another.
-    pub fn make_child_of<T: Clone + PartialEq>(&self,
+    pub fn make_child_of<T: Clone + PartialEq>(self,
                                                parent: NodeId<U>,
                                                arena: &mut Arena<T, U>)
                                                -> ArenaResult {
@@ -623,16 +623,16 @@ impl<U: PartialEq + Copy> NodeId<U> {
             return Err(ArenaError::NodeIdNotFound);
         }
         self.detach(arena)?;
-        arena[*self].parent = Some(parent);
+        arena[self].parent = Some(parent);
         if arena[parent].first_child.is_none() {
-            arena[parent].first_child = Some(*self);
+            arena[parent].first_child = Some(self);
         }
         match arena[parent].last_child {
-            None => arena[parent].last_child = Some(*self),
+            None => arena[parent].last_child = Some(self),
             Some(id) => {
-                arena[parent].last_child = Some(*self);
-                arena[id].next_sibling = Some(*self);
-                arena[*self].previous_sibling = Some(id);
+                arena[parent].last_child = Some(self);
+                arena[id].next_sibling = Some(self);
+                arena[self].previous_sibling = Some(id);
             }
         };
         Ok(())
@@ -682,7 +682,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
                         queue.push_back((child, child_copy));
                     }
                     child_copy.make_child_of(copy_to_node, _arena)
-                              .expect(&format!("AST node {} does not exist.", copy_to_node));
+                              .unwrap_or_else(|_| panic!("AST node {} does not exist.", copy_to_node));
                 }
             }
         }
@@ -693,12 +693,12 @@ impl<U: PartialEq + Copy> NodeId<U> {
     ///
     /// Children are numbered from zero, so `nth == 0` makes `self` the *first*
     /// child of `parent`.
-    pub fn make_nth_child_of<T: Clone + PartialEq>(&self,
+    pub fn make_nth_child_of<T: Clone + PartialEq>(self,
                                                    parent: NodeId<U>,
                                                    nth: u16,
                                                    arena: &mut Arena<T, U>)
                                                    -> ArenaResult {
-        if !arena.contains(*self) {
+        if !arena.contains(self) {
             return Err(ArenaError::NodeIdNotFound);
         }
         if !arena.contains(parent) {
@@ -717,23 +717,23 @@ impl<U: PartialEq + Copy> NodeId<U> {
             return Err(ArenaError::NodeHasTooFewChildren(n_children));
         }
         self.detach(arena)?; // Leave current children attached.
-        arena[*self].parent = Some(parent);
+        arena[self].parent = Some(parent);
         if nth == 0 {
             // first child cannot be None here.
-            arena[parent].first_child = Some(*self);
+            arena[parent].first_child = Some(self);
         }
         if nth > 0 {
             let new_prev_sibling = children[nth as usize - 1];
-            arena[*self].previous_sibling = Some(new_prev_sibling);
-            arena[new_prev_sibling].next_sibling = Some(*self);
+            arena[self].previous_sibling = Some(new_prev_sibling);
+            arena[new_prev_sibling].next_sibling = Some(self);
         }
         if nth < n_children {
             let new_next_sibling = children[nth as usize];
-            arena[*self].next_sibling = Some(new_next_sibling);
-            arena[new_next_sibling].previous_sibling = Some(*self);
+            arena[self].next_sibling = Some(new_next_sibling);
+            arena[new_next_sibling].previous_sibling = Some(self);
         }
         if nth == n_children {
-            arena[parent].last_child = Some(*self);
+            arena[parent].last_child = Some(self);
         }
         Ok(())
     }
@@ -1612,10 +1612,10 @@ mod tests {
     fn contains_type_and_label() {
         let arena = &mut Arena::<&str, FromNodeId>::new();
         let _ = arena.new_node("1", String::from("INT"), None, None, None, None);
-        assert!(arena.contains_type_and_label("1", "INT"));
-        assert!(!arena.contains_type_and_label("0", "INT"));
-        assert!(!arena.contains_type_and_label("1", "FLOAT"));
-        assert!(!arena.contains_type_and_label("0", "FLOAT"));
+        assert!(arena.contains_type_and_label(&"1", "INT"));
+        assert!(!arena.contains_type_and_label(&"0", "INT"));
+        assert!(!arena.contains_type_and_label(&"1", "FLOAT"));
+        assert!(!arena.contains_type_and_label(&"0", "FLOAT"));
     }
 
     #[test]

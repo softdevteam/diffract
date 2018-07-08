@@ -162,7 +162,7 @@ pub fn write_diff_to_stdout<T: Clone + Debug + Eq + ToString>(store: &MappingSto
     let mut stream = term::stdout().unwrap();
     stream.attr(term::Attr::Bold).unwrap();
     stream.fg(term::color::BRIGHT_MAGENTA).unwrap();
-    write!(stream, "--- a/{}\n+++ b/{}\n", from_path, to_path).unwrap();
+    writeln!(stream, "--- a/{}\n+++ b/{}", from_path, to_path).unwrap();
     stream.reset().unwrap();
     // Iterate over each hunk and print file with context.
     let mut ch = 0;
@@ -234,7 +234,7 @@ pub fn write_diff_to_stdout<T: Clone + Debug + Eq + ToString>(store: &MappingSto
     // Ensure the next shell prompt starts on a new line, otherwise the diff is
     // especially difficult to read.
     if to_file.len() > 1 && &to_file[to_file.len() - 2..to_file.len()] != "\n" {
-        write!(stream, "\n").unwrap();
+        writeln!(stream).unwrap();
     }
     stream.reset().unwrap();
     Ok(())
@@ -321,7 +321,7 @@ impl RenderDotfile for MappingStore<String> {
         // Node labels for both ASTs.
         for id in 0..self.from_arena.borrow().size() {
             from_node = NodeId::new(id);
-            if !self.contains_from(&from_node) {
+            if !self.contains_from(from_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
@@ -346,7 +346,7 @@ impl RenderDotfile for MappingStore<String> {
         }
         for id in 0..self.to_arena.borrow().size() {
             to_node = NodeId::new(id);
-            if !self.contains_to(&to_node) {
+            if !self.contains_to(to_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";

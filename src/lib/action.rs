@@ -357,7 +357,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::MOVE,
                                t_node.char_no.unwrap(),
@@ -375,7 +375,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::MOVE,
                                t_node.char_no.unwrap(),
@@ -392,7 +392,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> 
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::UPDATE,
                                t_node.char_no.unwrap(),
@@ -410,7 +410,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> 
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::UPDATE,
                                t_node.char_no.unwrap(),
@@ -427,7 +427,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::COPY,
                                t_node.char_no.unwrap(),
@@ -445,7 +445,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::COPY,
                                t_node.char_no.unwrap(),
@@ -462,7 +462,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Glue {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::GLUE,
                                t_node.char_no.unwrap(),
@@ -480,7 +480,7 @@ impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Glue {
                                  f_node.char_no.unwrap(),
                                  f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(&self.from_node).unwrap()];
+        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
         if t_node.char_no.is_some() {
             to.push(Patch::new(ActionType::GLUE,
                                t_node.char_no.unwrap(),

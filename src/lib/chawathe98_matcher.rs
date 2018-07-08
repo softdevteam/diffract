@@ -212,43 +212,43 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                                            cost_ok);
     }
     /// Push a new mapping into the store.
-    pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &EdgeType) {
-        self.from.borrow_mut().insert(from, (to, *ty));
-        self.to.borrow_mut().insert(to, (from, *ty));
+    pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: EdgeType) {
+        self.from.borrow_mut().insert(from, (to, ty));
+        self.to.borrow_mut().insert(to, (from, ty));
     }
 
     /// Remove mapping from store.
-    pub fn remove(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) {
-        self.from.borrow_mut().remove(from);
-        self.to.borrow_mut().remove(to);
+    pub fn remove(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) {
+        self.from.borrow_mut().remove(&from);
+        self.to.borrow_mut().remove(&to);
     }
 
     /// `true` if the store has a mapping from `from` to another node.
-    pub fn contains_from(&self, from: &NodeId<FromNodeId>) -> bool {
-        self.from.borrow().contains_key(from)
+    pub fn contains_from(&self, from: NodeId<FromNodeId>) -> bool {
+        self.from.borrow().contains_key(&from)
     }
 
     /// `true` if the store has a mapping from a node to `to`.
-    pub fn contains_to(&self, to: &NodeId<ToNodeId>) -> bool {
-        self.to.borrow().contains_key(to)
+    pub fn contains_to(&self, to: NodeId<ToNodeId>) -> bool {
+        self.to.borrow().contains_key(&to)
     }
 
     /// Get the `NodeId` that `to` is mapped from.
-    pub fn get_from(&self, to: &NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
-        self.to.borrow().get(to).map(|x| x.0)
+    pub fn get_from(&self, to: NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
+        self.to.borrow().get(&to).map(|x| x.0)
     }
 
     /// Get the `NodeId` that `from` is mapped to.
-    pub fn get_to(&self, from: &NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
-        self.from.borrow().get(from).map(|x| x.0)
+    pub fn get_to(&self, from: NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
+        self.from.borrow().get(&from).map(|x| x.0)
     }
 
     /// Test whether `from` is mapped to `to` in this store.
-    pub fn is_mapped(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> bool {
+    pub fn is_mapped(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
         if !self.contains_from(from) {
             return false;
         }
-        self.get_to(from).map_or(false, |x| x == *to)
+        self.get_to(from).map_or(false, |x| x == to)
     }
 
     /// Push New Edge
@@ -282,12 +282,12 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
     pub fn contains_edge(&self,
                          from: usize,
                          to: usize,
-                         edge_type: &EdgeType,
+                         edge_type: EdgeType,
                          list_edges: &[Edge])
                          -> bool {
         for edge in list_edges {
             if edge.from_node.id() == from && edge.to_node.id() == to
-               && edge.edge_type == *edge_type
+               && edge.edge_type == edge_type
             {
                 return true;
             }
@@ -335,18 +335,18 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                                              .collect::<Vec<NodeId<FromNodeId>>>();
         let descendants_to_node = to_node.descendants(&self.to_arena.borrow())
                                          .collect::<Vec<NodeId<ToNodeId>>>();
-        if has_same_type_and_label(&from_node,
+        if has_same_type_and_label(from_node,
                                    &self.from_arena.borrow(),
-                                   &to_node,
+                                   to_node,
                                    &self.to_arena.borrow())
         {
             if descendants_to_node.len() != descendants_from_node.len() {
                 return false;
             }
             for i in 0..descendants_to_node.len() {
-                if !has_same_type_and_label(&descendants_from_node[i],
+                if !has_same_type_and_label(descendants_from_node[i],
                                             &self.from_arena.borrow(),
-                                            &descendants_to_node[i],
+                                            descendants_to_node[i],
                                             &self.to_arena.borrow())
                 {
                     // This means the descendants are !perfect by label and expression
@@ -1161,9 +1161,9 @@ fn add_edges_move(new_matcher_pruning: &mut MappingStoreGraph<String>,
             // Add to desc to insert
             let mut checker = true;
             for i in 0..from_desc.len() {
-                if !has_same_type_and_label(&from_desc[i],
+                if !has_same_type_and_label(from_desc[i],
                                             &new_matcher_pruning.from_arena.borrow(),
-                                            &to_desc[i],
+                                            to_desc[i],
                                             &new_matcher_pruning.to_arena.borrow())
                 {
                     checker = false;
@@ -1753,9 +1753,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         for (from_node_id, from_node) in base_pre.iter().enumerate() {
             let mut bool_check = false;
             for (to_node_id, to_node) in diff_pre.iter().enumerate() {
-                if has_same_type_and_label(from_node,
+                if has_same_type_and_label(*from_node,
                                            &store.from_arena.borrow(),
-                                           to_node,
+                                           *to_node,
                                            &store.to_arena.borrow())
                 {
                     if from_node_id == to_node_id {
@@ -1767,9 +1767,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                         if (base_pre[from_node_id].is_root(&store.from_arena.borrow())
                             && diff_pre[to_node_id].is_root(&store.to_arena.borrow()))
                            || (parent_from_node.is_some() && parent_to_node.is_some()
-                               && has_same_type_and_label(&parent_from_node.unwrap(),
+                               && has_same_type_and_label(parent_from_node.unwrap(),
                                                           &store.from_arena.borrow(),
-                                                          &parent_to_node.unwrap(),
+                                                          parent_to_node.unwrap(),
                                                           &store.to_arena.borrow()))
                         {
                             // If the parent are equal if so then OK edge
@@ -1793,9 +1793,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                         }
                     }
                     bool_check = true;
-                } else if has_same_type(&base_pre[from_node_id],
+                } else if has_same_type(base_pre[from_node_id],
                                         &store.from_arena.borrow(),
-                                        &diff_pre[to_node_id],
+                                        diff_pre[to_node_id],
                                         &store.to_arena.borrow())
                           && from_node_id == to_node_id
                 {
@@ -1821,9 +1821,9 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
         for to_node in &diff_pre {
             let mut bool_check = false;
             for (from_node_id, from_node) in base_pre.iter().enumerate() {
-                if has_same_type_and_label(from_node,
+                if has_same_type_and_label(*from_node,
                                            &store.from_arena.borrow(),
-                                           to_node,
+                                           *to_node,
                                            &store.to_arena.borrow())
                 {
                     bool_check = true;
@@ -2249,9 +2249,9 @@ pub fn chawathe_matching_actual(mut from_arena: Arena<String, FromNodeId>,
     assert_eq!(traverse_from.len(), traverse_to.len());
     if traverse_from.len() == traverse_to.len() {
         for i in 0..traverse_from.len() {
-            if !has_same_type_and_label(&traverse_from[i],
+            if !has_same_type_and_label(traverse_from[i],
                                         &new_matcher_pruning.from_arena.borrow(),
-                                        &traverse_to[i],
+                                        traverse_to[i],
                                         &new_matcher_pruning.to_arena.borrow())
             {
                 values_same = false;
@@ -2260,7 +2260,7 @@ pub fn chawathe_matching_actual(mut from_arena: Arena<String, FromNodeId>,
         assert_eq!(values_same, true);
     }
     for edge in new_matcher_pruning.list_edges.borrow().iter() {
-        new_matcher_pruning.push(edge.from_node, edge.to_node, &edge.edge_type);
+        new_matcher_pruning.push(edge.from_node, edge.to_node, edge.edge_type);
     }
     // Print the edit script
     let string_output = edit_script.render_json(0);
@@ -2388,15 +2388,15 @@ mod tests {
         let cost_edges = CostEdge::new(1, 1, 1, 1, 1, 1, 1, 1);
         let matcher = matching_config.match_trees(tree1.clone(), tree2.clone(), cost_edges);
         let mut checker_edges_induced = matcher.list_edges.borrow().clone();
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 2, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 4, &EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 1, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 2, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 3, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 4, EdgeType::OK, &mut checker_edges_induced));
     }
 
     #[test]
-    // Tree 1 has more nodes and tree 2 stayst he same as create arena
+    // Tree 1 has more nodes and tree 2 stays the same as create arena
     pub fn test_chawathe_matching_2() -> () {
         // Tree 1
         let mut arena = Arena::new();
@@ -2470,13 +2470,13 @@ mod tests {
 
         let matcher = matching_config.match_trees(arena.clone(), tree2.clone(), cost_edges);
         let mut checker_edges_induced = matcher.list_edges.borrow().clone();
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 2, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 1, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(5, 4, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(6, 5, &EdgeType::DELETE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 1, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 2, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 3, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 1, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(5, 4, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(6, 5, EdgeType::DELETE, &mut checker_edges_induced));
     }
 
     #[test]
@@ -2554,13 +2554,13 @@ mod tests {
 
         let matcher = matching_config.match_trees(tree1.clone(), arena.clone(), cost_edges);
         let mut checker_edges_induced = matcher.list_edges.borrow().clone();
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 4, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 2, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 5, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(5, 6, &EdgeType::INSERT, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 1, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 4, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 2, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 3, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 5, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(5, 6, EdgeType::INSERT, &mut checker_edges_induced));
     }
 
     #[test]
@@ -2810,33 +2810,33 @@ mod tests {
 
         let mut checker_edges_induced = matcher.list_edges.borrow().clone();
 
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 3, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 2, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 4, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 5, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 1, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 4, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(5, 2, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(5, 5, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(6, 3, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(6, 6, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(7, 4, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(7, 7, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(8, 5, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(8, 8, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(9, 6, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(9, 9, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(10, 7, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(10, 10, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(11, 8, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(12, 9, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(13, 10, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(9, 6, &EdgeType::GLUE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 1, &EdgeType::GLUE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 3, &EdgeType::GLUE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 1, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 3, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 2, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 4, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 3, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 5, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 1, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 4, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(5, 2, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(5, 5, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(6, 3, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(6, 6, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(7, 4, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(7, 7, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(8, 5, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(8, 8, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(9, 6, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(9, 9, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(10, 7, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(10, 10, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(11, 8, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(12, 9, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(13, 10, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(9, 6, EdgeType::GLUE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 1, EdgeType::GLUE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 3, EdgeType::GLUE, &mut checker_edges_induced));
     }
 
     #[test]
@@ -2933,15 +2933,15 @@ mod tests {
 
         let matcher = matching_config.match_trees(arena.clone(), tree1.clone(), cost_edges);
         let mut checker_edges_induced = matcher.list_edges.borrow().clone();
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 2, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 2, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 3, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(4, 4, &EdgeType::MOVE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(2, 4, &EdgeType::UPDATE, &mut checker_edges_induced));
-        assert!(matcher.contains_edge(1, 2, &EdgeType::GLUE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 1, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 2, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 2, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(3, 3, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 3, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(4, 4, EdgeType::MOVE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(2, 4, EdgeType::UPDATE, &mut checker_edges_induced));
+        assert!(matcher.contains_edge(1, 2, EdgeType::GLUE, &mut checker_edges_induced));
     }
 
     #[test]
@@ -3155,30 +3155,30 @@ mod tests {
 
         let mut checker_edges_pruned = matcher.list_edges.borrow().clone();
 
-        assert!(matcher.contains_edge(0, 0, &EdgeType::OK, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(1, 1, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(1, 2, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(1, 7, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(2, 2, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(2, 3, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(2, 8, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(3, 3, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(4, 4, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(4, 5, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(5, 5, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(6, 6, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(6, 10, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(7, 7, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(7, 11, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(8, 8, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(8, 12, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(9, 9, &EdgeType::UPDATE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(9, 13, &EdgeType::MOVE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(10, 9, &EdgeType::INSERT, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(1, 7, &EdgeType::GLUE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(1, 2, &EdgeType::GLUE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(8, 12, &EdgeType::GLUE, &mut checker_edges_pruned));
-        assert!(matcher.contains_edge(6, 10, &EdgeType::GLUE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(0, 0, EdgeType::OK, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(1, 1, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(1, 2, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(1, 7, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(2, 2, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(2, 3, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(2, 8, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(3, 3, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(4, 4, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(4, 5, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(5, 5, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(6, 6, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(6, 10, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(7, 7, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(7, 11, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(8, 8, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(8, 12, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(9, 9, EdgeType::UPDATE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(9, 13, EdgeType::MOVE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(10, 9, EdgeType::INSERT, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(1, 7, EdgeType::GLUE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(1, 2, EdgeType::GLUE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(8, 12, EdgeType::GLUE, &mut checker_edges_pruned));
+        assert!(matcher.contains_edge(6, 10, EdgeType::GLUE, &mut checker_edges_pruned));
 
         // Test for Test 6
 
@@ -3202,9 +3202,9 @@ mod tests {
         let mut values_same = true;
         if traverse_from.len() == traverse_to.len() {
             for i in 0..traverse_from.len() {
-                if !has_same_type_and_label(&traverse_from[i],
+                if !has_same_type_and_label(traverse_from[i],
                                             &new_matcher_pruning.from_arena.borrow(),
-                                            &traverse_to[i],
+                                            traverse_to[i],
                                             &new_matcher_pruning.to_arena.borrow())
                 {
                     values_same = false;

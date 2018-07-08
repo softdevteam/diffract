@@ -70,16 +70,16 @@ pub const CLOSE_SYMBOL: &str = ")]";
 /// See `ast:: to_static_hash_string`.
 pub const SEPARATE_SYMBOL: &str = "@@";
 
-fn in_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: &NodeId<U>,
+fn in_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: NodeId<U>,
                                                                  arena: &Arena<T, U>)
                                                                  -> String {
-    String::from(OPEN_SYMBOL) + &arena[*id].label + SEPARATE_SYMBOL + &arena[*id].ty.to_string()
+    String::from(OPEN_SYMBOL) + &arena[id].label + SEPARATE_SYMBOL + &arena[id].ty.to_string()
 }
 
-fn out_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: &NodeId<U>,
+fn out_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: NodeId<U>,
                                                                   arena: &Arena<T, U>)
                                                                   -> String {
-    arena[*id].ty.to_string() + SEPARATE_SYMBOL + &arena[*id].label + CLOSE_SYMBOL
+    arena[id].ty.to_string() + SEPARATE_SYMBOL + &arena[id].label + CLOSE_SYMBOL
 }
 
 /// Convert a byte array (from digest) to integer.
@@ -145,12 +145,12 @@ impl<T: Clone + Debug + Eq + Hash + ToString> HashGenerator<T> for Md5HashGenera
     fn hash_leaf(&mut self, id_enum: FromOrToNodeId, store: &MappingStore<T>) -> HashType {
         match id_enum {
             FromOrToNodeId::FromNodeId(id) => {
-                BASE * HashGenerator::<T>::hash(self, &in_seed(&id, &store.from_arena.borrow()))
-                + HashGenerator::<T>::hash(self, &out_seed(&id, &store.from_arena.borrow()))
+                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.from_arena.borrow()))
+                + HashGenerator::<T>::hash(self, &out_seed(id, &store.from_arena.borrow()))
             }
             FromOrToNodeId::ToNodeId(id) => {
-                BASE * HashGenerator::<T>::hash(self, &in_seed(&id, &store.to_arena.borrow()))
-                + HashGenerator::<T>::hash(self, &out_seed(&id, &store.to_arena.borrow()))
+                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.to_arena.borrow()))
+                + HashGenerator::<T>::hash(self, &out_seed(id, &store.to_arena.borrow()))
             }
         }
     }
@@ -160,26 +160,26 @@ impl<T: Clone + Debug + Eq + Hash + ToString> HashGenerator<T> for Md5HashGenera
             FromOrToNodeId::FromNodeId(id) => {
                 let mut size = HashType::from(id.size(&store.from_arena.borrow()));
                 let mut hash = HashGenerator::<T>::hash(self,
-                                                        &in_seed(&id, &store.from_arena.borrow()))
+                                                        &in_seed(id, &store.from_arena.borrow()))
                                * fpow(BASE, size);
                 for child in id.children(&store.from_arena.borrow()) {
                     size -= HashType::from(child.size(&store.from_arena.borrow())) * 2;
                     debug_assert!(child.get_hash(&store.from_arena.borrow()).is_some());
                     hash += child.get_hash(&store.from_arena.borrow()).unwrap()
                 }
-                hash + HashGenerator::<T>::hash(self, &out_seed(&id, &store.from_arena.borrow()))
+                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.from_arena.borrow()))
             }
             FromOrToNodeId::ToNodeId(id) => {
                 let mut size = HashType::from(id.size(&store.to_arena.borrow()));
                 let mut hash = HashGenerator::<T>::hash(self,
-                                                        &in_seed(&id, &store.to_arena.borrow()))
+                                                        &in_seed(id, &store.to_arena.borrow()))
                                * fpow(BASE, size);
                 for child in id.children(&store.to_arena.borrow()) {
                     size -= HashType::from(child.size(&store.to_arena.borrow())) * 2;
                     debug_assert!(child.get_hash(&store.to_arena.borrow()).is_some());
                     hash += child.get_hash(&store.to_arena.borrow()).unwrap()
                 }
-                hash + HashGenerator::<T>::hash(self, &out_seed(&id, &store.to_arena.borrow()))
+                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.to_arena.borrow()))
             }
         }
     }
