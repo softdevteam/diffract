@@ -50,9 +50,9 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId<FromNodeId>],
                            arena1: &Arena<T, FromNodeId>,
                            seq2: &[NodeId<ToNodeId>],
                            arena2: &Arena<T, ToNodeId>,
-                           eq: &Fn(&NodeId<FromNodeId>,
+                           eq: &Fn(NodeId<FromNodeId>,
                                &Arena<T, FromNodeId>,
-                               &NodeId<ToNodeId>,
+                               NodeId<ToNodeId>,
                                &Arena<T, ToNodeId>) -> bool)
                            -> Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> {
     let mut lcss: Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = vec![];
@@ -71,7 +71,7 @@ pub fn lcss<T: Clone + Eq>(seq1: &[NodeId<FromNodeId>],
                      "Cost matrix not sized correctly.");
     for (i, n1) in seq1.iter().enumerate() {
         for (j, n2) in seq2.iter().enumerate() {
-            if eq(n1, arena1, n2, arena2) {
+            if eq(*n1, arena1, *n2, arena2) {
                 grid[i + 1][j + 1] = 1 + grid[i][j];
             } else {
                 grid[i + 1][j + 1] = max(grid[i + 1][j], grid[i][j + 1]);

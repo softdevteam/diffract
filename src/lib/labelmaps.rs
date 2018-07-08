@@ -63,8 +63,8 @@ impl<'a> LabelMap<'a> {
     }
 
     /// Given an id, return the corresponding label, or `None`.
-    pub fn read(&self, id: &usize) -> Option<&'a str> {
-        self.uint_to_str.get(id).map(|lab| *lab)
+    pub fn read(&self, id: usize) -> Option<&'a str> {
+        self.uint_to_str.get(&id).map(|lab| *lab)
     }
 
     /// Store a label in this mapping.
@@ -72,7 +72,7 @@ impl<'a> LabelMap<'a> {
     /// Return `None` if label is new and `new_labels_allowed` is `false`.
     pub fn store(&mut self, label: &'a str) -> Option<usize> {
         if self.str_to_uint.contains_key(&label) {
-            return Some(*self.str_to_uint.get(&label).unwrap());
+            return Some(self.str_to_uint[label]);
         } else if !self.new_labels_allowed {
             return None
         }
@@ -107,26 +107,26 @@ mod tests {
     fn label_maps() {
         let mut map = LabelMap::new();
         assert_eq!(0, map.size());
-        assert_eq!(None, map.read(&0));
+        assert_eq!(None, map.read(0));
         map.store("foobar");
         assert_eq!(1, map.size());
-        assert_eq!(Some("foobar"), map.read(&1));
+        assert_eq!(Some("foobar"), map.read(1));
     }
 
     #[test]
     fn new_labels_not_allowed() {
         let mut map = LabelMap::new();
         assert_eq!(0, map.size());
-        assert_eq!(None, map.read(&0));
+        assert_eq!(None, map.read(0));
         map.store("foobar");
         assert_eq!(1, map.size());
-        assert_eq!(Some("foobar"), map.read(&1));
+        assert_eq!(Some("foobar"), map.read(1));
         map.new_labels_allowed(false);
         map.store("foobar");
         assert_eq!(1, map.size());
-        assert_eq!(Some("foobar"), map.read(&1));
+        assert_eq!(Some("foobar"), map.read(1));
         map.store("barfoo");
         assert_eq!(1, map.size());
-        assert_eq!(Some("foobar"), map.read(&1));
+        assert_eq!(Some("foobar"), map.read(1));
     }
 }

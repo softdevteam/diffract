@@ -47,7 +47,7 @@ use matchers::MappingStore;
 
 impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Dice measure of similarity between subtrees.
-    pub fn dice_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
+    pub fn dice_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
@@ -60,7 +60,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     }
 
     /// Jaccard measure of similarity between subtrees.
-    pub fn jaccard_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
+    pub fn jaccard_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
@@ -74,7 +74,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     }
 
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
-    pub fn chawathe_sim(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> f64 {
+    pub fn chawathe_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
@@ -90,7 +90,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Find the number of "common" descendants in two matched subtrees.
     ///
     /// Two nodes are common if they have already been matched.
-    fn num_common_descendants(&self, from: &NodeId<FromNodeId>, to: &NodeId<ToNodeId>) -> u32 {
+    fn num_common_descendants(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> u32 {
         let mut dst_desc = HashSet::new();
         for node in to.breadth_first_traversal(&self.to_arena.borrow()) {
             dst_desc.insert(node);
@@ -98,7 +98,7 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         let mut common = 0;
         let mut to: Option<NodeId<ToNodeId>>;
         for node in from.descendants(&self.from_arena.borrow()) {
-            to = self.get_to(&node);
+            to = self.get_to(node);
             if to.is_some() && dst_desc.contains(&to.unwrap()) {
                 common += 1;
             }
@@ -122,10 +122,10 @@ mod tests {
         store.push(NodeId::new(1), NodeId::new(3), &Default::default());
         store.push(NodeId::new(2), NodeId::new(4), &Default::default());
         assert_eq!(2,
-                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(2)));
+                   store.num_common_descendants(NodeId::new(0), NodeId::new(2)));
         assert_eq!(2,
-                   store.num_common_descendants(&NodeId::new(0), &NodeId::new(0)));
+                   store.num_common_descendants(NodeId::new(0), NodeId::new(0)));
         assert_eq!(0,
-                   store.num_common_descendants(&NodeId::new(1), &NodeId::new(0)));
+                   store.num_common_descendants(NodeId::new(1), NodeId::new(0)));
     }
 }

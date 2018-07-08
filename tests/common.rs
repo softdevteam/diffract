@@ -69,7 +69,7 @@ pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>
     let mut count_mapped = 0;
     for node in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
         count_nodes += 1;
-        assert!(store.contains_from(&node));
+        assert!(store.contains_from(node));
         count_mapped += 1;
     }
     assert_eq!(count_nodes, count_mapped);
@@ -77,7 +77,7 @@ pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>
     count_mapped = 0;
     for node in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
         count_nodes += 1;
-        assert!(store.contains_to(&node));
+        assert!(store.contains_to(node));
         count_mapped += 1;
     }
     assert_eq!(count_nodes, count_mapped,
