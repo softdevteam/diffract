@@ -118,6 +118,11 @@ pub mod patch;
 /// QGram distance algorithm.
 pub mod qgram;
 
+/// RTED matcher.
+///
+/// Described in Pawlik and Augsten (2011).
+pub mod rted;
+
 /// Algorithms which act on sequences of values.
 pub mod sequence;
 
