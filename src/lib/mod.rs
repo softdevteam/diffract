@@ -85,8 +85,11 @@ pub mod gt_matcher;
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 pub mod hqueue;
 
+/// Store AST information relevant to RTED in vectors.
+pub mod info_tree;
+
 /// Store AST labels as small, unsigned integers.
-pub mod labelmaps;
+pub mod label_maps;
 
 /// Matchers create mappings between abstract syntax trees.
 pub mod matchers;

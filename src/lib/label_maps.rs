@@ -36,15 +36,15 @@
 // SOFTWARE.
 
 #![warn(missing_docs)]
-#![allow(dead_code)]  // Temporary, this module will be used in RTED.
 
 /// Store AST labels as small, unsigned integers.
 /// This scheme is similar to modules in GumTree and Approxlib.
 
 use std::collections::HashMap;
 
+/// Map labels to integers, for size / speed improvement.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct LabelMap<'a> {
+pub struct LabelMap<'a> {
     count: usize,
     str_to_uint: HashMap<&'a str, usize>,
     uint_to_str: HashMap<usize, &'a str>,
