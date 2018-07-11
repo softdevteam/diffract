@@ -52,11 +52,16 @@ const REL_SUBTREES_SIZE: usize = 3;
 // Size of the node type vector.
 const NODE_TYPE_SIZE: usize = 3;
 
-enum PathIdx {
+/// Constants related to forward and reverse paths through trees.
+#[allow(missing_docs)]
+pub enum PathIdx {
     Left = 0,
     Right = 1,
     Heavy = 2,
-    Both = 3
+    Both = 3,
+    RevLeft = 4,
+    RevRight = 5,
+    RevHeavy = 6
 }
 
 /// Index a struct with the `PathIdx` enum.
@@ -84,7 +89,7 @@ struct NodeTypeTable {
 impl NodeTypeTable {
     fn new(size: usize) -> NodeTypeTable {
         let mut node_types = NodeTypeTable { table: vec![] };
-        for idx in 0..NODE_TYPE_SIZE {
+        for _ in 0..NODE_TYPE_SIZE {
             node_types.table.push(vec![false; size]);
         }
         node_types
@@ -134,35 +139,43 @@ impl RelativeSubtreesTable {
 
 table_index_trait!(RelativeSubtreesTable, Vec<Vec<usize>>);
 
-// Vectors whose index is prefixed with `POST2` hold node ids in left-right
-// postorder numbering (not the original `NodeId`s). `RPOST2` means reversed
-// postorder numbering (i.e. right-left).
-
-enum InfoIdx {
+/// Constants related to information held about trees.
+///
+/// Vectors whose index is prefixed with `POST2` hold node ids in left-right
+/// postorder numbering (not the original `NodeId`s). `RPOST2` means reversed
+/// postorder numbering (i.e. right-left).
+pub enum InfoIdx {
+    #[allow(missing_docs)]
     Post2Size = 0,
+    #[allow(missing_docs)]
     Post2KRSum = 1,
+    #[allow(missing_docs)]
     Post2RevKRSum = 2,
-    // Number of subforests in full decomposition.
+    /// Number of subforests in full decomposition.
     Post2DescSum = 3,
+    /// Convert postorder to preorder numbering.
     Post2Pre = 4,
+    #[allow(missing_docs)]
     Post2Parent = 5,
+    #[allow(missing_docs)]
     Post2Label = 6,
-    // Key root nodes (size of this array = leaf count).
+    /// Key root nodes (size of this array = leaf count).
     KR = 7,
-    // Left-most leaf descendants.
+    /// Left-most leaf descendants.
     Post2LLD = 8,
-    // Minimum key root nodes index in key root array.
+    /// Minimum key root nodes index in key root array.
     Post2MinKR = 9,
-    // Reversed key root nodes.
+    /// Reversed key root nodes.
     RKR = 10,
-    // Reversed postorder 2 right-most leaf descendants.
+    /// Reversed postorder 2 right-most leaf descendants.
     RPost2RLD = 11,
+    #[allow(missing_docs)]
     RPost2MinRKR = 12,
-    // Reversed postorder -> postorder.
+    /// Reversed postorder -> postorder.
     RPost2Post = 13,
-    // Strategy for Demaine.
+    /// Strategy for Demaine.
     Post2Strategy = 14,
-    // Convert preorder to postorder id.
+    /// Convert preorder to postorder id.
     Pre2Post = 15
 }
 
@@ -202,14 +215,15 @@ impl IndexMut<InfoIdx> for InfoTable {
     }
 }
 
-struct InfoTree<'a> {
+/// Information held about an AST.
+pub struct InfoTree<'a> {
     // All information related to a given AST and necessary for RTED.
     // pub info: Vec<Vec<Option<usize>>>,
-    pub info: InfoTable,
+    info: InfoTable,
     // Node labels stored as numbers (as an optimisation).
     labels: LabelMap<'a>,
     // Flags (left, right, heavy) for each node.
-    pub node_type: NodeTypeTable,
+    node_type: NodeTypeTable,
     // Paths maps paths (left / right / heavy) to nodes.
     paths: PathTable,
     // Paths maps relative subtrees (left / right / heavy) to nodes.
@@ -255,14 +269,17 @@ impl<'a> InfoTree<'a> {
         tree
     }
 
+    /// Return the size of the original AST.
     pub fn size(&self) -> usize {
         self.tree_size
     }
 
+    /// Return `true` if a given node (postorder id) is left / right / heavy.
     pub fn if_node_of_type(&self, postorder: usize, ty: PathIdx) -> bool {
         self.node_type[ty][postorder]
     }
 
+    /// Return the type array for a subtree.
     pub fn get_node_type_array(&self, ty: PathIdx) -> &Vec<bool> {
         &self.node_type[ty]
     }
@@ -272,7 +289,7 @@ impl<'a> InfoTree<'a> {
         self.info[info_code][nodes_postorder].unwrap()
     }
 
-    // For given infoCode returns an info array (index array)
+    /// For given infoCode returns an info array (index array)
     pub fn get_info_vec(&self, info_code: InfoIdx) -> &Vec<Option<usize>> {
         &self.info[info_code]
     }
@@ -515,10 +532,12 @@ impl<'a> InfoTree<'a> {
         }
     }
 
+    /// Set a flag if the tree order was switched during the recursion.
     pub fn set_switched(&mut self, value: bool) {
         self.switched = value
     }
 
+    /// Was the tree order was switched during the recursion?
     pub fn switched(&self) -> bool {
         self.switched
     }
@@ -533,7 +552,7 @@ mod tests {
     #[test]
     fn test_new_info_trees() {
         let ast = create_mult_arena();
-        let map = LabelMap::new();
+        let map = Rc::new(LabelMap::new());
         let _ = InfoTree::new(&ast, map);
     }
 }
