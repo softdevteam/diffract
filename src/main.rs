@@ -41,24 +41,24 @@ extern crate env_logger;
 extern crate log;
 extern crate rustc_serialize;
 
-use std::{env, process};
 use std::fs::canonicalize;
 use std::io::{stderr, stdout, Write};
 use std::path::{Path, PathBuf};
+use std::{env, process};
 
 use docopt::Docopt;
 
 extern crate diffract;
 use diffract::ast;
+use diffract::chawathe98_matcher;
 use diffract::edit_script;
 use diffract::emitters;
 use diffract::fingerprint;
 use diffract::gt_matcher;
-use diffract::myers_matcher;
-use diffract::zs_matcher;
 use diffract::matchers::MatchTrees;
+use diffract::myers_matcher;
 use diffract::parser;
-use diffract::chawathe98_matcher;
+use diffract::zs_matcher;
 
 const USAGE: &str = "
 Usage: diffract [options] <base-file> <diff-file>

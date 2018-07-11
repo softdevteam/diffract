@@ -43,7 +43,6 @@
 /// This matcher would use the additional operation which are GLUE and COPY.
 /// In addition to Insert, Delete, Move, Update.
 /// This is supposed to be an alternative matcher to chawathe96.
-
 use action::{ApplyAction, Copy, Delete, EditScript, Glue, Insert, Move, Update};
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
 use emitters::RenderJson;
@@ -286,8 +285,7 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
                          list_edges: &[Edge])
                          -> bool {
         for edge in list_edges {
-            if edge.from_node.id() == from && edge.to_node.id() == to
-               && edge.edge_type == edge_type
+            if edge.from_node.id() == from && edge.to_node.id() == to && edge.edge_type == edge_type
             {
                 return true;
             }
@@ -447,7 +445,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
             // Get all the children of m.
             let m_children =
                 m.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
-            let n_children = n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
+            let n_children =
+                n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_forced_move_m_children_n = 0;
@@ -502,7 +501,8 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
             // Get all the children of m.
             let m_children =
                 m.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
-            let n_children = n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
+            let n_children =
+                n.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_conditional_move_m_children_n = 0;
@@ -642,7 +642,8 @@ pub fn edgecover_solver(
                     let edge = edge1;
                     match result_edge {
                         None => {
-                            if !(edge1 == EdgeType::OK || edge1 == EdgeType::INSERT
+                            if !(edge1 == EdgeType::OK
+                                 || edge1 == EdgeType::INSERT
                                  || edge1 == EdgeType::DELETE)
                             {
                                 check_base_2 = true;
@@ -654,7 +655,8 @@ pub fn edgecover_solver(
                     }
 
                     if check_base_2
-                       && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
+                       && (edge == EdgeType::INSERT
+                           || edge == EdgeType::DELETE
                            || edge == EdgeType::OK)
                     {
                         // our current chosen edges either MOVE, COPY, GLUE
@@ -740,7 +742,8 @@ pub fn edgecover_solver(
                     let edge = edge1;
                     match result_edge {
                         None => {
-                            if !(edge1 == EdgeType::OK || edge1 == EdgeType::INSERT
+                            if !(edge1 == EdgeType::OK
+                                 || edge1 == EdgeType::INSERT
                                  || edge1 == EdgeType::DELETE)
                             {
                                 check_base_2 = true;
@@ -752,7 +755,8 @@ pub fn edgecover_solver(
                     }
 
                     if check_base_2
-                       && (edge == EdgeType::INSERT || edge == EdgeType::DELETE
+                       && (edge == EdgeType::INSERT
+                           || edge == EdgeType::DELETE
                            || edge == EdgeType::OK)
                     {
                         // our current chosen edges either MOVE, COPY, GLUE
@@ -819,7 +823,8 @@ pub fn edgecover_solver(
         // Case when the from node does not have any edges but the to_node has a edge
         // Vice Versa
         // Then easily add the edge. (Type Copy)
-        if !visited_to_nodes.contains(&to) && !edges_hash.contains(&(from, to))
+        if !visited_to_nodes.contains(&to)
+           && !edges_hash.contains(&(from, to))
            && (helper.0.get(&to).is_none())
         {
             // check to the coping node
@@ -875,7 +880,8 @@ fn remove_edges_where_delete_is_parent(new_matcher_pruning: &mut MappingStoreGra
     let mut final_edges = new_matcher_pruning.list_edges.borrow().clone();
 
     for edge in &only_delete {
-        let edge_desc = edge.from_node.descendants(&new_matcher_pruning.from_arena.borrow())
+        let edge_desc = edge.from_node
+                            .descendants(&new_matcher_pruning.from_arena.borrow())
                             .collect::<HashSet<NodeId<FromNodeId>>>();
         let mut get_all_edges_which_have_descendants =
             new_matcher_pruning.list_edges.borrow().clone();
@@ -912,7 +918,8 @@ fn remove_edges_where_parent_not_edges(new_matcher_pruning: &mut MappingStoreGra
 
     // Ignoring Cases for now just removing if the parent edge doesn't exist
     for edge in new_matcher_pruning.list_edges.borrow().iter() {
-        if !edge.from_node.is_root(&new_matcher_pruning.from_arena.borrow())
+        if !edge.from_node
+                .is_root(&new_matcher_pruning.from_arena.borrow())
            && !edge.to_node.is_root(&new_matcher_pruning.to_arena.borrow())
         {
             // Check if they have parent
@@ -1016,7 +1023,8 @@ fn add_edges_where_parents_are_insert(new_matcher_pruning: &mut MappingStoreGrap
 
     let mut final_edges = new_matcher_pruning.list_edges.borrow().clone();
     for &(from, to, edge, size) in &filter_move_only_leaves {
-        if hash_delete_edges.contains(&from) && hash_insert_edges.contains(&to)
+        if hash_delete_edges.contains(&from)
+           && hash_insert_edges.contains(&to)
            && !from_node_moves_added.contains(&from)
            && !to_node_moves_added.contains(&to)
         {
@@ -1153,9 +1161,11 @@ fn add_edges_move(new_matcher_pruning: &mut MappingStoreGraph<String>,
         // Check whether there descendants are equal
         // To Arena more then add them to insert
         // From Arena has more descendants then add to delete
-        let from_desc = edge.0.descendants(&new_matcher_pruning.from_arena.borrow())
+        let from_desc = edge.0
+                            .descendants(&new_matcher_pruning.from_arena.borrow())
                             .collect::<Vec<NodeId<FromNodeId>>>();
-        let to_desc = edge.1.descendants(&new_matcher_pruning.to_arena.borrow())
+        let to_desc = edge.1
+                          .descendants(&new_matcher_pruning.to_arena.borrow())
                           .collect::<Vec<NodeId<ToNodeId>>>();
         if from_desc.len() < to_desc.len() {
             // Add to desc to insert
@@ -1222,7 +1232,8 @@ fn add_edges_move(new_matcher_pruning: &mut MappingStoreGraph<String>,
     for &(from, to, edge, size) in &edges_to_insert_hash {
         // Insert edge
         // Last node in from _arena (MAPS) ANY Node in To_arena
-        if helper.0.get(&to).is_none() && !hash_to_nodes_visited.contains(&to)
+        if helper.0.get(&to).is_none()
+           && !hash_to_nodes_visited.contains(&to)
            && !glue_to_descendants.contains(&to)
         {
             hash_to_nodes_visited.insert(to);
@@ -1249,7 +1260,8 @@ pub fn edgecover_helper(
         let mut set: NodeVertexSet<FromNodeId> = HashSet::new();
         let mut size: usize = 1;
         for edge2 in new_matcher_pruning.list_edges.borrow().clone() {
-            if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
+            if !(edge1.from_node == edge2.from_node
+                 && edge1.to_node == edge2.to_node
                  && edge1.edge_type == edge2.edge_type)
             {
                 if edge2.to_node == edge1.to_node {
@@ -1273,7 +1285,8 @@ pub fn edgecover_helper(
         let mut set: NodeVertexSet<ToNodeId> = HashSet::new();
         let mut size: usize = 1;
         for edge2 in new_matcher_pruning.list_edges.borrow().clone() {
-            if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
+            if !(edge1.from_node == edge2.from_node
+                 && edge1.to_node == edge2.to_node
                  && edge1.edge_type == edge2.edge_type)
             {
                 if edge2.from_node == edge1.from_node {
@@ -1615,9 +1628,9 @@ fn edgecover_annotate_helper_remove_move(mut new_matcher_pruning: MappingStoreGr
     for edge in &all_edge_run {
         if edge.edge_type == EdgeType::COPY || edge.edge_type == EdgeType::GLUE {
             // Look at their descendants
-            let all_from_descendants =
-                edge.from_node.descendants(&new_matcher_pruning.from_arena.borrow())
-                    .collect::<HashSet<NodeId<FromNodeId>>>();
+            let all_from_descendants = edge.from_node
+                                           .descendants(&new_matcher_pruning.from_arena.borrow())
+                                           .collect::<HashSet<NodeId<FromNodeId>>>();
             // counter
             for edge_move in all_edge_run.clone() {
                 // Look for edge move
@@ -1881,12 +1894,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                 }
             }
         }
-        let mut all_leaves_parent = HashSet::<(
-            NodeId<FromNodeId>,
-            NodeId<ToNodeId>,
-            NodeId<FromNodeId>,
-            NodeId<ToNodeId>,
-        )>::new();
+        let mut all_leaves_parent = HashSet::<(NodeId<FromNodeId>,
+                                            NodeId<ToNodeId>,
+                                            NodeId<FromNodeId>,
+                                            NodeId<ToNodeId>)>::new();
         // Check if its nodes are in the leaf move operation
         for edge in all_leaves_move.clone() {
             let e1_parent = store.from_arena.borrow()[edge.0].parent().unwrap();
@@ -2008,7 +2019,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             let mut set: NodeVertexSet<FromNodeId> = HashSet::new();
             let mut size: usize = 1;
             for edge2 in input.list_edges.borrow().clone() {
-                if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
+                if !(edge1.from_node == edge2.from_node
+                     && edge1.to_node == edge2.to_node
                      && edge1.edge_type == edge2.edge_type)
                 {
                     if edge2.to_node == edge1.to_node {
@@ -2032,7 +2044,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             let mut set: HashSet<(NodeId<ToNodeId>, EdgeType, usize)> = HashSet::new();
             let mut size: usize = 1;
             for edge2 in input.list_edges.borrow().clone() {
-                if !(edge1.from_node == edge2.from_node && edge1.to_node == edge2.to_node
+                if !(edge1.from_node == edge2.from_node
+                     && edge1.to_node == edge2.to_node
                      && edge1.edge_type == edge2.edge_type)
                 {
                     if edge2.from_node == edge1.from_node {
@@ -2157,7 +2170,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
 
                     if edge_glue.edge_type == EdgeType::GLUE
                        && edge_move.edge_type == EdgeType::MOVE
-                       && m_move == m_glue && n_move == n_glue
+                       && m_move == m_glue
+                       && n_move == n_glue
                     {
                         // We have found a copy so the "check" variable is true
                         // so we have found (m,n) which is move and copy

@@ -38,7 +38,6 @@
 #![warn(missing_docs)]
 
 /// Compute the similarity of two subtrees in a `MappingStore`.
-
 use std::collections::HashSet;
 use std::fmt::Debug;
 
@@ -51,9 +50,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to =
-            to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
-              .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
@@ -64,9 +63,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to =
-            to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
-              .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let jaccard = common / (n_from + n_to - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
@@ -78,9 +77,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
                          .collect::<Vec<NodeId<FromNodeId>>>()
                          .len() as f64;
-        let n_to =
-            to.breadth_first_traversal(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>()
-              .len() as f64;
+        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
+                     .collect::<Vec<NodeId<ToNodeId>>>()
+                     .len() as f64;
         let common = f64::from(self.num_common_descendants(from, to));
         let chawathe = common / n_from.max(n_to);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
@@ -109,8 +108,8 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
 
 #[cfg(test)]
 mod tests {
-    use ast::Arena;
     use super::*;
+    use ast::Arena;
     use test_common::{create_mult_arena, create_plus_arena};
 
     #[test]

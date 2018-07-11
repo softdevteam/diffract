@@ -58,23 +58,23 @@ fn compare_ast_dump_to_lrpar_output(filepath: &str, expected: &str) {
 #[test]
 fn test_empty_calc() {
     compare_ast_dump_to_lrpar_output(
-        "tests/empty.calc",
-        "000: \"^~\"
+                                     "tests/empty.calc",
+                                     "000: \"^~\"
 001:   \"~\"
 002:     \"WHITESPACE\"  \n
 003:     \"~\"
 004:   \"Expr\"
 005:     \"Term\"
 006:       \"Factor\"
-",
+"
     );
 }
 
 #[test]
 fn test_one_calc() {
     compare_ast_dump_to_lrpar_output(
-        "tests/one.calc",
-        "000: \"^~\"
+                                     "tests/one.calc",
+                                     "000: \"^~\"
 001:   \"~\"
 002:   \"Expr\"
 003:     \"Term\"
@@ -83,15 +83,15 @@ fn test_one_calc() {
 006:         \"~\"
 007:           \"WHITESPACE\" \n
 008:           \"~\"
-",
+"
     );
 }
 
 #[test]
 fn test_add_calc() {
     compare_ast_dump_to_lrpar_output(
-        "tests/add.calc",
-        "000: \"^~\"
+                                     "tests/add.calc",
+                                     "000: \"^~\"
 001:   \"~\"
 002:   \"Expr\"
 003:     \"Term\"
@@ -107,15 +107,15 @@ fn test_add_calc() {
 013:           \"~\"
 014:             \"WHITESPACE\" \n
 015:             \"~\"
-",
+"
     );
 }
 
 #[test]
 fn test_mult_calc() {
     compare_ast_dump_to_lrpar_output(
-        "tests/mult.calc",
-        "000: \"^~\"
+                                     "tests/mult.calc",
+                                     "000: \"^~\"
 001:   \"~\"
 002:   \"Expr\"
 003:     \"Term\"
@@ -137,15 +137,15 @@ fn test_mult_calc() {
 019:           \"~\"
 020:             \"WHITESPACE\" \n
 021:             \"~\"
-",
+"
     );
 }
 
 #[test]
 fn test_nested_comment_java() {
     compare_ast_dump_to_lrpar_output(
-        "tests/NestedComment.java",
-        "000: \"^~\"
+                                     "tests/NestedComment.java",
+                                     "000: \"^~\"
 001:   \"~\"
 002:     \"COMMENT\" /*\n * // Single line comment nested in multi-line comment.\n */
 003:     \"~\"
@@ -179,7 +179,8 @@ fn test_nested_comment_java() {
 034:                 \"RBRACE\" }
 035:                 \"~\"
 036:                   \"WHITESPACE\" \n
-037:                   \"~\"\n");
+037:                   \"~\"\n"
+    );
 }
 
 #[test]
@@ -190,7 +191,7 @@ fn test_non_existant_input() {
     match ast_result {
         Err(ParseError::FileNotFound(s)) => assert_eq!(s, String::from("nosuchfileexists.calc")),
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -204,7 +205,7 @@ fn test_non_existant_lex() {
             assert_eq!(s, String::from("grammars/nosuchfileexists.l"))
         }
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -218,7 +219,7 @@ fn test_non_existant_grm() {
             assert_eq!(s, String::from("grammars/nosuchfileexists.y"))
         }
         Err(e) => panic!("Expected FileNotFound error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -230,7 +231,7 @@ fn test_lexical_err() {
     match ast_result {
         Err(ParseError::LexicalError) => assert!(true),
         Err(e) => panic!("Expected LexicalError error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -242,7 +243,7 @@ fn test_syntax_err() {
     match ast_result {
         Err(ParseError::SyntaxError) => assert!(true),
         Err(e) => panic!("Expected SyntaxError error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -254,7 +255,7 @@ fn test_broken_lex() {
     match ast_result {
         Err(ParseError::BrokenLexer) => assert!(true),
         Err(e) => panic!("Expected BrokenLexer error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }
 
@@ -266,6 +267,6 @@ fn test_broken_grm() {
     match ast_result {
         Err(ParseError::BrokenParser) => assert!(true),
         Err(e) => panic!("Expected BrokenParser error, got: {:?}", e),
-        Ok(_) => panic!("Expected FileNotFound error, got an AST"),
+        Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
 }

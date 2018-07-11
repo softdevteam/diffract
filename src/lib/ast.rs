@@ -370,14 +370,14 @@ pub struct Node<T: Clone, U: PartialEq + Copy> {
 impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
     fn from(node: Node<T, ToNodeId>) -> Self {
         Node::<T, FromNodeId> { parent: node.parent().map(|i| NodeId::<FromNodeId>::from(i)),
-                                previous_sibling:
-                                    node.previous_sibling().map(|i| NodeId::<FromNodeId>::from(i)),
-                                next_sibling:
-                                    node.next_sibling().map(|i| NodeId::<FromNodeId>::from(i)),
-                                first_child:
-                                    node.first_child().map(|i| NodeId::<FromNodeId>::from(i)),
-                                last_child:
-                                    node.last_child().map(|i| NodeId::<FromNodeId>::from(i)),
+                                previous_sibling: node.previous_sibling()
+                                                      .map(|i| NodeId::<FromNodeId>::from(i)),
+                                next_sibling: node.next_sibling()
+                                                  .map(|i| NodeId::<FromNodeId>::from(i)),
+                                first_child: node.first_child()
+                                                 .map(|i| NodeId::<FromNodeId>::from(i)),
+                                last_child: node.last_child()
+                                                .map(|i| NodeId::<FromNodeId>::from(i)),
                                 index: node.index.map(|i| NodeId::<FromNodeId>::from(i)),
                                 ty: node.ty,
                                 label: node.label,
@@ -393,14 +393,14 @@ impl<T: Clone> From<Node<T, ToNodeId>> for Node<T, FromNodeId> {
 impl<T: Clone> From<Node<T, FromNodeId>> for Node<T, ToNodeId> {
     fn from(node: Node<T, FromNodeId>) -> Self {
         Node::<T, ToNodeId> { parent: node.parent().map(|id| NodeId::<ToNodeId>::from(id)),
-                              previous_sibling:
-                                  node.previous_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
-                              next_sibling:
-                                  node.next_sibling().map(|id| NodeId::<ToNodeId>::from(id)),
-                              first_child:
-                                  node.first_child().map(|id| NodeId::<ToNodeId>::from(id)),
-                              last_child:
-                                  node.last_child().map(|id| NodeId::<ToNodeId>::from(id)),
+                              previous_sibling: node.previous_sibling()
+                                                    .map(|id| NodeId::<ToNodeId>::from(id)),
+                              next_sibling: node.next_sibling()
+                                                .map(|id| NodeId::<ToNodeId>::from(id)),
+                              first_child: node.first_child()
+                                               .map(|id| NodeId::<ToNodeId>::from(id)),
+                              last_child: node.last_child()
+                                              .map(|id| NodeId::<ToNodeId>::from(id)),
                               index: node.index.map(|id| NodeId::<ToNodeId>::from(id)),
                               ty: node.ty,
                               label: node.label,
@@ -682,7 +682,10 @@ impl<U: PartialEq + Copy> NodeId<U> {
                         queue.push_back((child, child_copy));
                     }
                     child_copy.make_child_of(copy_to_node, _arena)
-                              .unwrap_or_else(|_| panic!("AST node {} does not exist.", copy_to_node));
+                              .unwrap_or_else(|_| {
+                                                  panic!("AST node {} does not exist.",
+                                                         copy_to_node)
+                                              });
                 }
             }
         }
@@ -807,7 +810,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
 }
 
 macro_rules! impl_node_iterator {
-    ($name: ident, $next: expr) => {
+    ($name:ident, $next:expr) => {
         impl<'a, T: Clone, U: PartialEq + Copy> Iterator for $name<'a, T, U> {
             type Item = NodeId<U>;
             fn next(&mut self) -> Option<NodeId<U>> {
@@ -820,7 +823,7 @@ macro_rules! impl_node_iterator {
                 }
             }
         }
-    }
+    };
 }
 
 /// An iterator of references to the children of a given node.
@@ -1480,7 +1483,8 @@ mod tests {
                                                                phantom: PhantomData },
                                                       NodeId { index: 1,
                                                                phantom: PhantomData }];
-        let root_child_ids = root.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        let root_child_ids =
+            root.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], root_child_ids[index]);
@@ -1490,7 +1494,8 @@ mod tests {
                                                                phantom: PhantomData },
                                                       NodeId { index: 3,
                                                                phantom: PhantomData }];
-        let n2_child_ids = n2.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
+        let n2_child_ids =
+            n2.reverse_children(&arena).collect::<Vec<NodeId<FromNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);

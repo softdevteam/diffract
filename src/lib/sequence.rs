@@ -145,8 +145,8 @@ pub fn levenshtein<T: Eq + PartialEq + ToString>(s1: &T, s2: &T) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fmt::Debug;
     use matchers::{has_same_type_and_label, MappingStore};
+    use std::fmt::Debug;
 
     fn assert_sequence_correct<T: Clone + Debug + Eq + ToString>(store: MappingStore<T>,
                                                                  expected: &[T]) {

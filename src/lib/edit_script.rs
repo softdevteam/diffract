@@ -197,7 +197,8 @@ impl Chawathe96Config {
         let y = store.to_arena.borrow()[x].parent().unwrap();
         // 2. If x is the leftmost child of y that is marked "in order" return
         // 0 (the paper says 1 but we count child nodes from 0).
-        let siblings = y.children(&store.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
+        let siblings =
+            y.children(&store.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
         for child in &siblings {
             if to_in_order.contains(child) {
                 if x == *child {
@@ -228,7 +229,8 @@ impl Chawathe96Config {
         // "in order". Return i + 1.
         let u_p = store.from_arena.borrow()[u].parent().unwrap();
         let u_pos = u.get_child_position(&store.from_arena.borrow()).unwrap();
-        let position = u_p.children(&store.from_arena.borrow()).take(u_pos)
+        let position = u_p.children(&store.from_arena.borrow())
+                          .take(u_pos)
                           .filter(|c| from_in_order.contains(c))
                           .count() as u16 + 1;
         debug!("find_pos({}) <- {}", x, position);
@@ -408,7 +410,8 @@ impl<T: Clone + Debug + Default + Eq + ToString + 'static> EditScriptGenerator<T
                 }
             }
             // (d) align_children(w, x).
-            if w.is_some() && !w.unwrap().is_root(&store.from_arena.borrow())
+            if w.is_some()
+               && !w.unwrap().is_root(&store.from_arena.borrow())
                && !x.is_root(&store.to_arena.borrow())
             {
                 let mut actions =

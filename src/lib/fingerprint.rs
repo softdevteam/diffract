@@ -40,7 +40,6 @@
 /// This module implements the algorithm described in M. Chilowicz, E. Duris, G.
 /// Roussel (2009) Syntax Tree Fingerprinting: A Foundation For Source Code
 /// Similarity Detection.
-
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -85,8 +84,10 @@ fn out_seed<T: Clone + Eq + Hash + ToString, U: PartialEq + Copy>(id: NodeId<U>,
 /// Convert a byte array (from digest) to integer.
 fn bytes_to_int(b: &[u8]) -> HashType {
     debug_assert_eq!(4, b.len(), "Byte array from digest has length {}", b.len());
-    HashType::from(b[3]) & 0xff | (HashType::from(b[2]) & 0xff) << 8
-    | (HashType::from(b[1]) & 0xff) << 16 | (HashType::from(b[0]) & 0xff) << 24
+    HashType::from(b[3]) & 0xff
+    | (HashType::from(b[2]) & 0xff) << 8
+    | (HashType::from(b[1]) & 0xff) << 16
+    | (HashType::from(b[0]) & 0xff) << 24
 }
 
 /// Integer exponent function, returns `b**e`.
