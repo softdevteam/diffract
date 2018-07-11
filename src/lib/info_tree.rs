@@ -147,20 +147,15 @@ table_index_trait!(RelativeSubtreesTable, Vec<Vec<usize>>);
 /// Vectors whose index is prefixed with `POST2` hold node ids in left-right
 /// postorder numbering (not the original `NodeId`s). `RPOST2` means reversed
 /// postorder numbering (i.e. right-left).
+#[allow(missing_docs)]
 pub enum InfoIdx {
-    #[allow(missing_docs)]
     Post2Size = 0,
-    #[allow(missing_docs)]
     Post2KRSum = 1,
-    #[allow(missing_docs)]
     Post2RevKRSum = 2,
     /// Number of subforests in full decomposition.
     Post2DescSum = 3,
-    /// Convert postorder to preorder numbering.
     Post2Pre = 4,
-    #[allow(missing_docs)]
     Post2Parent = 5,
-    #[allow(missing_docs)]
     Post2Label = 6,
     /// Key root nodes (size of this array = leaf count).
     KR = 7,
@@ -172,7 +167,6 @@ pub enum InfoIdx {
     RKR = 10,
     /// Reversed postorder 2 right-most leaf descendants.
     RPost2RLD = 11,
-    #[allow(missing_docs)]
     RPost2MinRKR = 12,
     /// Reversed postorder -> postorder.
     RPost2Post = 13,
@@ -182,9 +176,10 @@ pub enum InfoIdx {
     Pre2Post = 15
 }
 
+/// Vector to hold information about an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct InfoTable {
-    pub table: Vec<Vec<Option<usize>>>
+pub struct InfoTable {
+    table: Vec<Vec<Option<usize>>>
 }
 
 impl InfoTable {
@@ -222,9 +217,8 @@ impl IndexMut<InfoIdx> for InfoTable {
 /// Information held about an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InfoTree<'a> {
-    // All information related to a given AST and necessary for RTED.
-    // pub info: Vec<Vec<Option<usize>>>,
-    info: InfoTable,
+    /// All information related to a given AST and necessary for RTED.
+    pub info: InfoTable,
     // Node labels stored as numbers (as an optimisation).
     labels: Rc<LabelMap<'a>>,
     // Flags (left, right, heavy) for each node.
