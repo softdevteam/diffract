@@ -38,6 +38,11 @@
 #![feature(test)]
 #![feature(try_from)]
 
+#![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
+#![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+
 extern crate cfgrammar;
 extern crate crypto;
 extern crate dot;
