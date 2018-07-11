@@ -91,8 +91,7 @@ pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
-    assert!(check_pretty_printed(&store.from_arena.borrow(),
-                                 &store.to_arena.borrow()),
+    assert!(check_pretty_printed(&store.from_arena.borrow(), &store.to_arena.borrow()),
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
@@ -127,8 +126,10 @@ fn check_pretty_printed(from: &Arena<String, FromNodeId>, to: &Arena<String, ToN
         return false;
     }
     for line in 0..from_lines.len() {
-        if from_lines[line].len() > 4 && to_lines[line].len() > 4 &&
-             from_lines[line][4..] != to_lines[line][4..] {
+        if from_lines[line].len() > 4
+           && to_lines[line].len() > 4
+           && from_lines[line][4..] != to_lines[line][4..]
+        {
             return false;
         }
     }

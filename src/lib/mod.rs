@@ -37,7 +37,6 @@
 
 #![feature(test)]
 #![feature(try_from)]
-
 #![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
@@ -328,7 +327,7 @@ pub mod test_common {
     /// Example from Fig 4. of Zhang and Shasha (1989).
     pub fn create_zs_paper_src_arena() -> Arena<String, FromNodeId> {
         load_xml_ast(
-            "<Tree ty=\"node\" label=\"f\">
+                     "<Tree ty=\"node\" label=\"f\">
     <Tree ty=\"node\" label=\"d\">
         <Tree ty=\"node\" label=\"a\"/>
         <Tree ty=\"node\" label=\"c\">
@@ -345,7 +344,7 @@ pub mod test_common {
     /// Example from Fig 4. of Zhang and Shasha (1989).
     pub fn create_zs_paper_dst_arena() -> Arena<String, ToNodeId> {
         let ast = load_xml_ast(
-            "<Tree ty=\"node\" label=\"f\">
+                               "<Tree ty=\"node\" label=\"f\">
     <Tree ty=\"node\" label=\"c\">
         <Tree ty=\"node\" label=\"d\">
             <Tree ty=\"node\" label=\"a\"/>
@@ -363,7 +362,7 @@ pub mod test_common {
     /// Example from GT test cases.
     pub fn create_zs_src_arena() -> Arena<String, FromNodeId> {
         load_xml_ast(
-            "<Tree ty=\"0\" label=\"a\">
+                     "<Tree ty=\"0\" label=\"a\">
     <Tree ty=\"0\" label=\"b\"/>
     <Tree ty=\"0\" label=\"c\">
         <Tree ty=\"0\" label=\"d\"/>
@@ -378,7 +377,7 @@ pub mod test_common {
     /// Example from GT test cases.
     pub fn create_zs_dst_arena() -> Arena<String, ToNodeId> {
         let ast = load_xml_ast(
-            "<Tree ty=\"0\" label=\"z\">
+                               "<Tree ty=\"0\" label=\"z\">
     <Tree ty=\"0\" label=\"a\">
         <Tree ty=\"0\" label=\"b\" />
         <Tree ty=\"0\" label=\"c\">
@@ -396,7 +395,7 @@ pub mod test_common {
     /// Example from GT test cases.
     pub fn create_slide_src_arena() -> Arena<String, FromNodeId> {
         load_xml_ast(
-            "<Tree ty=\"0\" label=\"6\">
+                     "<Tree ty=\"0\" label=\"6\">
     <Tree ty=\"0\" label=\"5\">
         <Tree ty=\"0\" label=\"2\">
             <Tree ty=\"0\" label=\"1\" />
@@ -412,7 +411,7 @@ pub mod test_common {
     /// Example from GT test cases.
     pub fn create_slide_dst_arena() -> Arena<String, ToNodeId> {
         let ast = load_xml_ast(
-            "<Tree ty=\"0\" label=\"6\">
+                               "<Tree ty=\"0\" label=\"6\">
     <Tree ty=\"0\" label=\"2\">
         <Tree ty=\"0\" label=\"1\" />
     </Tree>

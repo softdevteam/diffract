@@ -39,7 +39,6 @@
 
 /// Store AST labels as small, unsigned integers.
 /// This scheme is similar to modules in GumTree and Approxlib.
-
 use std::collections::HashMap;
 
 /// Map labels to integers, for size / speed improvement.
@@ -54,12 +53,10 @@ pub struct LabelMap<'a> {
 impl<'a> LabelMap<'a> {
     /// Create a default label map.
     pub fn new() -> LabelMap<'a> {
-        LabelMap {
-            count: 0,
-            str_to_uint: HashMap::new(),
-            uint_to_str: HashMap::new(),
-            new_labels_allowed: true
-        }
+        LabelMap { count: 0,
+                   str_to_uint: HashMap::new(),
+                   uint_to_str: HashMap::new(),
+                   new_labels_allowed: true }
     }
 
     /// Given an id, return the corresponding label, or `None`.
@@ -74,7 +71,7 @@ impl<'a> LabelMap<'a> {
         if self.str_to_uint.contains_key(&label) {
             return Some(self.str_to_uint[label]);
         } else if !self.new_labels_allowed {
-            return None
+            return None;
         }
         self.count += 1;
         let key = self.count;

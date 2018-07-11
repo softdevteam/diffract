@@ -48,8 +48,8 @@ use term;
 
 use action::{ActionType, EditScript, Patchify};
 use ast::{Arena, EdgeId, FromNodeId, NodeId, ToNodeId};
-use matchers::{MappingStore, MappingType};
 use chawathe98_matcher::{EdgeType, MappingStoreGraph};
+use matchers::{MappingStore, MappingType};
 use patch::{hunkify, Patch};
 
 /// Errors produced in emitting new data.

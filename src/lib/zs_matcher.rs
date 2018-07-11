@@ -38,12 +38,12 @@
 #![warn(missing_docs)]
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::f64;
+use std::fmt::Debug;
 use std::hash::Hash;
 
-use f64_eq;
 use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+use f64_eq;
 use matchers::{has_same_type, MappingStore, MappingType, MatchTrees};
 use qgram::trigram_distance;
 
@@ -101,7 +101,8 @@ impl ZhangShashaConfig {
     fn compute_forest_dist<T: Clone + Debug + Eq + ToString + 'static>(&mut self,
                                                                        i: usize,
                                                                        j: usize,
-                                                                       store: &MappingStore<T>) {
+                                                                       store: &MappingStore<T>)
+    {
         self.forest_dist[self.src.lld(i) - 1][self.dst.lld(j) - 1] = 0.0;
         for di in self.src.lld(i)..i + 1 {
             let cost_del = get_deletion_cost(self.src.id(di), &store.from_arena.borrow());
@@ -143,7 +144,9 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
     }
 
     /// Match locations in distinct ASTs (not described in the paper).
-    fn match_trees(&mut self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>)
+    fn match_trees(&mut self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
                    -> MappingStore<T> {
         let store = MappingStore::new(base, diff);
         self.compute_tree_distance(&store);
@@ -347,10 +350,10 @@ impl<U: Copy + Eq + Hash + PartialEq> ZSTree<U> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_common::load_xml_ast;
     use test_common::{create_mult_arena, create_slide_dst_arena, create_slide_src_arena};
     use test_common::{create_zs_dst_arena, create_zs_src_arena};
     use test_common::{create_zs_paper_dst_arena, create_zs_paper_src_arena};
-    use test_common::load_xml_ast;
 
     #[test]
     fn test_zs_single_identical_node() {
@@ -363,7 +366,7 @@ mod tests {
         assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
     }
 
-   #[test]
+    #[test]
     fn test_zs_single_nonidentical_node() {
         let ast_from = load_xml_ast("<Tree ty=\"program\" label=\"mylabel\" />");
         let ast_to =
@@ -388,12 +391,15 @@ mod tests {
 
     #[test]
     fn test_zs_single_insert() {
-        let ast_from = load_xml_ast("<Tree ty=\"Expr\" label=\"+\">
-    </Tree>");
-        let ast_to =
-            Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"Expr\" label=\"+\">
+        let ast_from = load_xml_ast(
+                                    "<Tree ty=\"Expr\" label=\"+\">
+    </Tree>"
+        );
+        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
+            "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"1\"/>
-    </Tree>"));
+    </Tree>"
+        ));
         let from_root = ast_from.root().unwrap();
         let to_root = ast_to.root().unwrap();
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
@@ -404,12 +410,15 @@ mod tests {
 
     #[test]
     fn test_zs_single_delete() {
-        let ast_from = load_xml_ast("<Tree ty=\"Expr\" label=\"+\">
+        let ast_from = load_xml_ast(
+                                    "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"1\"/>
-    </Tree>");
-        let ast_to =
-            Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"Expr\" label=\"+\">
-    </Tree>"));
+    </Tree>"
+        );
+        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
+            "<Tree ty=\"Expr\" label=\"+\">
+    </Tree>"
+        ));
         let from_root = ast_from.root().unwrap();
         let to_root = ast_to.root().unwrap();
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
@@ -440,7 +449,8 @@ mod tests {
     fn test_zs_workshop_example() {
         // Example from:
         // https://www.slideshare.net/hecfran/tree-distance-algorithm
-        let ast_from = load_xml_ast("<Tree ty=\"node\" label=\"a\">
+        let ast_from = load_xml_ast(
+                                    "<Tree ty=\"node\" label=\"a\">
     <Tree ty=\"node\" label=\"a\">
         <Tree ty=\"node\" label=\"a\">
                 <Tree ty=\"node\" label=\"b\"/>
@@ -449,8 +459,10 @@ mod tests {
         <Tree ty=\"node\" label=\"b\"/>
     </Tree>
 </Tree>
-");
-        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"node\" label=\"c\">
+"
+        );
+        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
+            "<Tree ty=\"node\" label=\"c\">
     <Tree ty=\"node\" label=\"a\">
             <Tree ty=\"node\" label=\"b\"/>
     </Tree>
@@ -459,7 +471,8 @@ mod tests {
     </Tree>
     <Tree ty=\"node\" label=\"b\"/>
 </Tree>
-"));
+"
+        ));
         assert_eq!(6, ast_from.size());
         assert_eq!(6, ast_to.size());
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
@@ -486,12 +499,12 @@ mod tests {
         assert!(store.is_mapped(NodeId::new(4), NodeId::new(3)));
     }
 
-
     #[test]
     fn test_zs_same_structure() {
         // Each node should appear in the match store as an UPDATE. Labels here
         // should be interesting enough to produce non-rational update costs.
-        let ast_from = load_xml_ast("<Tree ty=\"node\" label=\"KAIZHONG ZHANG AND DENNIS SHASHA\">
+        let ast_from = load_xml_ast(
+                                    "<Tree ty=\"node\" label=\"KAIZHONG ZHANG AND DENNIS SHASHA\">
     <Tree ty=\"node\" label=\"HUMAN\">
         <Tree ty=\"node\" label=\"AAACCGTGAGTTATTCGTTCTAGAA\"/>
         <Tree ty=\"node\" label=\"XMJYAUZ\">
@@ -501,7 +514,8 @@ mod tests {
     <Tree ty=\"node\" label=\"Saturday\">
     </Tree>
 </Tree>
-");
+"
+        );
         let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"node\" label=\"DENNIS SHASHA AND KAIZHONG ZHANG\">
     <Tree ty=\"node\" label=\"CHIMPANZEE\">
         <Tree ty=\"node\" label=\"CACCCCTAAGGTACCTTTGGTTC\"/>
@@ -561,11 +575,10 @@ mod tests {
         let ast_to = create_zs_dst_arena();
         let from_root = ast_from.root().unwrap();
         let to_root = ast_to.root().unwrap();
-        let from_children = &from_root.children(&ast_from).collect::<Vec<NodeId<FromNodeId>>>();
+        let from_children = &from_root.children(&ast_from)
+                                      .collect::<Vec<NodeId<FromNodeId>>>();
         let to_children = &to_root.children(&ast_to).collect::<Vec<NodeId<ToNodeId>>>();
-        let to_grandchild = to_children[0].children(&ast_to)
-                                          .nth(1)
-                                          .unwrap();
+        let to_grandchild = to_children[0].children(&ast_to).nth(1).unwrap();
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
         assert_eq!(5, store.size());
@@ -597,9 +610,7 @@ mod tests {
         let to_root = ast_to.root().unwrap();
         let from_children = &from_root.children(&ast_from)
                                       .collect::<Vec<NodeId<FromNodeId>>>();
-        let from_grandchild = from_children[0].children(&ast_from)
-                                              .nth(0)
-                                              .unwrap();
+        let from_grandchild = from_children[0].children(&ast_from).nth(0).unwrap();
         let to_children = &to_root.children(&ast_to).collect::<Vec<NodeId<ToNodeId>>>();
         let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
         let store = matcher_config.match_trees(ast_from, ast_to);
@@ -607,8 +618,8 @@ mod tests {
         assert!(store.is_mapped(from_root, to_root));
         assert!(store.is_mapped(from_grandchild, to_children[0]));
         assert!(store.is_mapped(from_grandchild.children(&store.from_arena.borrow())
-                                                .nth(0)
-                                                .unwrap(),
+                                               .nth(0)
+                                               .unwrap(),
                                 to_children[0].children(&store.to_arena.borrow())
                                               .nth(0)
                                               .unwrap()));

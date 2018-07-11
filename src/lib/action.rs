@@ -43,10 +43,10 @@ use std::clone::Clone;
 use std::fmt;
 
 use ast::{Arena, ArenaError, ArenaResult, FromNodeId, NodeId};
+use chawathe98_matcher::MappingStoreGraph;
 use emitters::RenderJson;
 use matchers::MappingStore;
 use patch::Patch;
-use chawathe98_matcher::MappingStoreGraph;
 
 /// Type of action.
 ///
@@ -68,8 +68,9 @@ pub enum ActionType {
 }
 
 /// Apply an action to an AST node.
-pub trait ApplyAction<T: Clone + fmt::Debug + Eq + PartialEq + ToString>
-    : fmt::Debug + Patchify<T> + RenderJson {
+pub trait ApplyAction<T: Clone + fmt::Debug + Eq + PartialEq + ToString>:
+    fmt::Debug + Patchify<T> + RenderJson
+{
     /// Apply an action to an AST.
     fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult;
     /// Test for equality, avoiding a recursive call to `eq()`.
@@ -919,7 +920,7 @@ mod test {
         actions.push(upd);
         assert_eq!(6, actions.size());
         let expected = String::from(
-            "\"actions\": [
+                                    "\"actions\": [
     {
         \"action\": \"delete\",
         \"tree\": 3

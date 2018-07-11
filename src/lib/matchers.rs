@@ -190,7 +190,8 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Described in more detail in Chawathe et al. (1996).
     pub fn is_isomorphic(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
         // Case 1: both nodes are leaves.
-        if from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena.borrow())
+        if from.is_leaf(&self.from_arena.borrow())
+           && to.is_leaf(&self.to_arena.borrow())
            && self.from_arena.borrow()[from].label == self.to_arena.borrow()[to].label
            && self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty
         {
@@ -211,7 +212,8 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         }
         let f_children =
             from.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
-        let t_children = to.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
+        let t_children =
+            to.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
         if f_children.len() != t_children.len() {
             return false;
         }

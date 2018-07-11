@@ -39,7 +39,6 @@
 
 /// Calculate a q-gram distance between strings. Implementation based on the
 /// simmetrics library: https://github.com/Simmetrics/simmetrics
-
 use std::char::{MAX, REPLACEMENT_CHARACTER};
 use std::hash::Hash;
 
@@ -178,8 +177,8 @@ pub fn trigram_distance(s1: &str, s2: &str) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use f64_eq;
     use super::*;
+    use f64_eq;
 
     #[test]
     fn test_qgram_padding() {

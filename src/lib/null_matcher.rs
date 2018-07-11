@@ -42,7 +42,6 @@
 /// It should ONLY be used for testing the edit script generator, or other parts
 /// of diffract, and should not be visible to the user -- i.e. it should not be
 /// imported into the `main` module.
-
 use std::fmt::Debug;
 
 use ast::{Arena, FromNodeId, ToNodeId};
@@ -66,7 +65,10 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for NullConfig {
     }
 
     /// Perform no matching operations.
-    fn match_trees(&mut self, base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
+    fn match_trees(&mut self,
+                   base: Arena<T, FromNodeId>,
+                   diff: Arena<T, ToNodeId>)
+                   -> MappingStore<T> {
         MappingStore::new(base, diff)
     }
 }

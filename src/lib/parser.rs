@@ -42,8 +42,8 @@ use std::fs::{canonicalize, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use cfgrammar::TIdx;
 use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
+use cfgrammar::TIdx;
 use lrlex::{build_lex, Lexer};
 use lrpar::parser;
 use lrtable::{from_yacc, Minimiser};
@@ -119,7 +119,8 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
     let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map().iter()
+    let rule_ids = grm.terms_map()
+                      .iter()
                       .map(|(&n, &i)| (n, u16::try_from(usize::from(i)).unwrap()))
                       .collect();
     lexerdef.set_rule_ids(&rule_ids);
