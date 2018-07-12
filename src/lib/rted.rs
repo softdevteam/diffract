@@ -249,4 +249,12 @@ mod tests {
     fn test_new_rted_config() {
         let _ = RTEDConfig::new(&create_plus_arena(), &create_mult_arena(), 1.0, 1.0, 1.0);
     }
+
+    #[test]
+    fn test_non_normalised_distance() {
+        let plus = create_plus_arena();
+        let mult = create_mult_arena();
+        let mut rted = RTEDConfig::new(&plus, &mult, 1.0, 1.0, 1.0);
+        rted.non_normalised_tree_distance();
+    }
 }
