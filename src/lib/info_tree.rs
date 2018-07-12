@@ -55,13 +55,13 @@ const NODE_TYPE_SIZE: usize = 3;
 /// Constants related to forward and reverse paths through trees.
 #[allow(missing_docs)]
 pub enum PathIdx {
-    Left = 0,
-    Right = 1,
-    Heavy = 2,
-    Both = 3,
-    RevLeft = 4,
-    RevRight = 5,
-    RevHeavy = 6
+    Left,
+    Right,
+    Heavy,
+    Both,
+    RevLeft,
+    RevRight,
+    RevHeavy
 }
 
 /// Index a struct with the `PathIdx` enum.
@@ -81,9 +81,10 @@ macro_rules! table_index_trait {
     };
 }
 
-// Flags (left, right, heavy) for each node.
+/// Flags (left, right, heavy) for each node.
+#[allow(missing_docs)]
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct NodeTypeTable {
+pub struct NodeTypeTable {
     pub table: Vec<Vec<bool>>
 }
 
@@ -149,31 +150,31 @@ table_index_trait!(RelativeSubtreesTable, Vec<Vec<usize>>);
 /// postorder numbering (i.e. right-left).
 #[allow(missing_docs)]
 pub enum InfoIdx {
-    Post2Size = 0,
-    Post2KRSum = 1,
-    Post2RevKRSum = 2,
+    Post2Size,
+    Post2KRSum,
+    Post2RevKRSum,
     /// Number of subforests in full decomposition.
-    Post2DescSum = 3,
-    Post2Pre = 4,
-    Post2Parent = 5,
-    Post2Label = 6,
+    Post2DescSum,
+    Post2Pre,
+    Post2Parent,
+    Post2Label,
     /// Key root nodes (size of this array = leaf count).
-    KR = 7,
+    KR,
     /// Left-most leaf descendants.
-    Post2LLD = 8,
+    Post2LLD,
     /// Minimum key root nodes index in key root array.
-    Post2MinKR = 9,
+    Post2MinKR,
     /// Reversed key root nodes.
-    RKR = 10,
+    RKR,
     /// Reversed postorder 2 right-most leaf descendants.
-    RPost2RLD = 11,
-    RPost2MinRKR = 12,
+    RPost2RLD,
+    RPost2MinRKR,
     /// Reversed postorder -> postorder.
-    RPost2Post = 13,
+    RPost2Post,
     /// Strategy for Demaine.
-    Post2Strategy = 14,
+    Post2Strategy,
     /// Convert preorder to postorder id.
-    Pre2Post = 15
+    Pre2Post
 }
 
 /// Vector to hold information about an AST.
@@ -221,8 +222,8 @@ pub struct InfoTree<'a> {
     pub info: InfoTable,
     // Node labels stored as numbers (as an optimisation).
     labels: Rc<LabelMap<'a>>,
-    // Flags (left, right, heavy) for each node.
-    node_type: NodeTypeTable,
+    /// Flags (left, right, heavy) for each node.
+    pub node_type: NodeTypeTable,
     // Paths maps paths (left / right / heavy) to nodes.
     paths: PathTable,
     // Paths maps relative subtrees (left / right / heavy) to nodes.
