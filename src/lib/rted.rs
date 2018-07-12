@@ -179,6 +179,15 @@ impl<'a> RTEDConfig<'a> {
         }
     }
 
+    fn non_normalised_tree_distance(&mut self) -> f64 {
+        self.strategy = vec![];
+        for _ in 0..self.size_src {
+            self.strategy.push(vec![0; self.size_dst]);
+        }
+        self.compute_optimal_strategy();
+        self.compute_dist_using_strategy_array()
+    }
+
     fn set_delta(&mut self, a: usize, b: usize, value: f64, switched: bool) {
         if switched {
             self.delta[b][a] = value;
@@ -203,6 +212,12 @@ impl<'a> RTEDConfig<'a> {
 
     fn set_custom_strategy_vector(&mut self, strategy: Vec<Vec<usize>>) {
         self.strategy = strategy;
+    }
+
+    fn compute_optimal_strategy(&mut self) {}
+
+    fn compute_dist_using_strategy_array(&mut self) -> f64 {
+        0.0
     }
 }
 
