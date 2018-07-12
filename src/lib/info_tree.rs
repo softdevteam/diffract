@@ -36,12 +36,12 @@
 // SOFTWARE.
 
 #![warn(missing_docs)]
-#![allow(dead_code)] // Temporary, this module will be used in RTED.
 
 use ast::{Arena, NodeId};
 use label_maps::LabelMap;
 /// Stores information about a single AST (as needed by RTED) in vectors.
 use std::ops::{Index, IndexMut};
+use std::rc::Rc;
 
 // Size of the `info` vector.
 const INFO_SIZE: usize = 16;
@@ -82,6 +82,7 @@ macro_rules! table_index_trait {
 }
 
 // Flags (left, right, heavy) for each node.
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct NodeTypeTable {
     pub table: Vec<Vec<bool>>
 }
@@ -99,6 +100,7 @@ impl NodeTypeTable {
 table_index_trait!(NodeTypeTable, Vec<bool>);
 
 // Paths maps paths (left / right / heavy) to nodes.
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct PathTable {
     pub table: Vec<Vec<Option<usize>>>
 }
@@ -120,6 +122,7 @@ impl PathTable {
 table_index_trait!(PathTable, Vec<Option<usize>>);
 
 // Paths maps relative subtrees (left / right / heavy) to nodes.
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct RelativeSubtreesTable {
     pub table: Vec<Vec<Vec<usize>>>
 }
@@ -179,6 +182,7 @@ pub enum InfoIdx {
     Pre2Post = 15
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct InfoTable {
     pub table: Vec<Vec<Option<usize>>>
 }
@@ -216,12 +220,13 @@ impl IndexMut<InfoIdx> for InfoTable {
 }
 
 /// Information held about an AST.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InfoTree<'a> {
     // All information related to a given AST and necessary for RTED.
     // pub info: Vec<Vec<Option<usize>>>,
     info: InfoTable,
     // Node labels stored as numbers (as an optimisation).
-    labels: LabelMap<'a>,
+    labels: Rc<LabelMap<'a>>,
     // Flags (left, right, heavy) for each node.
     node_type: NodeTypeTable,
     // Paths maps paths (left / right / heavy) to nodes.
@@ -245,7 +250,7 @@ pub struct InfoTree<'a> {
 impl<'a> InfoTree<'a> {
     /// Create a new information tree for a non-empty AST.
     pub fn new<T: Clone + PartialEq, U: Copy + PartialEq>(ast: &'a Arena<T, U>,
-                                                          label_map: LabelMap<'a>)
+                                                          label_map: Rc<LabelMap<'a>>)
                                                           -> InfoTree<'a> {
         assert!(ast.root().is_some(),
                 "Cannot create an InfoTree on an empty Arena.");
@@ -409,7 +414,8 @@ impl<'a> InfoTree<'a> {
         self.info[InfoIdx::Post2RevKRSum][postorder.unwrap()] =
             Some(reverse_kr_sizes_sum + current_size + 1);
         // POST2_LABEL
-        self.info[InfoIdx::Post2Label][postorder.unwrap()] = self.labels.store(&ast[id].label);
+        self.info[InfoIdx::Post2Label][postorder.unwrap()] =
+            Rc::make_mut(&mut self.labels).store(&ast[id].label);
         // POST2_PARENT
         for i in children_postorders {
             self.info[InfoIdx::Post2Parent][i] = postorder;

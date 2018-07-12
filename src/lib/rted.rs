@@ -45,20 +45,36 @@
 use std::fmt::Debug;
 
 use ast::{Arena, FromNodeId, ToNodeId};
+use info_tree::InfoTree;
+use label_maps::LabelMap;
 use matchers::{MappingStore, MatchTrees};
+use std::rc::Rc;
 
 /// The RTED matcher needs no configuration.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RTEDConfig {}
+pub struct RTEDConfig<'a> {
+    itree_src: InfoTree<'a>,
+    itree_dst: InfoTree<'a>,
+    size_src: usize,
+    size_dst: usize,
+    labels: Rc<LabelMap<'a>>
+}
 
-impl RTEDConfig {
+impl<'a> RTEDConfig<'a> {
     /// Create a new configuration object, with default values.
-    pub fn new() -> RTEDConfig {
-        RTEDConfig {}
+    pub fn new<T: Clone + PartialEq, U: Copy + PartialEq>(src: &'a Arena<T, U>,
+                                                          dst: &'a Arena<T, U>)
+                                                          -> RTEDConfig<'a> {
+        let label_map = Rc::new(LabelMap::new());
+        RTEDConfig { labels: Rc::clone(&label_map),
+                     itree_src: InfoTree::new(src, Rc::clone(&label_map)),
+                     itree_dst: InfoTree::new(dst, Rc::clone(&label_map)),
+                     size_src: src.size(),
+                     size_dst: dst.size() }
     }
 }
 
-impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for RTEDConfig {
+impl<'a, T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for RTEDConfig<'a> {
     /// Describe this matcher for the user.
     fn describe(&self) -> String {
         String::from(
