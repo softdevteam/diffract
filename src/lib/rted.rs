@@ -37,18 +37,18 @@
 
 #![warn(missing_docs)]
 
-/// This matcher performs no operations.
-///
-/// It should ONLY be used for testing the edit script generator, or other parts
-/// of diffract, and should not be visible to the user -- i.e. it should not be
-/// imported into the `main` module.
+/// This matcher implements Pawlik and Augsten (2011).
 use std::fmt::Debug;
 
 use ast::{Arena, FromNodeId, ToNodeId};
-use info_tree::InfoTree;
+use info_tree::{InfoIdx, InfoTree};
 use label_maps::LabelMap;
 use matchers::{MappingStore, MatchTrees};
+use std::cmp::max;
 use std::rc::Rc;
+
+/// Size of cost vectors (insert / delete / match costs).
+const COST_SIZE: usize = 3;
 
 /// The RTED matcher needs no configuration.
 #[derive(Debug, Clone, PartialEq)]
@@ -57,20 +57,125 @@ pub struct RTEDConfig<'a> {
     itree_dst: InfoTree<'a>,
     size_src: usize,
     size_dst: usize,
-    labels: Rc<LabelMap<'a>>
+    labels: Rc<LabelMap<'a>>,
+    // Strategy vector.
+    strategy: Vec<Vec<usize>>,
+    // Distances between every pair of subtrees.
+    delta: Vec<Vec<f64>>,
+    // Distances between every pair of subtrees in the form
+    // delta(F, G) - delta(F', G') which is at most 1.0.
+    delta_bit: Vec<Vec<u8>>,
+    // Stores a forest preorder for a given `i` and `j`.
+    ij: Vec<Vec<usize>>,
+    cost_v: Vec<Vec<Vec<usize>>>,
+    cost_w: Vec<Vec<usize>>,
+    // T array from Demaine's algorithm, stores delta(Fv,Gij), v on heavy path.
+    t: Vec<Vec<f64>>,
+    // Copy values from the `t` vector. This is used when, in a single compute
+    // period, values are overwritten before they are read, due to a change of
+    // forest ordering.
+    t_copy: Vec<Vec<f64>>,
+    t_tmp: Vec<Vec<f64>>,
+    s: Vec<Vec<f64>>,
+    q: Vec<f64>,
+    da: f64,
+    db: f64,
+    dc: f64,
+    previous_strategy: usize,
+    // Statistics for strategies on left, right and heavy paths, and their sum.
+    strategy_stats: [usize; 5],
+    cost_del: f64,
+    cost_ins: f64,
+    cost_match: f64
 }
 
 impl<'a> RTEDConfig<'a> {
     /// Create a new configuration object, with default values.
     pub fn new<T: Clone + PartialEq, U: Copy + PartialEq>(src: &'a Arena<T, U>,
-                                                          dst: &'a Arena<T, U>)
+                                                          dst: &'a Arena<T, U>,
+                                                          cost_del: f64,
+                                                          cost_ins: f64,
+                                                          cost_match: f64)
                                                           -> RTEDConfig<'a> {
         let label_map = Rc::new(LabelMap::new());
-        RTEDConfig { labels: Rc::clone(&label_map),
-                     itree_src: InfoTree::new(src, Rc::clone(&label_map)),
-                     itree_dst: InfoTree::new(dst, Rc::clone(&label_map)),
-                     size_src: src.size(),
-                     size_dst: dst.size() }
+        let mut rted = RTEDConfig { labels: Rc::clone(&label_map),
+                                    itree_src: InfoTree::new(src, Rc::clone(&label_map)),
+                                    itree_dst: InfoTree::new(dst, Rc::clone(&label_map)),
+                                    size_src: src.size(),
+                                    size_dst: dst.size(),
+                                    strategy: vec![],
+                                    delta: vec![],
+                                    delta_bit: vec![],
+                                    ij: vec![],
+                                    cost_v: vec![],
+                                    cost_w: vec![],
+                                    t: vec![],
+                                    t_copy: vec![],
+                                    t_tmp: vec![],
+                                    s: vec![],
+                                    q: vec![],
+                                    da: 0.0,
+                                    db: 0.0,
+                                    dc: 0.0,
+                                    previous_strategy: 0,
+                                    strategy_stats: [0; 5],
+                                    cost_del,
+                                    cost_ins,
+                                    cost_match };
+        let max_size = max(rted.size_src, rted.size_dst);
+        for _ in 0..max_size {
+            rted.ij.push(vec![0; max_size]);
+        }
+        for _ in 0..rted.size_src {
+            rted.delta.push(vec![0.0; rted.size_dst]);
+        }
+        for _ in 0..rted.size_src {
+            rted.delta_bit.push(vec![0; rted.size_dst]);
+        }
+        for i in 0..COST_SIZE {
+            rted.cost_v.push(vec![]);
+            for _ in 0..rted.size_src {
+                rted.cost_v[i].push(vec![0; rted.size_dst]);
+            }
+        }
+        for _ in 0..COST_SIZE {
+            rted.cost_w.push(vec![0; rted.size_dst]);
+        }
+        rted.calculate_deltas();
+        rted
+    }
+
+    // Calculate delta between every leaf in dst and all the nodes in src.
+    // Calculate it on both sides: leaves of src and nodes of dst, and
+    // leaves of dst and nodes of src.
+    fn calculate_deltas(&mut self) {
+        let labels_src = &self.itree_src.get_info_vec(InfoIdx::Post2Label);
+        let labels_dst = &self.itree_dst.get_info_vec(InfoIdx::Post2Label);
+        let sizes_src = &self.itree_src.get_info_vec(InfoIdx::Post2Size);
+        let sizes_dst = &self.itree_dst.get_info_vec(InfoIdx::Post2Size);
+        for x in 0..sizes_src.len() {
+            for y in 0..sizes_dst.len() {
+                if labels_src[x] == labels_dst[y] {
+                    self.delta_bit[x][y] = 0;
+                } else {
+                    // If `delta_bit[x][y]` is set, the labels in nodes `x` and
+                    // `y` of the two input ASTs differ, and the cost of
+                    // transforming one node to the other is `cost_match`.
+                    self.delta_bit[x][y] = 1;
+                }
+                // If both nodes are leaves.
+                if sizes_src[x].unwrap() == 1 && sizes_dst[y].unwrap() == 1 {
+                    self.delta[x][y] = 0.0;
+                } else {
+                    if sizes_src[x].unwrap() == 1 {
+                        self.delta[x][y] = sizes_dst[y].unwrap() as f64 - 1.0;
+                    }
+                    if sizes_dst[y].unwrap() == 1 {
+                        self.delta[x][y] = sizes_src[x].unwrap() as f64 - 1.0;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -94,4 +199,12 @@ is efficient and worst-case optimal. For more information see Pawlik and Augsten
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use test_common::{create_mult_arena, create_plus_arena};
+
+    #[test]
+    fn test_new_rted_config() {
+        let _ = RTEDConfig::new(&create_plus_arena(), &create_mult_arena(), 1.0, 1.0, 1.0);
+    }
+}
