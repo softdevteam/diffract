@@ -37,16 +37,18 @@
 
 #![warn(missing_docs)]
 #![allow(dead_code)]
+#![allow(unused_variables)]
 
 /// This matcher implements Pawlik and Augsten (2011).
 use std::fmt::Debug;
 
 use ast::{Arena, DstNodeId, SrcNodeId};
-use info_tree::{InfoIdx, InfoTree};
+use info_tree::{InfoIdx, InfoTree, PathIdx};
 use label_maps::LabelMap;
 use matchers::{MappingStore, MatchTrees};
 use std::cmp::max;
 use std::rc::Rc;
+use std::usize::MAX;
 
 /// Size of cost vectors (insert / delete / match costs).
 const COST_SIZE: usize = 3;
@@ -214,7 +216,127 @@ impl<'a> RTEDConfig<'a> {
         self.strategy = strategy;
     }
 
-    fn compute_optimal_strategy(&mut self) {}
+    fn compute_optimal_strategy(&mut self) {
+        let (heavy_min, rev_heavy_min, left_min, rev_left_min) = (0, 0, 0, 0);
+        let (right_min, rev_right_min) = (0, 0);
+        let mut min;
+        let mut strategy;
+        let mut parent_src: Option<usize>;
+        let mut parent_dst: Option<usize>;
+        let node_type_left_src = &self.itree_src.node_type[PathIdx::Left];
+        let node_type_left_dst = &self.itree_dst.node_type[PathIdx::Left];
+        let node_type_right_src = &self.itree_src.node_type[PathIdx::Right];
+        let node_type_right_dst = &self.itree_dst.node_type[PathIdx::Right];
+        let node_type_heavy_src = &self.itree_src.node_type[PathIdx::Heavy];
+        let node_type_heavy_dst = &self.itree_dst.node_type[PathIdx::Heavy];
+        let post2size_src = &self.itree_src.info[InfoIdx::Post2Size];
+        let post2size_dst = &self.itree_dst.info[InfoIdx::Post2Size];
+        let post2desc_sum_src = &self.itree_src.info[InfoIdx::Post2DescSum];
+        let post2desc_sum_dst = &self.itree_dst.info[InfoIdx::Post2DescSum];
+        let post2kr_sum_src = &self.itree_src.info[InfoIdx::Post2KRSum];
+        let post2kr_sum_dst = &self.itree_dst.info[InfoIdx::Post2KRSum];
+        let post2rev_kr_sum_src = &self.itree_src.info[InfoIdx::Post2RevKRSum];
+        let post2rev_kr_sum_dst = &self.itree_dst.info[InfoIdx::Post2RevKRSum];
+        let post2parent_src = &self.itree_src.info[InfoIdx::Post2Parent];
+        let post2parent_dst = &self.itree_dst.info[InfoIdx::Post2Parent];
+        self.strategy.clear();
+        for _ in 0..self.size_src {
+            self.strategy.push(vec![0; self.size_dst]);
+        }
+        // v represents nodes of src tree in postorder numbering.
+        // w represents nodes of dst tree in postorder numbering.
+        for v in 0..self.size_src {
+            self.cost_w.clear();
+            for _ in 0..3 {
+                self.cost_w.push(vec![0; self.size_dst]);
+            }
+            for w in 0..self.size_dst {
+                if post2size_dst[w].unwrap() == 1 {
+                    self.cost_w[PathIdx::Left as usize][w] = 0;
+                    self.cost_w[PathIdx::Right as usize][w] = 0;
+                    self.cost_w[PathIdx::Heavy as usize][w] = 0;
+                }
+                if post2size_src[v].unwrap() == 1 {
+                    self.cost_v[PathIdx::Left as usize][v][w] = 0;
+                    self.cost_v[PathIdx::Right as usize][v][w] = 0;
+                    self.cost_v[PathIdx::Heavy as usize][v][w] = 0;
+                }
+                // Count the minimum + get the strategy.
+                let heavy_min = post2size_src[v].unwrap() * post2desc_sum_dst[w].unwrap()
+                                + self.cost_v[PathIdx::Heavy as usize][v][w];
+                let rev_heavy_min = post2size_dst[w].unwrap() * post2desc_sum_src[v].unwrap()
+                                    + self.cost_w[PathIdx::Heavy as usize][w];
+                let left_min = post2size_src[v].unwrap() * post2kr_sum_dst[w].unwrap()
+                               + self.cost_v[PathIdx::Left as usize][v][w];
+                let rev_left_min = post2size_dst[w].unwrap() * post2kr_sum_src[v].unwrap()
+                                   + self.cost_w[PathIdx::Left as usize][w];
+                let right_min = post2size_src[v].unwrap() * post2rev_kr_sum_dst[w].unwrap()
+                                + self.cost_v[PathIdx::Right as usize][v][w];
+                let rev_right_min = post2size_dst[w].unwrap() * post2rev_kr_sum_src[v].unwrap()
+                                    + self.cost_w[PathIdx::Right as usize][w];
+                let mins = [left_min,
+                            right_min,
+                            heavy_min,
+                            MAX,
+                            rev_left_min,
+                            rev_right_min,
+                            rev_heavy_min];
+                min = left_min;
+                strategy = 0;
+                for (i, m) in mins.iter().enumerate().skip(1) {
+                    if *m < min {
+                        min = *m;
+                        strategy = i;
+                    }
+                }
+                // Store the strategy with the smallest cost.
+                self.strategy[v][w] = strategy;
+                // Populate the cost vectors.
+                parent_src = post2parent_src[v];
+                if parent_src.is_some() {
+                    if node_type_heavy_src[v] {
+                        self.cost_v[PathIdx::Heavy as usize][parent_src.unwrap()][w] +=
+                            self.cost_v[PathIdx::Heavy as usize][v][w];
+                    } else {
+                        self.cost_v[PathIdx::Heavy as usize][parent_src.unwrap()][w] += min;
+                    }
+                    if node_type_right_src[v] {
+                        self.cost_v[PathIdx::Right as usize][parent_src.unwrap()][w] +=
+                            self.cost_v[PathIdx::Right as usize][v][w];
+                    } else {
+                        self.cost_v[PathIdx::Right as usize][parent_src.unwrap()][w] += min;
+                    }
+                    if node_type_left_src[v] {
+                        self.cost_v[PathIdx::Left as usize][parent_src.unwrap()][w] +=
+                            self.cost_v[PathIdx::Left as usize][v][w];
+                    } else {
+                        self.cost_v[PathIdx::Left as usize][parent_src.unwrap()][w] += min;
+                    }
+                }
+                parent_dst = post2parent_dst[w];
+                if parent_dst.is_some() {
+                    if node_type_heavy_dst[w] {
+                        self.cost_w[PathIdx::Heavy as usize][parent_dst.unwrap()] +=
+                            self.cost_w[PathIdx::Heavy as usize][w];
+                    } else {
+                        self.cost_w[PathIdx::Heavy as usize][parent_dst.unwrap()] += min;
+                    }
+                    if node_type_left_dst[w] {
+                        self.cost_w[PathIdx::Left as usize][parent_dst.unwrap()] +=
+                            self.cost_w[PathIdx::Left as usize][w];
+                    } else {
+                        self.cost_w[PathIdx::Left as usize][parent_dst.unwrap()] += min;
+                    }
+                    if node_type_right_dst[w] {
+                        self.cost_w[PathIdx::Right as usize][parent_dst.unwrap()] +=
+                            self.cost_w[PathIdx::Right as usize][w];
+                    } else {
+                        self.cost_w[PathIdx::Left as usize][parent_dst.unwrap()] += min;
+                    }
+                }
+            }
+        }
+    }
 
     fn compute_dist_using_strategy_array(&mut self) -> f64 {
         0.0
