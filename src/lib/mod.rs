@@ -39,6 +39,7 @@
 #![feature(try_from)]
 #![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
 #![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
 #![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
 #![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
 
@@ -116,6 +117,11 @@ pub mod patch;
 
 /// QGram distance algorithm.
 pub mod qgram;
+
+/// RTED matcher.
+///
+/// Described in Pawlik and Augsten (2011).
+pub mod rted;
 
 /// Algorithms which act on sequences of values.
 pub mod sequence;
