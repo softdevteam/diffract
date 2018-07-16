@@ -39,7 +39,8 @@ extern crate docopt;
 extern crate env_logger;
 #[macro_use]
 extern crate log;
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
 
 use std::fs::canonicalize;
 use std::io::{stderr, stdout, Write};
@@ -102,7 +103,7 @@ Options:
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Clone, Copy, Debug, RustcDecodable)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 enum DebugLevel {
     Debug,
     Error,
@@ -111,27 +112,27 @@ enum DebugLevel {
     Warn
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 enum EditScriptGenerator {
     Chawathe96, // Default.
     Chawathe98
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, RustcDecodable)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 enum Matchers {
     GumTree, // Default.
     Myers,
     ZhangShasha
 }
 
-#[derive(Debug, Eq, PartialEq, RustcDecodable)]
+#[derive(Debug, Deserialize, Eq, PartialEq)]
 enum Output {
     Terminal, // Default.
     JSON,
     None
 }
 
-#[derive(RustcDecodable, Debug)]
+#[derive(Debug, Deserialize)]
 struct Args {
     arg_base_file: String,
     arg_diff_file: String,
@@ -356,8 +357,8 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
 }
 
 fn main() {
-    let argv: Vec<_> = env::args().collect();
-    let args: Args = Docopt::new(USAGE).and_then(|d| d.argv(argv).decode())
+    // Parse command-line arguments.
+    let args: Args = Docopt::new(USAGE).and_then(|d| d.deserialize())
                                        .unwrap_or_else(|e| e.exit());
     // If the user only asked for documentation, provide it and exit.
     process_doc_flags(&args);
@@ -366,7 +367,7 @@ fn main() {
     if let Some(l) = args.flag_debug {
         env::set_var("RUST_LOG", &format!("{:?}", l).to_lowercase());
     }
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 
