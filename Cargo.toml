@@ -18,22 +18,21 @@ name = "diffract"
 path = "src/lib/mod.rs"
 
 [build-dependencies]
-glob = "0.2.11"
+glob = "0.2"
 
 [dev-dependencies]
-serde = "=1.0.55"
-serde_derive = "=1.0.55"
-serde-xml-rs = "=0.2.1"
+serde-xml-rs = "0.2"
 
 [dependencies]
-docopt = "0.7.0"
-dot = "0.1.2"
-env_logger = "0.4.2"
-log = "0.3.7"
+docopt = "1.0"
+dot = "0.1"
+env_logger = "0.5"
+log = "0.4"
 multiset = { git = "https://github.com/jmitchell/multiset" }
-rust-crypto = "0.2.36"
-rustc-serialize = "0.3"
-term = "0.4.5"
+rust-crypto = "0.2"
+serde = "1.0"
+serde_derive = "1.0"
+term = "0.5"
 cfgrammar = { git = "https://github.com/softdevteam/cfgrammar" }
 lrlex = { git = "http://github.com/softdevteam/lrlex" }
 lrpar = { git = "http://github.com/softdevteam/lrpar" }
