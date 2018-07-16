@@ -62,9 +62,9 @@ use diffract::parser;
 use diffract::zs_matcher;
 
 const USAGE: &str = "
-Usage: diffract [options] <base-file> <diff-file>
-       diffract [options] <base-file> <diff-file> -d FILE ...
-       diffract [options] <base-file> <diff-file> -g FILE ...
+Usage: diffract [options] <src-file> <dst-file>
+       diffract [options] <src-file> <dst-file> -d FILE ...
+       diffract [options] <src-file> <dst-file> -g FILE ...
        diffract (--help | --list | --version)
 
 Diff two input files.
@@ -134,8 +134,8 @@ enum Output {
 
 #[derive(Debug, Deserialize)]
 struct Args {
-    arg_base_file: String,
-    arg_diff_file: String,
+    arg_src_file: String,
+    arg_dst_file: String,
     flag_ast: bool,
     flag_debug: Option<DebugLevel>,
     flag_dot: Vec<String>,
@@ -195,8 +195,8 @@ fn write_dotfile_to_disk<T: diffract::emitters::RenderDotfile>(filepath: &str, o
 // Set any global constants requested by the user.
 // This should be the ONLY block of code that mutates these values.
 fn process_matcher_configs(args: &Args,
-                           ast_base: &ast::Arena<String, ast::FromNodeId>,
-                           ast_diff: &ast::Arena<String, ast::ToNodeId>)
+                           ast_src: &ast::Arena<String, ast::SrcNodeId>,
+                           ast_dst: &ast::Arena<String, ast::DstNodeId>)
                            -> Box<MatchTrees<String>> {
     let config: Box<MatchTrees<String>>;
     if args.flag_matcher != None && args.flag_matcher != Some(Matchers::GumTree) {
@@ -216,7 +216,7 @@ fn process_matcher_configs(args: &Args,
         config = Box::new(myers_matcher::MyersConfig::new());
     } else if args.flag_matcher == Some(Matchers::ZhangShasha) {
         info!("Selecting the Zhang-Shasha matching algorithm.");
-        config = Box::new(zs_matcher::ZhangShashaConfig::new(ast_base, ast_diff));
+        config = Box::new(zs_matcher::ZhangShashaConfig::new(ast_src, ast_dst));
     } else {
         // GumTree default.
         info!("Selecting the GumTree matching algorithm.");
@@ -245,7 +245,7 @@ fn get_matcher_descriptions() -> String {
     let mut descriptions = vec![];
     let myers: Box<MatchTrees<u16>> = Box::new(myers_matcher::MyersConfig::new());
     let gt: Box<MatchTrees<u16>> = Box::new(gt_matcher::GumTreeConfig::new());
-    let dummy_src: ast::Arena<String, ast::FromNodeId> = ast::Arena::new();
+    let dummy_src: ast::Arena<String, ast::SrcNodeId> = ast::Arena::new();
     let zs: Box<MatchTrees<u16>> =
         Box::new(zs_matcher::ZhangShashaConfig::new(&dummy_src, &ast::Arena::new()));
     descriptions.push(format!("{}\n-----{}\n", "Myers:", myers.describe()));
@@ -295,7 +295,7 @@ fn process_doc_flags(args: &Args) {
 /// Determine lexer and yacc files by extension.
 /// For example if the input file is named `Foo.java`, the lexer should be
 /// `grammars/java.l`. This function duplicates some checks that are performed
-/// by the `treediff::ast::parse_file` in order to give better error messages.
+/// by the `treedst::ast::parse_file` in order to give better error messages.
 /// Will cause diffract to exit if user-requested lexer / parser does not exist.
 fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     // TODO: create a HashMap of file extensions -> lex/yacc files.
@@ -304,21 +304,21 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
         Err(_) => exit_with_message("Cannot determine which directory the executable is in.")
     };
 
-    match Path::new(&args.arg_base_file).extension() {
+    match Path::new(&args.arg_src_file).extension() {
         Some(_) => (),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_base_file))
+        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_src_file))
     };
     // Lexer path for first input file.
     let lexer1 = if !args.flag_grammar.is_empty() {
         canonicalize(format!("{}.l", &args.flag_grammar[0])).unwrap()
     } else {
-        parser::get_lexer(&args.arg_base_file)
+        parser::get_lexer(&args.arg_src_file)
     };
     // Parser path for first input file.
     let parser1 = if !args.flag_grammar.is_empty() {
         canonicalize(format!("{}.y", &args.flag_grammar[0])).unwrap()
     } else {
-        parser::get_parser(&args.arg_base_file)
+        parser::get_parser(&args.arg_src_file)
     };
     if !args.flag_grammar.is_empty() {
         if !Path::new(&lexer1).exists() {
@@ -329,21 +329,21 @@ fn get_parsers(args: &Args) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
         }
     }
 
-    match Path::new(&args.arg_diff_file).extension() {
+    match Path::new(&args.arg_dst_file).extension() {
         Some(_) => (),
-        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_diff_file))
+        None => exit_with_message(&format!("Cannot determine file type of {}.", args.arg_dst_file))
     };
     // Lexer path for second input file.
     let lexer2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         canonicalize(format!("{}.l", &args.flag_grammar[1])).unwrap()
     } else {
-        parser::get_lexer(&args.arg_diff_file)
+        parser::get_lexer(&args.arg_dst_file)
     };
     // Parser path for second input file.
     let parser2 = if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         canonicalize(format!("{}.y", &args.flag_grammar[1])).unwrap()
     } else {
-        parser::get_parser(&args.arg_diff_file)
+        parser::get_parser(&args.arg_dst_file)
     };
     if !args.flag_grammar.is_empty() && args.flag_grammar.len() > 1 {
         if !Path::new(&lexer2).exists() {
@@ -372,34 +372,34 @@ fn main() {
     let (lexer1, parser1, lexer2, parser2) = get_parsers(&args);
 
     // Parse both input files.
-    let ast_base = parse_file::<ast::FromNodeId>(&args.arg_base_file, &lexer1, &parser1);
-    let ast_diff = parse_file::<ast::ToNodeId>(&args.arg_diff_file, &lexer2, &parser2);
+    let ast_src = parse_file::<ast::SrcNodeId>(&args.arg_src_file, &lexer1, &parser1);
+    let ast_dst = parse_file::<ast::DstNodeId>(&args.arg_dst_file, &lexer2, &parser2);
 
     // Matcher configuration object.
     let mut matcher_config: Box<MatchTrees<String>> =
-        process_matcher_configs(&args, &ast_base, &ast_diff);
+        process_matcher_configs(&args, &ast_src, &ast_dst);
 
     // Dump ASTs to STDOUT, if requested.
     if args.flag_ast {
-        println!("{:?}", ast_base);
-        println!("{:?}", ast_diff);
+        println!("{:?}", ast_src);
+        println!("{:?}", ast_dst);
     }
 
     // Generate graphviz file(s), if requested.
     if !args.flag_dot.is_empty() {
         info!("Creating dot representation of AST {:?}.", args.flag_dot);
-        write_dotfile_to_disk(&args.flag_dot[0], &ast_base);
+        write_dotfile_to_disk(&args.flag_dot[0], &ast_src);
     }
     if args.flag_dot.len() > 1 {
-        write_dotfile_to_disk(&args.flag_dot[1], &ast_diff);
+        write_dotfile_to_disk(&args.flag_dot[1], &ast_dst);
     }
     // Check for Chawathe98
 
     match args.flag_edit {
         Some(EditScriptGenerator::Chawathe96) | None => {}
         Some(EditScriptGenerator::Chawathe98) => {
-            let ast_base_clone = ast_base.clone();
-            let ast_diff_clone = ast_diff.clone();
+            let ast_src_clone = ast_src.clone();
+            let ast_dst_clone = ast_dst.clone();
             fn input_from_user() -> Vec<usize> {
                 println!("If the wrong values are entered, default values would be taken");
                 print!("\nPlease enter cost for edges: Insert, Delete, Update, Move, Copy, Glue: ");
@@ -436,17 +436,17 @@ fn main() {
             } else {
                 chawathe98_matcher::CostEdge::new(1, 1, 1, 1, 1, 1, 0, 0)
             };
-            // Chawathe98 matcher does not yet have a way to generate a textual diff.
-            chawathe98_matcher::chawathe_matching_actual(ast_base_clone, ast_diff_clone, cost)
+            // Chawathe98 matcher does not yet have a way to generate a textual dst.
+            chawathe98_matcher::chawathe_matching_actual(ast_src_clone, ast_dst_clone, cost)
                 .expect("Chawathe98 matcher could not generate edit script.");
         }
     }
 
     // Create a mapping store.
-    let store = matcher_config.match_trees(ast_base, ast_diff);
+    let store = matcher_config.match_trees(ast_src, ast_dst);
 
     // If the matcher needs it, set the fingerprint (hash) of each node in the
-    // from and to ASTs.
+    // src and dst ASTs.
     if args.flag_matcher == Some(Matchers::GumTree) {
         let mut hash_generator = fingerprint::Md5HashGenerator::new();
         fingerprint::apply_fingerprint_both(&mut hash_generator, &store);
@@ -503,9 +503,9 @@ fn main() {
         info!("Writing terminal output to STDOUT.");
         consume_emitter_err(emitters::write_diff_to_stdout(&store,
                                                            &edit_script,
-                                                           &args.arg_base_file,
-                                                           &args.arg_diff_file),
-                            &args.arg_base_file);
+                                                           &args.arg_src_file,
+                                                           &args.arg_dst_file),
+                            &args.arg_src_file);
     } else if args.flag_output == Some(Output::None) {
         info!("No output requested by the user.");
         return;
@@ -517,6 +517,6 @@ fn main() {
                             "STDOUT");
     }
 
-    debug!("Final 'from' AST:\n{:?}", store.from_arena.borrow());
-    debug!("Final 'to' AST:\n{:?}", store.to_arena.borrow());
+    debug!("Final 'src' AST:\n{:?}", store.src_arena.borrow());
+    debug!("Final 'dst' AST:\n{:?}", store.dst_arena.borrow());
 }

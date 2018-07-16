@@ -40,20 +40,20 @@
 
 extern crate diffract;
 
-use diffract::ast::{Arena, FromNodeId, NodeId};
+use diffract::ast::{Arena, NodeId, SrcNodeId};
 use diffract::hqueue::HeightQueue;
 use diffract::parser::{get_lexer, get_parser, parse_file};
 
 // Assert that `queue` is in sorted order and has the same size `arena`.
-fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<FromNodeId>,
-                                       arena: &Arena<T, FromNodeId>) {
+fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<SrcNodeId>,
+                                       arena: &Arena<T, SrcNodeId>) {
     let mut expected = arena.size();
     if expected == 0 {
         assert!(queue.is_empty());
         return;
     }
     let mut clone = queue.clone();
-    let mut tallest: Vec<NodeId<FromNodeId>>;
+    let mut tallest: Vec<NodeId<SrcNodeId>>;
     loop {
         tallest = clone.pop();
         println!("{:?}", tallest);

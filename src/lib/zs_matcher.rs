@@ -42,7 +42,7 @@ use std::f64;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 use f64_eq;
 use matchers::{has_same_type, MappingStore, MappingType, MatchTrees};
 use qgram::trigram_distance;
@@ -59,16 +59,16 @@ const INSERTION_COST: f64 = 1.0;
 /// as described in Section 3.1 of the paper.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ZhangShashaConfig {
-    src: ZSTree<FromNodeId>,
-    dst: ZSTree<ToNodeId>,
+    src: ZSTree<SrcNodeId>,
+    dst: ZSTree<DstNodeId>,
     tree_dist: Vec<Vec<f64>>,
     forest_dist: Vec<Vec<f64>>
 }
 
 impl ZhangShashaConfig {
     /// Create a new configuration object.
-    pub fn new<T: Clone + PartialEq + ToString>(src: &Arena<T, FromNodeId>,
-                                                dst: &Arena<T, ToNodeId>)
+    pub fn new<T: Clone + PartialEq + ToString>(src: &Arena<T, SrcNodeId>,
+                                                dst: &Arena<T, DstNodeId>)
                                                 -> ZhangShashaConfig {
         ZhangShashaConfig { src: ZSTree::new(src),
                             dst: ZSTree::new(dst),
@@ -105,18 +105,18 @@ impl ZhangShashaConfig {
     {
         self.forest_dist[self.src.lld(i) - 1][self.dst.lld(j) - 1] = 0.0;
         for di in self.src.lld(i)..i + 1 {
-            let cost_del = get_deletion_cost(self.src.id(di), &store.from_arena.borrow());
+            let cost_del = get_deletion_cost(self.src.id(di), &store.src_arena.borrow());
             self.forest_dist[di][self.dst.lld(j) - 1] =
                 self.forest_dist[di - 1][self.dst.lld(j) - 1] + cost_del;
             for dj in self.dst.lld(j)..j + 1 {
-                let cost_ins = get_insertion_cost(self.dst.id(dj), &store.to_arena.borrow());
+                let cost_ins = get_insertion_cost(self.dst.id(dj), &store.dst_arena.borrow());
                 self.forest_dist[self.src.lld(i) - 1][dj] =
                     self.forest_dist[self.src.lld(i) - 1][dj - 1] + cost_ins;
                 if self.src.lld(di) == self.src.lld(i) && self.dst.lld(dj) == self.dst.lld(j) {
                     let cost_upd = get_update_cost(self.src.id(di),
-                                                   &store.from_arena.borrow(),
+                                                   &store.src_arena.borrow(),
                                                    self.dst.id(dj),
-                                                   &store.to_arena.borrow());
+                                                   &store.dst_arena.borrow());
                     self.forest_dist[di][dj] =
                         f64::min(f64::min(self.forest_dist[di - 1][dj] + cost_del,
                                           self.forest_dist[di][dj - 1] + cost_ins),
@@ -145,12 +145,12 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
 
     /// Match locations in distinct ASTs (not described in the paper).
     fn match_trees(&mut self,
-                   base: Arena<T, FromNodeId>,
-                   diff: Arena<T, ToNodeId>)
+                   src: Arena<T, SrcNodeId>,
+                   dst: Arena<T, DstNodeId>)
                    -> MappingStore<T> {
-        let store = MappingStore::new(base, diff);
+        let store = MappingStore::new(src, dst);
         self.compute_tree_distance(&store);
-        // Implementation of Algorithm Y from Wagner and Fischer (1974), with
+        // Implementation of Algorithm Y src Wagner and Fischer (1974), with
         // an outer loop to iterate over pairs of sub-forests.
         let mut tree_pairs: Vec<(usize, usize)> = vec![];
         tree_pairs.push((self.src.node_count, self.dst.node_count));
@@ -168,7 +168,7 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
                    && f64_eq(self.forest_dist[row - 1][col] + DELETION_COST,
                              self.forest_dist[row][col])
                 {
-                    // Node with left-right postorder id `row` is DELETEd from
+                    // Node with left-right postorder id `row` is DELETEd src
                     // edit distance tree `src`.
                     row -= 1;
                 } else if col > first_col
@@ -181,9 +181,9 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
                 } else if self.src.lld(row) - 1 == self.src.lld(last_row) - 1
                           && self.dst.lld(col) - 1 == self.dst.lld(last_col) - 1
                           && has_same_type(self.src.id(row),
-                                           &store.from_arena.borrow(),
+                                           &store.src_arena.borrow(),
                                            self.dst.id(col),
-                                           &store.to_arena.borrow())
+                                           &store.dst_arena.borrow())
                 {
                     // Both sub-forests are trees, so match id node row (in src)
                     // to col (in dst). The matcher does not use left-right
@@ -207,28 +207,28 @@ Fast Algorithms for the Editing Distance Between Trees and Related Problems.";
 }
 
 /// Return cost of a deletion action.
-fn get_deletion_cost<T: Clone>(_node: NodeId<FromNodeId>, _arena: &Arena<T, FromNodeId>) -> f64 {
+fn get_deletion_cost<T: Clone>(_node: NodeId<SrcNodeId>, _arena: &Arena<T, SrcNodeId>) -> f64 {
     DELETION_COST
 }
 
 /// Return cost of an insertion action.
-fn get_insertion_cost<T: Clone>(_node: NodeId<ToNodeId>, _arena: &Arena<T, ToNodeId>) -> f64 {
+fn get_insertion_cost<T: Clone>(_node: NodeId<DstNodeId>, _arena: &Arena<T, DstNodeId>) -> f64 {
     INSERTION_COST
 }
 
 /// Return cost of an update action.
-fn get_update_cost<T: Clone + Eq + ToString>(from: NodeId<FromNodeId>,
-                                             from_arena: &Arena<T, FromNodeId>,
-                                             to: NodeId<ToNodeId>,
-                                             to_arena: &Arena<T, ToNodeId>)
+fn get_update_cost<T: Clone + Eq + ToString>(src: NodeId<SrcNodeId>,
+                                             src_arena: &Arena<T, SrcNodeId>,
+                                             dst: NodeId<DstNodeId>,
+                                             dst_arena: &Arena<T, DstNodeId>)
                                              -> f64 {
-    if from_arena[from].ty == to_arena[to].ty {
-        let from_s = from_arena[from].label.to_string();
-        let to_s = to_arena[to].label.to_string();
-        if from_s.is_empty() || to_s.is_empty() {
+    if src_arena[src].ty == dst_arena[dst].ty {
+        let src_s = src_arena[src].label.to_string();
+        let dst_s = dst_arena[dst].label.to_string();
+        if src_s.is_empty() || dst_s.is_empty() {
             return 1.0;
         } else {
-            return 1.0 - trigram_distance(&from_s, &to_s);
+            return 1.0 - trigram_distance(&src_s, &dst_s);
         }
     }
     f64::MAX
@@ -357,84 +357,86 @@ mod tests {
 
     #[test]
     fn test_zs_single_identical_node() {
-        let ast_from = load_xml_ast("<Tree ty=\"program\" label=\"\" />");
-        let ast_to =
-            Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"program\" label=\"\" />"));
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = load_xml_ast("<Tree ty=\"program\" label=\"\" />");
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast("<Tree ty=\"program\" label=\"\" />"));
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(1, store.size());
         assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
     }
 
     #[test]
     fn test_zs_single_nonidentical_node() {
-        let ast_from = load_xml_ast("<Tree ty=\"program\" label=\"mylabel\" />");
-        let ast_to =
-            Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"notaprog\" label=\"\" />"));
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = load_xml_ast("<Tree ty=\"program\" label=\"mylabel\" />");
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast("<Tree ty=\"notaprog\" label=\"\" />"));
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(0, store.size());
     }
 
     #[test]
     fn test_zs_single_update() {
-        let ast_from = load_xml_ast("<Tree ty=\"int\" label=\"This sentence is similar. A quirky thing it is.\" />");
-        let ast_to =
-            Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"int\" label=\"A quirky thing it is. This is a sentence.\" />"));
-        let from_root = ast_from.root().unwrap();
-        let to_root = ast_to.root().unwrap();
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = load_xml_ast("<Tree ty=\"int\" label=\"This sentence is similar. A quirky thing it is.\" />");
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast("<Tree ty=\"int\" label=\"A quirky thing it is. This is a sentence.\" />"));
+        let src_root = ast_src.root().unwrap();
+        let dst_root = ast_dst.root().unwrap();
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(from_root, to_root));
+        assert!(store.is_mapped(src_root, dst_root));
     }
 
     #[test]
     fn test_zs_single_insert() {
-        let ast_from = load_xml_ast(
-                                    "<Tree ty=\"Expr\" label=\"+\">
+        let ast_src = load_xml_ast(
+                                   "<Tree ty=\"Expr\" label=\"+\">
     </Tree>"
         );
-        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
-            "<Tree ty=\"Expr\" label=\"+\">
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast(
+                "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"1\"/>
     </Tree>"
-        ));
-        let from_root = ast_from.root().unwrap();
-        let to_root = ast_to.root().unwrap();
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+            ));
+        let src_root = ast_src.root().unwrap();
+        let dst_root = ast_dst.root().unwrap();
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(from_root, to_root));
+        assert!(store.is_mapped(src_root, dst_root));
     }
 
     #[test]
     fn test_zs_single_delete() {
-        let ast_from = load_xml_ast(
-                                    "<Tree ty=\"Expr\" label=\"+\">
+        let ast_src = load_xml_ast(
+                                   "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"1\"/>
     </Tree>"
         );
-        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
-            "<Tree ty=\"Expr\" label=\"+\">
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast(
+                "<Tree ty=\"Expr\" label=\"+\">
     </Tree>"
-        ));
-        let from_root = ast_from.root().unwrap();
-        let to_root = ast_to.root().unwrap();
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+            ));
+        let src_root = ast_src.root().unwrap();
+        let dst_root = ast_dst.root().unwrap();
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(1, store.size());
-        assert!(store.is_mapped(from_root, to_root));
+        assert!(store.is_mapped(src_root, dst_root));
     }
 
     #[test]
     fn test_zs_same_tree() {
-        let ast_from = create_mult_arena();
-        let ast_to = Arena::<String, ToNodeId>::from(ast_from.clone());
-        assert_eq!(5, ast_from.size());
-        assert_eq!(5, ast_to.size());
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = create_mult_arena();
+        let ast_dst = Arena::<String, DstNodeId>::from(ast_src.clone());
+        assert_eq!(5, ast_src.size());
+        assert_eq!(5, ast_dst.size());
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(5, store.size());
         // These are not in a loop because we want assertion failures to
         // give the node id at the command line.
@@ -447,10 +449,10 @@ mod tests {
 
     #[test]
     fn test_zs_workshop_example() {
-        // Example from:
+        // Example src:
         // https://www.slideshare.net/hecfran/tree-distance-algorithm
-        let ast_from = load_xml_ast(
-                                    "<Tree ty=\"node\" label=\"a\">
+        let ast_src = load_xml_ast(
+                                   "<Tree ty=\"node\" label=\"a\">
     <Tree ty=\"node\" label=\"a\">
         <Tree ty=\"node\" label=\"a\">
                 <Tree ty=\"node\" label=\"b\"/>
@@ -461,8 +463,9 @@ mod tests {
 </Tree>
 "
         );
-        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast(
-            "<Tree ty=\"node\" label=\"c\">
+        let ast_dst =
+            Arena::<String, DstNodeId>::from(load_xml_ast(
+                "<Tree ty=\"node\" label=\"c\">
     <Tree ty=\"node\" label=\"a\">
             <Tree ty=\"node\" label=\"b\"/>
     </Tree>
@@ -472,11 +475,11 @@ mod tests {
     <Tree ty=\"node\" label=\"b\"/>
 </Tree>
 "
-        ));
-        assert_eq!(6, ast_from.size());
-        assert_eq!(6, ast_to.size());
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+            ));
+        assert_eq!(6, ast_src.size());
+        assert_eq!(6, ast_dst.size());
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(vec![0, 0, 2, 3, 0, 0], matcher_config.src.llds);
         assert_eq!(vec![0, 0, 2, 2, 4, 0], matcher_config.dst.llds);
         assert_eq!(vec![0, 3, 4, 6], matcher_config.src.key_roots);
@@ -503,8 +506,8 @@ mod tests {
     fn test_zs_same_structure() {
         // Each node should appear in the match store as an UPDATE. Labels here
         // should be interesting enough to produce non-rational update costs.
-        let ast_from = load_xml_ast(
-                                    "<Tree ty=\"node\" label=\"KAIZHONG ZHANG AND DENNIS SHASHA\">
+        let ast_src = load_xml_ast(
+                                   "<Tree ty=\"node\" label=\"KAIZHONG ZHANG AND DENNIS SHASHA\">
     <Tree ty=\"node\" label=\"HUMAN\">
         <Tree ty=\"node\" label=\"AAACCGTGAGTTATTCGTTCTAGAA\"/>
         <Tree ty=\"node\" label=\"XMJYAUZ\">
@@ -516,7 +519,7 @@ mod tests {
 </Tree>
 "
         );
-        let ast_to = Arena::<String, ToNodeId>::from(load_xml_ast("<Tree ty=\"node\" label=\"DENNIS SHASHA AND KAIZHONG ZHANG\">
+        let ast_dst = Arena::<String, DstNodeId>::from(load_xml_ast("<Tree ty=\"node\" label=\"DENNIS SHASHA AND KAIZHONG ZHANG\">
     <Tree ty=\"node\" label=\"CHIMPANZEE\">
         <Tree ty=\"node\" label=\"CACCCCTAAGGTACCTTTGGTTC\"/>
         <Tree ty=\"node\" label=\"MZJAWXU\">
@@ -527,10 +530,10 @@ mod tests {
     </Tree>
 </Tree>
 "));
-        assert_eq!(6, ast_from.size());
-        assert_eq!(6, ast_to.size());
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        assert_eq!(6, ast_src.size());
+        assert_eq!(6, ast_dst.size());
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(6, store.size());
         // These are not in a loop because we want assertion failures to
         // give the node id at the command line.
@@ -544,15 +547,15 @@ mod tests {
 
     #[test]
     fn test_zs_paper_example() {
-        // Example from Fig. 4 of the paper.
-        let ast_from = create_zs_paper_src_arena();
-        let ast_to = create_zs_paper_dst_arena();
-        assert_eq!(6, ast_from.size());
-        assert_eq!(6, ast_to.size());
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
+        // Example src Fig. 4 of the paper.
+        let ast_src = create_zs_paper_src_arena();
+        let ast_dst = create_zs_paper_dst_arena();
+        assert_eq!(6, ast_src.size());
+        assert_eq!(6, ast_dst.size());
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
         assert_eq!(vec![0, 3, 5, 6], matcher_config.src.key_roots);
         assert_eq!(vec![0, 2, 5, 6], matcher_config.dst.key_roots);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         let tree_dist = vec![vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
                              vec![0.0, 0.0, 1.0, 2.0, 3.0, 1.0, 5.0],
                              vec![0.0, 1.0, 0.0, 2.0, 3.0, 1.0, 5.0],
@@ -571,67 +574,69 @@ mod tests {
 
     #[test]
     fn test_zs_custom_example() {
-        let ast_from = create_zs_src_arena();
-        let ast_to = create_zs_dst_arena();
-        let from_root = ast_from.root().unwrap();
-        let to_root = ast_to.root().unwrap();
-        let from_children = &from_root.children(&ast_from)
-                                      .collect::<Vec<NodeId<FromNodeId>>>();
-        let to_children = &to_root.children(&ast_to).collect::<Vec<NodeId<ToNodeId>>>();
-        let to_grandchild = to_children[0].children(&ast_to).nth(1).unwrap();
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = create_zs_src_arena();
+        let ast_dst = create_zs_dst_arena();
+        let src_root = ast_src.root().unwrap();
+        let dst_root = ast_dst.root().unwrap();
+        let src_children = &src_root.children(&ast_src)
+                                    .collect::<Vec<NodeId<SrcNodeId>>>();
+        let dst_children = &dst_root.children(&ast_dst)
+                                    .collect::<Vec<NodeId<DstNodeId>>>();
+        let dst_grandchild = dst_children[0].children(&ast_dst).nth(1).unwrap();
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(5, store.size());
-        assert!(store.is_mapped(from_root, to_children[0]));
-        assert!(store.is_mapped(from_children[0],
-                                to_children[0].children(&store.to_arena.borrow())
+        assert!(store.is_mapped(src_root, dst_children[0]));
+        assert!(store.is_mapped(src_children[0],
+                                dst_children[0].children(&store.dst_arena.borrow())
+                                               .nth(0)
+                                               .unwrap()));
+        assert!(store.is_mapped(src_children[1], dst_grandchild));
+        assert!(store.is_mapped(src_children[1].children(&store.src_arena.borrow())
+                                               .nth(0)
+                                               .unwrap(),
+                                dst_grandchild.children(&store.dst_arena.borrow())
                                               .nth(0)
                                               .unwrap()));
-        assert!(store.is_mapped(from_children[1], to_grandchild));
-        assert!(store.is_mapped(from_children[1].children(&store.from_arena.borrow())
-                                                .nth(0)
-                                                .unwrap(),
-                                to_grandchild.children(&store.to_arena.borrow())
-                                             .nth(0)
-                                             .unwrap()));
-        assert!(store.is_mapped(from_children[1].children(&store.from_arena.borrow())
-                                                .nth(2)
-                                                .unwrap(),
-                                to_grandchild.children(&store.to_arena.borrow())
-                                             .nth(2)
-                                             .unwrap()));
+        assert!(store.is_mapped(src_children[1].children(&store.src_arena.borrow())
+                                               .nth(2)
+                                               .unwrap(),
+                                dst_grandchild.children(&store.dst_arena.borrow())
+                                              .nth(2)
+                                              .unwrap()));
     }
 
     #[test]
     fn test_zs_slide_example() {
-        let ast_from = create_slide_src_arena();
-        let ast_to = create_slide_dst_arena();
-        let from_root = ast_from.root().unwrap();
-        let to_root = ast_to.root().unwrap();
-        let from_children = &from_root.children(&ast_from)
-                                      .collect::<Vec<NodeId<FromNodeId>>>();
-        let from_grandchild = from_children[0].children(&ast_from).nth(0).unwrap();
-        let to_children = &to_root.children(&ast_to).collect::<Vec<NodeId<ToNodeId>>>();
-        let mut matcher_config = ZhangShashaConfig::new(&ast_from, &ast_to);
-        let store = matcher_config.match_trees(ast_from, ast_to);
+        let ast_src = create_slide_src_arena();
+        let ast_dst = create_slide_dst_arena();
+        let src_root = ast_src.root().unwrap();
+        let dst_root = ast_dst.root().unwrap();
+        let src_children = &src_root.children(&ast_src)
+                                    .collect::<Vec<NodeId<SrcNodeId>>>();
+        let src_grandchild = src_children[0].children(&ast_src).nth(0).unwrap();
+        let dst_children = &dst_root.children(&ast_dst)
+                                    .collect::<Vec<NodeId<DstNodeId>>>();
+        let mut matcher_config = ZhangShashaConfig::new(&ast_src, &ast_dst);
+        let store = matcher_config.match_trees(ast_src, ast_dst);
         assert_eq!(5, store.size());
-        assert!(store.is_mapped(from_root, to_root));
-        assert!(store.is_mapped(from_grandchild, to_children[0]));
-        assert!(store.is_mapped(from_grandchild.children(&store.from_arena.borrow())
+        assert!(store.is_mapped(src_root, dst_root));
+        assert!(store.is_mapped(src_grandchild, dst_children[0]));
+        assert!(store.is_mapped(src_grandchild.children(&store.src_arena.borrow())
+                                              .nth(0)
+                                              .unwrap(),
+                                dst_children[0].children(&store.dst_arena.borrow())
                                                .nth(0)
+                                               .unwrap()));
+        assert!(store.is_mapped(src_children[0].children(&store.src_arena.borrow())
+                                               .nth(1)
                                                .unwrap(),
-                                to_children[0].children(&store.to_arena.borrow())
-                                              .nth(0)
-                                              .unwrap()));
-        assert!(store.is_mapped(from_children[0].children(&store.from_arena.borrow())
-                                                .nth(1)
-                                                .unwrap(),
-                                to_children[1].children(&store.to_arena.borrow())
-                                              .nth(0)
-                                              .unwrap()));
-        assert!(store.is_mapped(from_children[0].children(&store.from_arena.borrow())
-                                                .nth(2)
-                                                .unwrap(),
-                                to_children[2]));
+                                dst_children[1].children(&store.dst_arena.borrow())
+                                               .nth(0)
+                                               .unwrap()));
+        assert!(store.is_mapped(src_children[0].children(&store.src_arena.borrow())
+                                               .nth(2)
+                                               .unwrap(),
+                                dst_children[2]));
     }
 }

@@ -177,20 +177,20 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ast::FromNodeId;
+    use ast::SrcNodeId;
     use test::Bencher;
     use test_common::create_mult_arena;
 
     // Assert that `queue` is in sorted order and has the same size `arena`.
-    fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<FromNodeId>,
-                                           arena: &Arena<T, FromNodeId>) {
+    fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<SrcNodeId>,
+                                           arena: &Arena<T, SrcNodeId>) {
         let mut expected = arena.size();
         if expected == 0 {
             assert!(queue.is_empty());
             return;
         }
         let mut clone = queue.clone();
-        let mut tallest: Vec<NodeId<FromNodeId>>;
+        let mut tallest: Vec<NodeId<SrcNodeId>>;
         loop {
             tallest = clone.pop();
             expected -= tallest.len();
@@ -218,10 +218,10 @@ mod tests {
 
     #[test]
     fn cmp_priority_node() {
-        let p0 = PriorityNodeId::<FromNodeId>::new(NodeId::new(0), 0);
-        let p1 = PriorityNodeId::<FromNodeId>::new(NodeId::new(0), 1);
-        let p2 = PriorityNodeId::<FromNodeId>::new(NodeId::new(0), 2);
-        let p3 = PriorityNodeId::<FromNodeId>::new(NodeId::new(0), 2);
+        let p0 = PriorityNodeId::<SrcNodeId>::new(NodeId::new(0), 0);
+        let p1 = PriorityNodeId::<SrcNodeId>::new(NodeId::new(0), 1);
+        let p2 = PriorityNodeId::<SrcNodeId>::new(NodeId::new(0), 2);
+        let p3 = PriorityNodeId::<SrcNodeId>::new(NodeId::new(0), 2);
         assert!(p0 < p1);
         assert!(p1 < p2);
         assert!(p2 == p3);
@@ -247,13 +247,13 @@ mod tests {
 
     #[test]
     fn new() {
-        assert!(HeightQueue::<FromNodeId>::new().is_empty());
+        assert!(HeightQueue::<SrcNodeId>::new().is_empty());
     }
 
     #[test]
     fn open() {
         let arena = create_mult_arena();
-        let mut queue = HeightQueue::<FromNodeId>::new();
+        let mut queue = HeightQueue::<SrcNodeId>::new();
         queue.open(NodeId::new(0), &arena);
         let expected1 = vec![NodeId::new(2)]; // Expr *
         assert_eq!(expected1, queue.pop());
@@ -308,7 +308,7 @@ mod tests {
 
     #[bench]
     fn bench_push(bencher: &mut Bencher) {
-        let mut arena: Arena<&str, FromNodeId> = Arena::new();
+        let mut arena: Arena<&str, SrcNodeId> = Arena::new();
         for _ in 0..BENCH_ITER {
             arena.new_node("", String::from(""), None, None, None, None);
         }

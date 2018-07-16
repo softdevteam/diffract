@@ -40,7 +40,7 @@
 
 extern crate diffract;
 
-use diffract::ast::{Arena, FromNodeId, ToNodeId};
+use diffract::ast::{Arena, DstNodeId, SrcNodeId};
 use diffract::edit_script::{Chawathe96Config, EditScriptGenerator, TMP_ROOT};
 use diffract::matchers::MatchTrees;
 use diffract::parser::{get_lexer, get_parser, parse_file};
@@ -48,10 +48,10 @@ use diffract::parser::{get_lexer, get_parser, parse_file};
 /// Check that the Chawathe 1996 edit script generator correctly generates an
 /// edit script for two files and a given matcher.
 pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>>) {
-    let ast_from = parse_file(path1, &get_lexer(path1), &get_parser(path1)).unwrap();
-    let ast_to = parse_file(path2, &get_lexer(path2), &get_parser(path2)).unwrap();
+    let ast_src = parse_file(path1, &get_lexer(path1), &get_parser(path1)).unwrap();
+    let ast_dst = parse_file(path2, &get_lexer(path2), &get_parser(path2)).unwrap();
     // Generate mappings between ASTs.
-    let store = matcher.match_trees(ast_from.clone(), ast_to.clone());
+    let store = matcher.match_trees(ast_src.clone(), ast_dst.clone());
     // Generate an edit script.
     let gen_config: Box<EditScriptGenerator<String>> = Box::new(Chawathe96Config::new());
     let edit_script_wrapped = gen_config.generate_script(&store);
@@ -59,76 +59,76 @@ pub fn check_files(path1: &str, path2: &str, mut matcher: Box<MatchTrees<String>
             "Edit script generator failed to complete.");
     // Get root node ids after the edit script has run (note that the root nodes
     // may be altered by the edit script).
-    let root_from = store.from_arena.borrow().root().unwrap();
-    let root_to = store.to_arena.borrow().root().unwrap();
+    let root_src = store.src_arena.borrow().root().unwrap();
+    let root_dst = store.dst_arena.borrow().root().unwrap();
     // Test 1: every reachable node in both ASTs should be mapped. The edit
     // script generator should have turned the partial matching provided by the
-    // matcher into a total matching. N.B. deleted nodes in the to AST will be
+    // matcher into a total matching. N.B. deleted nodes in the dst AST will be
     // in the arena but should not be reachable from the root node.
     let mut count_nodes = 0;
     let mut count_mapped = 0;
-    for node in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
+    for node in root_src.breadth_first_traversal(&store.src_arena.borrow()) {
         count_nodes += 1;
-        assert!(store.contains_from(node));
+        assert!(store.contains_src(node));
         count_mapped += 1;
     }
     assert_eq!(count_nodes, count_mapped);
     count_nodes = 0;
     count_mapped = 0;
-    for node in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
+    for node in root_dst.breadth_first_traversal(&store.dst_arena.borrow()) {
         count_nodes += 1;
-        assert!(store.contains_to(node));
+        assert!(store.contains_dst(node));
         count_mapped += 1;
     }
     assert_eq!(count_nodes, count_mapped,
                "Final mapping not total for files: {} and {}.",
                path1, path2);
-    // Test 2: final from and to ASTs should be isomorphic.
+    // Test 2: final src and dst ASTs should be isomorphic.
     // Isomorphism is defined strictly, as there being no differences in the two
     // trees, except in their node identifiers. As a belt-and-braces check, we
     // also check that pretty-printed versions of both trees are identical.
-    assert!(store.is_isomorphic(root_from, root_to),
+    assert!(store.is_isomorphic(root_src, root_dst),
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
-    assert!(check_pretty_printed(&store.from_arena.borrow(), &store.to_arena.borrow()),
+    assert!(check_pretty_printed(&store.src_arena.borrow(), &store.dst_arena.borrow()),
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
-    // Test 3: final from and to ASTs should be isomorphic.
+    // Test 3: final src and dst ASTs should be isomorphic.
     // In this test isomorphism is determined by examining the hashes of the
     // two trees.
-    assert!(store.is_isomorphic_hash(root_from, root_to),
+    assert!(store.is_isomorphic_hash(root_src, root_dst),
             "ASTs not isomorphic for files: {} and {}.",
             path1,
             path2);
     // Test 4: check that `TMP_ROOT` is not found in the tree. This text is
-    // used when the `from` and `to` trees have roots with different types or
+    // used when the `src` and `dst` trees have roots with different types or
     // labels. It should be removed before the edit script generator completes.
-    for id in root_from.breadth_first_traversal(&store.from_arena.borrow()) {
-        if TMP_ROOT == store.from_arena.borrow()[id].label {
+    for id in root_src.breadth_first_traversal(&store.src_arena.borrow()) {
+        if TMP_ROOT == store.src_arena.borrow()[id].label {
             assert!(false, "TMP_ROOT not removed from {:?}", path1);
         }
     }
-    for id in root_to.breadth_first_traversal(&store.to_arena.borrow()) {
-        if TMP_ROOT == store.to_arena.borrow()[id].label {
+    for id in root_dst.breadth_first_traversal(&store.dst_arena.borrow()) {
+        if TMP_ROOT == store.dst_arena.borrow()[id].label {
             assert!(false, "TMP_ROOT not removed from {:?}", path2);
         }
     }
 }
 
-fn check_pretty_printed(from: &Arena<String, FromNodeId>, to: &Arena<String, ToNodeId>) -> bool {
-    let from_pretty = format!("{:?}", from);
-    let to_pretty = format!("{:?}", to);
-    let from_lines = from_pretty.split("\n").collect::<Vec<&str>>();
-    let to_lines = to_pretty.split("\n").collect::<Vec<&str>>();
-    if from_lines.len() != to_lines.len() {
+fn check_pretty_printed(src: &Arena<String, SrcNodeId>, dst: &Arena<String, DstNodeId>) -> bool {
+    let src_pretty = format!("{:?}", src);
+    let dst_pretty = format!("{:?}", dst);
+    let src_lines = src_pretty.split("\n").collect::<Vec<&str>>();
+    let dst_lines = dst_pretty.split("\n").collect::<Vec<&str>>();
+    if src_lines.len() != dst_lines.len() {
         return false;
     }
-    for line in 0..from_lines.len() {
-        if from_lines[line].len() > 4
-           && to_lines[line].len() > 4
-           && from_lines[line][4..] != to_lines[line][4..]
+    for line in 0..src_lines.len() {
+        if src_lines[line].len() > 4
+           && dst_lines[line].len() > 4
+           && src_lines[line][4..] != dst_lines[line][4..]
         {
             return false;
         }

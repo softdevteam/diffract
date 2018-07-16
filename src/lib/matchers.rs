@@ -42,7 +42,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use action::EditScript;
-use ast::{Arena, ArenaError, FromNodeId, NodeId, ToNodeId};
+use ast::{Arena, ArenaError, DstNodeId, NodeId, SrcNodeId};
 use emitters::RenderJson;
 
 /// Result type returned by the edit script generator.
@@ -76,17 +76,17 @@ impl Default for MappingType {
 pub struct MappingStore<T: Clone + Debug + ToString> {
     /// Mappings from the source tree to the destination.
     ///
-    /// Should contain the same information as `to_map`.
-    pub from: RefCell<HashMap<NodeId<FromNodeId>, (NodeId<ToNodeId>, MappingType)>>,
+    /// Should contain the same information as `dst` map.
+    pub src: RefCell<HashMap<NodeId<SrcNodeId>, (NodeId<DstNodeId>, MappingType)>>,
     /// Mappings from the destination tree to the source.
     ///
-    /// Should contain the same information as `from_map`.
-    pub to: RefCell<HashMap<NodeId<ToNodeId>, (NodeId<FromNodeId>, MappingType)>>,
+    /// Should contain the same information as `src` map.
+    pub dst: RefCell<HashMap<NodeId<DstNodeId>, (NodeId<SrcNodeId>, MappingType)>>,
 
     /// Source arena (treat as mutable).
-    pub from_arena: RefCell<Arena<T, FromNodeId>>,
+    pub src_arena: RefCell<Arena<T, SrcNodeId>>,
     /// Destination arena (treat as immutable).
-    pub to_arena: RefCell<Arena<T, ToNodeId>>
+    pub dst_arena: RefCell<Arena<T, DstNodeId>>
 }
 
 impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
@@ -94,7 +94,7 @@ impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
         let ind_2 = " ".repeat(indent * 2);
         let ind_3 = " ".repeat(indent * 3);
         let mut json = vec![];
-        for (key, value) in self.from.borrow().iter() {
+        for (key, value) in self.src.borrow().iter() {
             json.push(format!("{}{{\n{}\"src\": {},\n{}\"dest\": {}\n{}}}",
                               ind_2, ind_3, key, ind_3, value.0, ind_2));
         }
@@ -110,74 +110,74 @@ impl<T: Clone + Debug + ToString> RenderJson for MappingStore<T> {
 
 impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Create a new mapping store.
-    pub fn new(base: Arena<T, FromNodeId>, diff: Arena<T, ToNodeId>) -> MappingStore<T> {
-        MappingStore { from: RefCell::new(HashMap::new()),
-                       to: RefCell::new(HashMap::new()),
-                       from_arena: RefCell::new(base),
-                       to_arena: RefCell::new(diff) }
+    pub fn new(src: Arena<T, SrcNodeId>, dst: Arena<T, DstNodeId>) -> MappingStore<T> {
+        MappingStore { src: RefCell::new(HashMap::new()),
+                       dst: RefCell::new(HashMap::new()),
+                       src_arena: RefCell::new(src),
+                       dst_arena: RefCell::new(dst) }
     }
 
     /// Return the number of mappings in this store.
     pub fn size(&self) -> usize {
-        self.from.borrow().len()
+        self.src.borrow().len()
     }
 
     /// Push a new mapping into the store.
-    pub fn push(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>, ty: &MappingType) {
-        self.from.borrow_mut().insert(from, (to, ty.clone()));
-        self.to.borrow_mut().insert(to, (from, ty.clone()));
+    pub fn push(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>, ty: &MappingType) {
+        self.src.borrow_mut().insert(src, (dst, ty.clone()));
+        self.dst.borrow_mut().insert(dst, (src, ty.clone()));
         info!("Mapping: {:?} {:} -> {:?} {:} ({:?})",
-              self.from_arena.borrow()[from].ty,
-              self.from_arena.borrow()[from].label,
-              self.to_arena.borrow()[to].ty,
-              self.to_arena.borrow()[to].label,
+              self.src_arena.borrow()[src].ty,
+              self.src_arena.borrow()[src].label,
+              self.dst_arena.borrow()[dst].ty,
+              self.dst_arena.borrow()[dst].label,
               ty);
     }
 
     /// Remove mapping from store.
-    pub fn remove(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) {
-        self.from.borrow_mut().remove(&from);
-        self.to.borrow_mut().remove(&to);
+    pub fn remove(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) {
+        self.src.borrow_mut().remove(&src);
+        self.dst.borrow_mut().remove(&dst);
     }
 
-    /// `true` if the store has a mapping from `from` to another node.
-    pub fn contains_from(&self, from: NodeId<FromNodeId>) -> bool {
-        self.from.borrow().contains_key(&from)
+    /// `true` if the store has a mapping from `src` to another node.
+    pub fn contains_src(&self, src: NodeId<SrcNodeId>) -> bool {
+        self.src.borrow().contains_key(&src)
     }
 
-    /// `true` if the store has a mapping from a node to `to`.
-    pub fn contains_to(&self, to: NodeId<ToNodeId>) -> bool {
-        self.to.borrow().contains_key(&to)
+    /// `true` if the store has a mapping from a node to `dst`.
+    pub fn contains_dst(&self, dst: NodeId<DstNodeId>) -> bool {
+        self.dst.borrow().contains_key(&dst)
     }
 
-    /// Get the `NodeId` that `to` is mapped from.
-    pub fn get_from(&self, to: NodeId<ToNodeId>) -> Option<NodeId<FromNodeId>> {
-        self.to.borrow().get(&to).and_then(|x| Some(x.0))
+    /// Get the `NodeId` that `dst` is mapped from.
+    pub fn get_src(&self, dst: NodeId<DstNodeId>) -> Option<NodeId<SrcNodeId>> {
+        self.dst.borrow().get(&dst).and_then(|x| Some(x.0))
     }
 
-    /// Get the `NodeId` that `from` is mapped to.
-    pub fn get_to(&self, from: NodeId<FromNodeId>) -> Option<NodeId<ToNodeId>> {
-        self.from.borrow().get(&from).and_then(|x| Some(x.0))
+    /// Get the `NodeId` that `src` is mapped to.
+    pub fn get_dst(&self, src: NodeId<SrcNodeId>) -> Option<NodeId<DstNodeId>> {
+        self.src.borrow().get(&src).and_then(|x| Some(x.0))
     }
 
-    /// Test whether `from` is mapped to `to` in this store.
-    pub fn is_mapped(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
-        if !self.contains_from(from) {
+    /// Test whether `src` is mapped to `dst` in this store.
+    pub fn is_mapped(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> bool {
+        if !self.contains_src(src) {
             return false;
         }
-        self.get_to(from).map_or(false, |x| x == to)
+        self.get_dst(src).map_or(false, |x| x == dst)
     }
 
     /// Compute whether two sub-trees are isomorphic, based on their hashes.
     ///
     /// Isomorphism in this case is defined has having the same hash and the
     /// same hash serialization.
-    pub fn is_isomorphic_hash(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
-        let is_isomorphic = from.to_static_hash_string(&self.from_arena.borrow())
-                            == to.to_static_hash_string(&self.to_arena.borrow());
+    pub fn is_isomorphic_hash(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> bool {
+        let is_isomorphic = src.to_static_hash_string(&self.src_arena.borrow())
+                            == dst.to_static_hash_string(&self.dst_arena.borrow());
         debug_assert!(!is_isomorphic
-                      || (self.from_arena.borrow()[from].label == self.to_arena.borrow()[to].label)
-                         && (self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty));
+                      || (self.src_arena.borrow()[src].label == self.dst_arena.borrow()[dst].label)
+                         && (self.src_arena.borrow()[src].ty == self.dst_arena.borrow()[dst].ty));
         is_isomorphic
     }
 
@@ -188,32 +188,32 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// subtrees must have isomorphic children.
     ///
     /// Described in more detail in Chawathe et al. (1996).
-    pub fn is_isomorphic(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
+    pub fn is_isomorphic(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> bool {
         // Case 1: both nodes are leaves.
-        if from.is_leaf(&self.from_arena.borrow())
-           && to.is_leaf(&self.to_arena.borrow())
-           && self.from_arena.borrow()[from].label == self.to_arena.borrow()[to].label
-           && self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty
+        if src.is_leaf(&self.src_arena.borrow())
+           && dst.is_leaf(&self.dst_arena.borrow())
+           && self.src_arena.borrow()[src].label == self.dst_arena.borrow()[dst].label
+           && self.src_arena.borrow()[src].ty == self.dst_arena.borrow()[dst].ty
         {
             return true;
         }
         // Case 2: one node is a leaf and the other is a branch.
-        if from.is_leaf(&self.from_arena.borrow()) && !to.is_leaf(&self.to_arena.borrow())
-           || !from.is_leaf(&self.from_arena.borrow()) && to.is_leaf(&self.to_arena.borrow())
+        if src.is_leaf(&self.src_arena.borrow()) && !dst.is_leaf(&self.dst_arena.borrow())
+           || !src.is_leaf(&self.src_arena.borrow()) && dst.is_leaf(&self.dst_arena.borrow())
         {
             return false;
         }
         // Case 3: both nodes are branches.
-        if self.from_arena.borrow()[from].label != self.to_arena.borrow()[to].label
-           || self.from_arena.borrow()[from].ty != self.to_arena.borrow()[to].ty
-           || from.height(&self.from_arena.borrow()) != to.height(&self.to_arena.borrow())
+        if self.src_arena.borrow()[src].label != self.dst_arena.borrow()[dst].label
+           || self.src_arena.borrow()[src].ty != self.dst_arena.borrow()[dst].ty
+           || src.height(&self.src_arena.borrow()) != dst.height(&self.dst_arena.borrow())
         {
             return false;
         }
         let f_children =
-            from.children(&self.from_arena.borrow()).collect::<Vec<NodeId<FromNodeId>>>();
+            src.children(&self.src_arena.borrow()).collect::<Vec<NodeId<SrcNodeId>>>();
         let t_children =
-            to.children(&self.to_arena.borrow()).collect::<Vec<NodeId<ToNodeId>>>();
+            dst.children(&self.dst_arena.borrow()).collect::<Vec<NodeId<DstNodeId>>>();
         if f_children.len() != t_children.len() {
             return false;
         }
@@ -225,10 +225,10 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
         true
     }
 
-    /// `true` if `from` and `to` may be mapped to one another, `false` otherwise.
-    pub fn is_mapping_allowed(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> bool {
-        self.from_arena.borrow()[from].ty == self.to_arena.borrow()[to].ty
-        && !(self.contains_from(from) || self.contains_to(to))
+    /// `true` if `src` and `dst` may be mapped to one another, `false` otherwise.
+    pub fn is_mapping_allowed(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> bool {
+        self.src_arena.borrow()[src].ty == self.dst_arena.borrow()[dst].ty
+        && !(self.contains_src(src) || self.contains_dst(dst))
     }
 }
 
@@ -239,8 +239,8 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
 pub trait MatchTrees<T: Clone + Debug + ToString> {
     /// Match two trees and return a store of mappings between them.
     fn match_trees(&mut self,
-                   base: Arena<T, FromNodeId>,
-                   diff: Arena<T, ToNodeId>)
+                   src: Arena<T, SrcNodeId>,
+                   dst: Arena<T, DstNodeId>)
                    -> MappingStore<T>;
 
     /// Describe the matcher for the user.
@@ -251,19 +251,19 @@ pub trait MatchTrees<T: Clone + Debug + ToString> {
 }
 
 /// Test that two nodes have the same label and type.
-pub fn has_same_type_and_label<T: Clone + Debug + Eq>(n1: NodeId<FromNodeId>,
-                                                      arena1: &Arena<T, FromNodeId>,
-                                                      n2: NodeId<ToNodeId>,
-                                                      arena2: &Arena<T, ToNodeId>)
+pub fn has_same_type_and_label<T: Clone + Debug + Eq>(n1: NodeId<SrcNodeId>,
+                                                      arena1: &Arena<T, SrcNodeId>,
+                                                      n2: NodeId<DstNodeId>,
+                                                      arena2: &Arena<T, DstNodeId>)
                                                       -> bool {
     arena1[n1].label == arena2[n2].label && arena1[n1].ty == arena2[n2].ty
 }
 
 /// Test that two nodes have the same type.
-pub fn has_same_type<T: Clone + Debug + Eq>(n1: NodeId<FromNodeId>,
-                                            arena1: &Arena<T, FromNodeId>,
-                                            n2: NodeId<ToNodeId>,
-                                            arena2: &Arena<T, ToNodeId>)
+pub fn has_same_type<T: Clone + Debug + Eq>(n1: NodeId<SrcNodeId>,
+                                            arena1: &Arena<T, SrcNodeId>,
+                                            n2: NodeId<DstNodeId>,
+                                            arena2: &Arena<T, DstNodeId>)
                                             -> bool {
     arena1[n1].ty == arena2[n2].ty
 }
@@ -278,10 +278,10 @@ mod tests {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
         let store_p =
-            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+            MappingStore::new(plus.clone(), Arena::<String, DstNodeId>::from(plus.clone()));
         let store_m =
-            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
+            MappingStore::new(mult.clone(), Arena::<String, DstNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -305,10 +305,10 @@ mod tests {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
         let store_p =
-            MappingStore::new(plus.clone(), Arena::<String, ToNodeId>::from(plus.clone()));
+            MappingStore::new(plus.clone(), Arena::<String, DstNodeId>::from(plus.clone()));
         let store_m =
-            MappingStore::new(mult.clone(), Arena::<String, ToNodeId>::from(mult.clone()));
-        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
+            MappingStore::new(mult.clone(), Arena::<String, DstNodeId>::from(mult.clone()));
+        let store = MappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
         // Isomorphic.
         assert!(store_p.is_isomorphic(NodeId::new(0), NodeId::new(0)));
         assert!(store_p.is_isomorphic(NodeId::new(1), NodeId::new(1)));
@@ -331,7 +331,7 @@ mod tests {
     fn is_mapping_allowed() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
         assert!(store.is_mapping_allowed(NodeId::new(0), NodeId::new(2)));
         assert!(store.is_mapping_allowed(NodeId::new(1), NodeId::new(3)));
         assert!(store.is_mapping_allowed(NodeId::new(2), NodeId::new(4)));
@@ -354,7 +354,7 @@ mod tests {
     fn is_mapped() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(0), &MappingType::ANCHOR);
         store.push(NodeId::new(2), NodeId::new(4), &MappingType::ANCHOR);
         assert!(store.is_mapped(NodeId::new(0), NodeId::new(0)));
@@ -379,7 +379,7 @@ mod tests {
         let plus = create_plus_arena();
         let mult = create_mult_arena();
         let mut matcher = MyersConfig::new();
-        let store = matcher.match_trees(plus, Arena::<String, ToNodeId>::from(mult));
+        let store = matcher.match_trees(plus, Arena::<String, DstNodeId>::from(mult));
         let expected_str = vec!["\"matches\": [",
                                 "{\n\"src\": 1,\n\"dest\": 3\n}",
                                 "{\n\"src\": 0,\n\"dest\": 0\n}",

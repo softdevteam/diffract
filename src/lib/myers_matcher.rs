@@ -39,7 +39,7 @@
 
 use std::fmt::Debug;
 
-use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 use matchers::{has_same_type_and_label, MappingStore, MappingType, MatchTrees};
 use sequence::lcss;
 
@@ -74,30 +74,30 @@ Variations.";
 
     /// Match locations in distinct ASTs.
     fn match_trees(&mut self,
-                   base: Arena<T, FromNodeId>,
-                   diff: Arena<T, ToNodeId>)
+                   src: Arena<T, SrcNodeId>,
+                   dst: Arena<T, DstNodeId>)
                    -> MappingStore<T> {
-        let store = MappingStore::new(base, diff);
-        if store.from_arena.borrow().is_empty() || store.to_arena.borrow().is_empty() {
+        let store = MappingStore::new(src, dst);
+        if store.src_arena.borrow().is_empty() || store.dst_arena.borrow().is_empty() {
             return store;
         }
-        let base_pre = store.from_arena
-                            .borrow()
-                            .root()
-                            .unwrap()
-                            .pre_order_traversal(&store.from_arena.borrow())
-                            .collect::<Vec<NodeId<FromNodeId>>>();
-        let diff_pre = store.to_arena
-                            .borrow()
-                            .root()
-                            .unwrap()
-                            .pre_order_traversal(&store.to_arena.borrow())
-                            .collect::<Vec<NodeId<ToNodeId>>>();
+        let src_pre = store.src_arena
+                           .borrow()
+                           .root()
+                           .unwrap()
+                           .pre_order_traversal(&store.src_arena.borrow())
+                           .collect::<Vec<NodeId<SrcNodeId>>>();
+        let dst_pre = store.dst_arena
+                           .borrow()
+                           .root()
+                           .unwrap()
+                           .pre_order_traversal(&store.dst_arena.borrow())
+                           .collect::<Vec<NodeId<DstNodeId>>>();
 
-        let longest = lcss(&base_pre,
-                           &store.from_arena.borrow(),
-                           &diff_pre,
-                           &store.to_arena.borrow(),
+        let longest = lcss(&src_pre,
+                           &store.src_arena.borrow(),
+                           &dst_pre,
+                           &store.dst_arena.borrow(),
                            &has_same_type_and_label);
         for &(n1, n2) in &longest {
             store.push(n1, n2, &MappingType::ANCHOR);

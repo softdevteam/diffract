@@ -46,7 +46,7 @@ use std::hash::Hash;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 
-use ast::{Arena, FromOrToNodeId, NodeId};
+use ast::{Arena, NodeId, SrcOrDstNodeId};
 use matchers::MappingStore;
 
 /// Type alias for hashes stored in Arenas.
@@ -115,11 +115,11 @@ pub trait HashGenerator<T: Clone + Debug + Eq + Hash + ToString> {
     /// Generate a hash for a leaf node in an `Arena`.
     ///
     /// The type of `id` tells the implementation which `Arena` is to be used.
-    fn hash_leaf(&mut self, id: FromOrToNodeId, store: &MappingStore<T>) -> HashType;
+    fn hash_leaf(&mut self, id: SrcOrDstNodeId, store: &MappingStore<T>) -> HashType;
     /// Generate a hash for a branch node in a given `Arena`.
     ///
     /// The type of `id` tells the implementation which `Arena` is to be used.
-    fn hash_branch(&mut self, id: FromOrToNodeId, store: &MappingStore<T>) -> HashType;
+    fn hash_branch(&mut self, id: SrcOrDstNodeId, store: &MappingStore<T>) -> HashType;
 }
 
 /// The md5 rolling hash generator from GumTree.
@@ -143,86 +143,86 @@ impl<T: Clone + Debug + Eq + Hash + ToString> HashGenerator<T> for Md5HashGenera
         bytes_to_int(result_arr.as_slice()) as HashType
     }
 
-    fn hash_leaf(&mut self, id_enum: FromOrToNodeId, store: &MappingStore<T>) -> HashType {
+    fn hash_leaf(&mut self, id_enum: SrcOrDstNodeId, store: &MappingStore<T>) -> HashType {
         match id_enum {
-            FromOrToNodeId::FromNodeId(id) => {
-                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.from_arena.borrow()))
-                + HashGenerator::<T>::hash(self, &out_seed(id, &store.from_arena.borrow()))
+            SrcOrDstNodeId::SrcNodeId(id) => {
+                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.src_arena.borrow()))
+                + HashGenerator::<T>::hash(self, &out_seed(id, &store.src_arena.borrow()))
             }
-            FromOrToNodeId::ToNodeId(id) => {
-                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.to_arena.borrow()))
-                + HashGenerator::<T>::hash(self, &out_seed(id, &store.to_arena.borrow()))
+            SrcOrDstNodeId::DstNodeId(id) => {
+                BASE * HashGenerator::<T>::hash(self, &in_seed(id, &store.dst_arena.borrow()))
+                + HashGenerator::<T>::hash(self, &out_seed(id, &store.dst_arena.borrow()))
             }
         }
     }
 
-    fn hash_branch(&mut self, id_enum: FromOrToNodeId, store: &MappingStore<T>) -> HashType {
+    fn hash_branch(&mut self, id_enum: SrcOrDstNodeId, store: &MappingStore<T>) -> HashType {
         match id_enum {
-            FromOrToNodeId::FromNodeId(id) => {
-                let mut size = HashType::from(id.size(&store.from_arena.borrow()));
+            SrcOrDstNodeId::SrcNodeId(id) => {
+                let mut size = HashType::from(id.size(&store.src_arena.borrow()));
                 let mut hash = HashGenerator::<T>::hash(self,
-                                                        &in_seed(id, &store.from_arena.borrow()))
+                                                        &in_seed(id, &store.src_arena.borrow()))
                                * fpow(BASE, size);
-                for child in id.children(&store.from_arena.borrow()) {
-                    size -= HashType::from(child.size(&store.from_arena.borrow())) * 2;
-                    debug_assert!(child.get_hash(&store.from_arena.borrow()).is_some());
-                    hash += child.get_hash(&store.from_arena.borrow()).unwrap()
+                for child in id.children(&store.src_arena.borrow()) {
+                    size -= HashType::from(child.size(&store.src_arena.borrow())) * 2;
+                    debug_assert!(child.get_hash(&store.src_arena.borrow()).is_some());
+                    hash += child.get_hash(&store.src_arena.borrow()).unwrap()
                 }
-                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.from_arena.borrow()))
+                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.src_arena.borrow()))
             }
-            FromOrToNodeId::ToNodeId(id) => {
-                let mut size = HashType::from(id.size(&store.to_arena.borrow()));
+            SrcOrDstNodeId::DstNodeId(id) => {
+                let mut size = HashType::from(id.size(&store.dst_arena.borrow()));
                 let mut hash = HashGenerator::<T>::hash(self,
-                                                        &in_seed(id, &store.to_arena.borrow()))
+                                                        &in_seed(id, &store.dst_arena.borrow()))
                                * fpow(BASE, size);
-                for child in id.children(&store.to_arena.borrow()) {
-                    size -= HashType::from(child.size(&store.to_arena.borrow())) * 2;
-                    debug_assert!(child.get_hash(&store.to_arena.borrow()).is_some());
-                    hash += child.get_hash(&store.to_arena.borrow()).unwrap()
+                for child in id.children(&store.dst_arena.borrow()) {
+                    size -= HashType::from(child.size(&store.dst_arena.borrow())) * 2;
+                    debug_assert!(child.get_hash(&store.dst_arena.borrow()).is_some());
+                    hash += child.get_hash(&store.dst_arena.borrow()).unwrap()
                 }
-                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.to_arena.borrow()))
+                hash + HashGenerator::<T>::hash(self, &out_seed(id, &store.dst_arena.borrow()))
             }
         }
     }
 }
 
-/// Decorate the `from` AST with fingerprints.
+/// Decorate the `src` AST with fingerprints.
 pub fn apply_fingerprint<T: Clone + Debug + Eq + Hash + ToString>(gen: &mut HashGenerator<T>,
                                                                   store: &MappingStore<T>) {
-    debug_assert!(store.from_arena.borrow().root().is_some());
-    for child in store.from_arena
+    debug_assert!(store.src_arena.borrow().root().is_some());
+    for child in store.src_arena
                       .borrow()
                       .root()
                       .unwrap()
-                      .post_order_traversal(&store.from_arena.borrow())
+                      .post_order_traversal(&store.src_arena.borrow())
     {
-        if child.is_leaf(&store.from_arena.borrow()) {
-            child.set_hash(Some(gen.hash_leaf(FromOrToNodeId::FromNodeId(child), store)),
-                           &mut store.from_arena.borrow_mut());
+        if child.is_leaf(&store.src_arena.borrow()) {
+            child.set_hash(Some(gen.hash_leaf(SrcOrDstNodeId::SrcNodeId(child), store)),
+                           &mut store.src_arena.borrow_mut());
         } else {
-            child.set_hash(Some(gen.hash_branch(FromOrToNodeId::FromNodeId(child), store)),
-                           &mut store.from_arena.borrow_mut());
+            child.set_hash(Some(gen.hash_branch(SrcOrDstNodeId::SrcNodeId(child), store)),
+                           &mut store.src_arena.borrow_mut());
         }
     }
 }
 
-/// Decorate the `from` and `to` ASTs with fingerprints.
+/// Decorate the `src` and `dst` ASTs with fingerprints.
 pub fn apply_fingerprint_both<T: Clone + Debug + Eq + Hash + ToString>(gen: &mut HashGenerator<T>,
 store: &MappingStore<T>){
     apply_fingerprint(gen, store);
-    debug_assert!(store.to_arena.borrow().root().is_some());
-    for child in store.to_arena
+    debug_assert!(store.dst_arena.borrow().root().is_some());
+    for child in store.dst_arena
                       .borrow()
                       .root()
                       .unwrap()
-                      .post_order_traversal(&store.to_arena.borrow())
+                      .post_order_traversal(&store.dst_arena.borrow())
     {
-        if child.is_leaf(&store.to_arena.borrow()) {
-            child.set_hash(Some(gen.hash_leaf(FromOrToNodeId::ToNodeId(child), store)),
-                           &mut store.to_arena.borrow_mut());
+        if child.is_leaf(&store.dst_arena.borrow()) {
+            child.set_hash(Some(gen.hash_leaf(SrcOrDstNodeId::DstNodeId(child), store)),
+                           &mut store.dst_arena.borrow_mut());
         } else {
-            child.set_hash(Some(gen.hash_branch(FromOrToNodeId::ToNodeId(child), store)),
-                           &mut store.to_arena.borrow_mut());
+            child.set_hash(Some(gen.hash_branch(SrcOrDstNodeId::DstNodeId(child), store)),
+                           &mut store.dst_arena.borrow_mut());
         }
     }
 }

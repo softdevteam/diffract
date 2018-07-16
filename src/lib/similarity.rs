@@ -41,47 +41,47 @@
 use std::collections::HashSet;
 use std::fmt::Debug;
 
-use ast::{FromNodeId, NodeId, ToNodeId};
+use ast::{DstNodeId, NodeId, SrcNodeId};
 use matchers::MappingStore;
 
 impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Dice measure of similarity between subtrees.
-    pub fn dice_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
-                         .collect::<Vec<NodeId<FromNodeId>>>()
-                         .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
-                     .collect::<Vec<NodeId<ToNodeId>>>()
-                     .len() as f64;
-        let dice = 2.0 * f64::from(self.num_common_descendants(from, to)) / (n_from + n_to);
+    pub fn dice_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
+        let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
+                       .collect::<Vec<NodeId<SrcNodeId>>>()
+                       .len() as f64;
+        let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
+                       .collect::<Vec<NodeId<DstNodeId>>>()
+                       .len() as f64;
+        let dice = 2.0 * f64::from(self.num_common_descendants(src, dst)) / (n_src + n_dst);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
     }
 
     /// Jaccard measure of similarity between subtrees.
-    pub fn jaccard_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
-                         .collect::<Vec<NodeId<FromNodeId>>>()
-                         .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
-                     .collect::<Vec<NodeId<ToNodeId>>>()
-                     .len() as f64;
-        let common = f64::from(self.num_common_descendants(from, to));
-        let jaccard = common / (n_from + n_to - common);
+    pub fn jaccard_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
+        let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
+                       .collect::<Vec<NodeId<SrcNodeId>>>()
+                       .len() as f64;
+        let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
+                       .collect::<Vec<NodeId<DstNodeId>>>()
+                       .len() as f64;
+        let common = f64::from(self.num_common_descendants(src, dst));
+        let jaccard = common / (n_src + n_dst - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
         jaccard
     }
 
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
-    pub fn chawathe_sim(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> f64 {
-        let n_from = from.breadth_first_traversal(&self.from_arena.borrow())
-                         .collect::<Vec<NodeId<FromNodeId>>>()
-                         .len() as f64;
-        let n_to = to.breadth_first_traversal(&self.to_arena.borrow())
-                     .collect::<Vec<NodeId<ToNodeId>>>()
-                     .len() as f64;
-        let common = f64::from(self.num_common_descendants(from, to));
-        let chawathe = common / n_from.max(n_to);
+    pub fn chawathe_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
+        let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
+                       .collect::<Vec<NodeId<SrcNodeId>>>()
+                       .len() as f64;
+        let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
+                       .collect::<Vec<NodeId<DstNodeId>>>()
+                       .len() as f64;
+        let common = f64::from(self.num_common_descendants(src, dst));
+        let chawathe = common / n_src.max(n_dst);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
         chawathe
     }
@@ -89,16 +89,16 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Find the number of "common" descendants in two matched subtrees.
     ///
     /// Two nodes are common if they have already been matched.
-    fn num_common_descendants(&self, from: NodeId<FromNodeId>, to: NodeId<ToNodeId>) -> u32 {
+    fn num_common_descendants(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> u32 {
         let mut dst_desc = HashSet::new();
-        for node in to.breadth_first_traversal(&self.to_arena.borrow()) {
+        for node in dst.breadth_first_traversal(&self.dst_arena.borrow()) {
             dst_desc.insert(node);
         }
         let mut common = 0;
-        let mut to: Option<NodeId<ToNodeId>>;
-        for node in from.descendants(&self.from_arena.borrow()) {
-            to = self.get_to(node);
-            if to.is_some() && dst_desc.contains(&to.unwrap()) {
+        let mut dst: Option<NodeId<DstNodeId>>;
+        for node in src.descendants(&self.src_arena.borrow()) {
+            dst = self.get_dst(node);
+            if dst.is_some() && dst_desc.contains(&dst.unwrap()) {
                 common += 1;
             }
         }
@@ -116,7 +116,7 @@ mod tests {
     fn num_common_descendants() {
         let mult = create_mult_arena();
         let plus = create_plus_arena();
-        let store = MappingStore::new(plus, Arena::<String, ToNodeId>::from(mult));
+        let store = MappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
         store.push(NodeId::new(0), NodeId::new(2), &Default::default());
         store.push(NodeId::new(1), NodeId::new(3), &Default::default());
         store.push(NodeId::new(2), NodeId::new(4), &Default::default());

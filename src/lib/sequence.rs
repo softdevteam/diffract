@@ -39,23 +39,23 @@
 
 use std::cmp::{max, min};
 
-use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 
 /// Compute the longest common subsequence of two sequences.
 ///
 /// This implementation is designed to work on sequences of `NodeId`s from two
 /// different arenas. The function returns a vector of `(NodeId, NodeId)` pairs,
 /// which are the locations of mapped nodes from the two arenas.
-pub fn lcss<T: Clone + Eq>(seq1: &[NodeId<FromNodeId>],
-                           arena1: &Arena<T, FromNodeId>,
-                           seq2: &[NodeId<ToNodeId>],
-                           arena2: &Arena<T, ToNodeId>,
-                           eq: &Fn(NodeId<FromNodeId>,
-                               &Arena<T, FromNodeId>,
-                               NodeId<ToNodeId>,
-                               &Arena<T, ToNodeId>) -> bool)
-                           -> Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> {
-    let mut lcss: Vec<(NodeId<FromNodeId>, NodeId<ToNodeId>)> = vec![];
+pub fn lcss<T: Clone + Eq>(seq1: &[NodeId<SrcNodeId>],
+                           arena1: &Arena<T, SrcNodeId>,
+                           seq2: &[NodeId<DstNodeId>],
+                           arena2: &Arena<T, DstNodeId>,
+                           eq: &Fn(NodeId<SrcNodeId>,
+                               &Arena<T, SrcNodeId>,
+                               NodeId<DstNodeId>,
+                               &Arena<T, DstNodeId>) -> bool)
+                           -> Vec<(NodeId<SrcNodeId>, NodeId<DstNodeId>)> {
+    let mut lcss: Vec<(NodeId<SrcNodeId>, NodeId<DstNodeId>)> = vec![];
     if seq1.is_empty() || seq2.is_empty() {
         return lcss;
     }
@@ -152,65 +152,64 @@ mod tests {
                                                                  expected: &[T]) {
         if expected.is_empty() {
             assert!(lcss(&vec![],
-                         &store.from_arena.borrow(),
+                         &store.src_arena.borrow(),
                          &vec![],
-                         &store.to_arena.borrow(),
+                         &store.dst_arena.borrow(),
                          &has_same_type_and_label).is_empty());
             return;
         }
-        assert!(!store.from_arena.borrow().is_empty());
-        assert!(!store.to_arena.borrow().is_empty());
-        let base_root = store.from_arena.borrow().root().unwrap();
-        let base = base_root.children(&store.from_arena.borrow())
-                            .collect::<Vec<NodeId<FromNodeId>>>();
-        let diff_root = store.to_arena.borrow().root().unwrap();
-        let diff = diff_root.children(&store.to_arena.borrow())
-                            .collect::<Vec<NodeId<ToNodeId>>>();
-        let longest = lcss(&base,
-                           &store.from_arena.borrow(),
-                           &diff,
-                           &store.to_arena.borrow(),
+        assert!(!store.src_arena.borrow().is_empty());
+        assert!(!store.dst_arena.borrow().is_empty());
+        let src_root = store.src_arena.borrow().root().unwrap();
+        let src = src_root.children(&store.src_arena.borrow())
+                          .collect::<Vec<NodeId<SrcNodeId>>>();
+        let dst_root = store.dst_arena.borrow().root().unwrap();
+        let dst = dst_root.children(&store.dst_arena.borrow())
+                          .collect::<Vec<NodeId<DstNodeId>>>();
+        let longest = lcss(&src,
+                           &store.src_arena.borrow(),
+                           &dst,
+                           &store.dst_arena.borrow(),
                            &has_same_type_and_label);
         for (i, value) in longest.iter().enumerate() {
-            assert_eq!(expected[i], store.from_arena.borrow()[value.0].ty);
-            assert_eq!(expected[i], store.to_arena.borrow()[value.1].ty);
+            assert_eq!(expected[i], store.src_arena.borrow()[value.0].ty);
+            assert_eq!(expected[i], store.dst_arena.borrow()[value.1].ty);
         }
     }
 
     fn create_mapping_store<T: Clone + Default + Debug + Eq + ToString + 'static>(
-        base: &[T],
-        diff: &[T])
+        src: &[T],
+        dst: &[T])
         -> MappingStore<T> {
-        let mut base_arena: Arena<T, FromNodeId> = Arena::new();
-        let mut from_id: NodeId<FromNodeId>;
-        let mut to_id: NodeId<ToNodeId>;
-        if !base.is_empty() {
-            let root = base_arena.new_node(Default::default(),
-                                           String::from("NULL"),
-                                           None,
-                                           None,
-                                           None,
-                                           None);
-            for ty in base {
-                from_id =
-                    base_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
-                from_id.make_child_of(root, &mut base_arena).unwrap();
+        let mut src_arena: Arena<T, SrcNodeId> = Arena::new();
+        let mut src_id: NodeId<SrcNodeId>;
+        let mut dst_id: NodeId<DstNodeId>;
+        if !src.is_empty() {
+            let root = src_arena.new_node(Default::default(),
+                                          String::from("NULL"),
+                                          None,
+                                          None,
+                                          None,
+                                          None);
+            for ty in src {
+                src_id = src_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
+                src_id.make_child_of(root, &mut src_arena).unwrap();
             }
         }
-        let mut diff_arena: Arena<T, ToNodeId> = Arena::new();
-        if !diff.is_empty() {
-            let root = diff_arena.new_node(Default::default(),
-                                           String::from("NULL"),
-                                           None,
-                                           None,
-                                           None,
-                                           None);
-            for ty in diff {
-                to_id = diff_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
-                to_id.make_child_of(root, &mut diff_arena).unwrap();
+        let mut dst_arena: Arena<T, DstNodeId> = Arena::new();
+        if !dst.is_empty() {
+            let root = dst_arena.new_node(Default::default(),
+                                          String::from("NULL"),
+                                          None,
+                                          None,
+                                          None,
+                                          None);
+            for ty in dst {
+                dst_id = dst_arena.new_node(ty.clone(), String::from("T"), None, None, None, None);
+                dst_id.make_child_of(root, &mut dst_arena).unwrap();
             }
         }
-        let store = MappingStore::new(base_arena, diff_arena);
+        let store = MappingStore::new(src_arena, dst_arena);
         store
     }
 
