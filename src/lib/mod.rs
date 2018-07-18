@@ -227,7 +227,7 @@ pub mod test_common {
     use serde::{Deserialize, Deserializer};
     use serde_xml_rs::deserialize;
 
-    use ast::{Arena, FromNodeId, NodeId, ToNodeId};
+    use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 
     fn to_string<'de, D>(deserializer: D) -> Result<String, D::Error>
         where D: Deserializer<'de>
@@ -250,9 +250,9 @@ pub mod test_common {
     /// To use the result as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let xmltree = load_xml_tree(...);
-    ///     ... Arena::<String, ToNodeId>::from(xmltree) ...
+    ///     ... Arena::<String, DstNodeId>::from(xmltree) ...
     /// ```
-    pub fn load_xml_ast(xml: &str) -> Arena<String, FromNodeId> {
+    pub fn load_xml_ast(xml: &str) -> Arena<String, SrcNodeId> {
         tree_to_arena(load_xml_tree(xml))
     }
 
@@ -260,11 +260,11 @@ pub mod test_common {
         deserialize(xml.as_bytes()).unwrap()
     }
 
-    fn tree_to_arena(tree: Tree) -> Arena<String, FromNodeId> {
+    fn tree_to_arena(tree: Tree) -> Arena<String, SrcNodeId> {
         let mut arena = Arena::new();
         let mut next_root = vec![tree.clone()];
         let mut root = arena.new_node(tree.ty.clone(), tree.label.clone(), None, None, None, None);
-        let mut next_node: Vec<NodeId<FromNodeId>> = vec![root];
+        let mut next_node: Vec<NodeId<SrcNodeId>> = vec![root];
         while !next_root.is_empty() {
             let next_tree = next_root.pop().unwrap();
             root = next_node.pop().unwrap();
@@ -283,13 +283,13 @@ pub mod test_common {
         arena
     }
 
-    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// Create an arena of type `Arena<&'static str, SrcNodeId>` for testing.
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let mult = create_mult_arena();
-    ///     ... Arena::<String, ToNodeId>::from(mult) ...
+    ///     ... Arena::<String, DstNodeId>::from(mult) ...
     /// ```
-    pub fn create_mult_arena() -> Arena<String, FromNodeId> {
+    pub fn create_mult_arena() -> Arena<String, SrcNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"1\"/>
         <Tree ty=\"Expr\" label=\"*\">
@@ -309,13 +309,13 @@ pub mod test_common {
         arena
     }
 
-    /// Create an arena of type `Arena<&'static str, FromNodeId>` for testing.
+    /// Create an arena of type `Arena<&'static str, SrcNodeId>` for testing.
     /// To use this as a destination parse tree, use the `From` trait:
     ///  ```
     ///     let plus = create_plus_arena();
-    ///     ... Arena::<String, ToNodeId>::from(plus) ...
+    ///     ... Arena::<String, DstNodeId>::from(plus) ...
     /// ```
-    pub fn create_plus_arena() -> Arena<String, FromNodeId> {
+    pub fn create_plus_arena() -> Arena<String, SrcNodeId> {
         let xml = "<Tree ty=\"Expr\" label=\"+\">
         <Tree ty=\"INT\" label=\"3\"/>
         <Tree ty=\"INT\" label=\"4\"/>
@@ -331,7 +331,7 @@ pub mod test_common {
     }
 
     /// Example from Fig 4. of Zhang and Shasha (1989).
-    pub fn create_zs_paper_src_arena() -> Arena<String, FromNodeId> {
+    pub fn create_zs_paper_src_arena() -> Arena<String, SrcNodeId> {
         load_xml_ast(
                      "<Tree ty=\"node\" label=\"f\">
     <Tree ty=\"node\" label=\"d\">
@@ -348,7 +348,7 @@ pub mod test_common {
     }
 
     /// Example from Fig 4. of Zhang and Shasha (1989).
-    pub fn create_zs_paper_dst_arena() -> Arena<String, ToNodeId> {
+    pub fn create_zs_paper_dst_arena() -> Arena<String, DstNodeId> {
         let ast = load_xml_ast(
                                "<Tree ty=\"node\" label=\"f\">
     <Tree ty=\"node\" label=\"c\">
@@ -362,11 +362,11 @@ pub mod test_common {
 </Tree>
 "
         );
-        Arena::<String, ToNodeId>::from(ast)
+        Arena::<String, DstNodeId>::from(ast)
     }
 
     /// Example from GT test cases.
-    pub fn create_zs_src_arena() -> Arena<String, FromNodeId> {
+    pub fn create_zs_src_arena() -> Arena<String, SrcNodeId> {
         load_xml_ast(
                      "<Tree ty=\"0\" label=\"a\">
     <Tree ty=\"0\" label=\"b\"/>
@@ -381,7 +381,7 @@ pub mod test_common {
     }
 
     /// Example from GT test cases.
-    pub fn create_zs_dst_arena() -> Arena<String, ToNodeId> {
+    pub fn create_zs_dst_arena() -> Arena<String, DstNodeId> {
         let ast = load_xml_ast(
                                "<Tree ty=\"0\" label=\"z\">
     <Tree ty=\"0\" label=\"a\">
@@ -395,11 +395,11 @@ pub mod test_common {
 </Tree>
 "
         );
-        Arena::<String, ToNodeId>::from(ast)
+        Arena::<String, DstNodeId>::from(ast)
     }
 
     /// Example from GT test cases.
-    pub fn create_slide_src_arena() -> Arena<String, FromNodeId> {
+    pub fn create_slide_src_arena() -> Arena<String, SrcNodeId> {
         load_xml_ast(
                      "<Tree ty=\"0\" label=\"6\">
     <Tree ty=\"0\" label=\"5\">
@@ -415,7 +415,7 @@ pub mod test_common {
     }
 
     /// Example from GT test cases.
-    pub fn create_slide_dst_arena() -> Arena<String, ToNodeId> {
+    pub fn create_slide_dst_arena() -> Arena<String, DstNodeId> {
         let ast = load_xml_ast(
                                "<Tree ty=\"0\" label=\"6\">
     <Tree ty=\"0\" label=\"2\">
@@ -428,7 +428,7 @@ pub mod test_common {
 </Tree>
 "
         );
-        Arena::<String, ToNodeId>::from(ast)
+        Arena::<String, DstNodeId>::from(ast)
     }
 
     #[test]
@@ -489,7 +489,7 @@ pub mod test_common {
     fn convert_arena0() {
         let xml = "<Tree ty=\"0\" label=\"a\"></Tree>";
         let tree = load_xml_tree(xml);
-        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let mut arena: Arena<String, SrcNodeId> = Arena::new();
         arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
         assert_eq!(format!("{:?}", arena), format!("{:?}", tree_to_arena(tree)));
     }
@@ -501,7 +501,7 @@ pub mod test_common {
     </Tree>
     ";
         let tree = load_xml_tree(xml);
-        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let mut arena: Arena<String, SrcNodeId> = Arena::new();
         let root = arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
         let b = arena.new_node("0".to_string(), "b".to_string(), None, None, None, None);
         b.make_child_of(root, &mut arena).unwrap();
@@ -520,7 +520,7 @@ pub mod test_common {
     </Tree>
     ";
         let tree = load_xml_tree(xml);
-        let mut arena: Arena<String, FromNodeId> = Arena::new();
+        let mut arena: Arena<String, SrcNodeId> = Arena::new();
         let a = arena.new_node("0".to_string(), "a".to_string(), None, None, None, None);
         let b = arena.new_node("0".to_string(), "b".to_string(), None, None, None, None);
         b.make_child_of(a, &mut arena).unwrap();

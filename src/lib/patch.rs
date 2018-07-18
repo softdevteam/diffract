@@ -46,10 +46,10 @@ use action::ActionType;
 // We assume lines are 80 characters long.
 const DIST_THRESHOLD: u64 = 3 * 80;
 
-#[derive(Clone, Eq, Debug, PartialEq)]
 /// A patch represents a single change in the input files.
 ///
 /// See the `Hunk` struct which aggregates a number of related patches.
+#[derive(Clone, Eq, Debug, PartialEq)]
 pub struct Patch {
     action: ActionType,
     start: usize,
@@ -143,9 +143,9 @@ impl Hunk {
 }
 
 /// Get the header for this hunk, in diff format.
-pub fn header(from: &Hunk, to: &Hunk) -> String {
+pub fn header(src: &Hunk, dst: &Hunk) -> String {
     format!("@@ -{},{} +{},{} @@",
-            from.start, from.length, to.start, to.length)
+            src.start, src.length, dst.start, dst.length)
 }
 
 /// Group related patches into hunks.
@@ -243,13 +243,13 @@ mod test {
     fn test_header() {
         let p0 = Patch::new(ActionType::DELETE, 0, 6);
         let p1 = Patch::new(ActionType::UPDATE, 7, 6);
-        let mut hunk_from = Hunk::new(&p0);
-        hunk_from.add_patch(p1);
+        let mut hunk_src = Hunk::new(&p0);
+        hunk_src.add_patch(p1);
         let p2 = Patch::new(ActionType::MOVE, 20, 6);
         let p3 = Patch::new(ActionType::INSERT, 27, 10);
-        let mut hunk_to = Hunk::new(&p2);
-        hunk_to.add_patch(p3);
+        let mut hunk_dst = Hunk::new(&p2);
+        hunk_dst.add_patch(p3);
         assert_eq!(String::from("@@ -0,13 +20,17 @@"),
-                   header(&hunk_from, &hunk_to));
+                   header(&hunk_src, &hunk_dst));
     }
 }

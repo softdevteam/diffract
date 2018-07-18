@@ -42,7 +42,7 @@ use std::boxed::Box;
 use std::clone::Clone;
 use std::fmt;
 
-use ast::{Arena, ArenaError, ArenaResult, FromNodeId, NodeId};
+use ast::{Arena, ArenaError, ArenaResult, NodeId, SrcNodeId};
 use chawathe98_matcher::MappingStoreGraph;
 use emitters::RenderJson;
 use matchers::MappingStore;
@@ -53,17 +53,17 @@ use patch::Patch;
 /// Only used where the information related to actions can safely be discarded.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ActionType {
-    /// Delete a node in a 'from' arena.
+    /// Delete a node in a 'src' arena.
     DELETE,
-    /// Insert a new node into the 'from' arena.
+    /// Insert a new node into the 'src' arena.
     INSERT,
     /// Move an existing node.
     MOVE,
     /// Update the text or label associated with a node.
     UPDATE,
-    /// Copy takes the node or subtree 'from tree' and and copies it into 'to tree'.
+    /// Copy takes the node or subtree 'src tree' and and copies it into 'dst tree'.
     COPY,
-    /// GLUE takes a subtree/node 'from tree' and inserts it into 'to tree'
+    /// GLUE takes a subtree/node 'src tree' and inserts it into 'dst tree'
     GLUE
 }
 
@@ -72,7 +72,7 @@ pub trait ApplyAction<T: Clone + fmt::Debug + Eq + PartialEq + ToString>:
     fmt::Debug + Patchify<T> + RenderJson
 {
     /// Apply an action to an AST.
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult;
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult;
     /// Test for equality, avoiding a recursive call to `eq()`.
     fn is_eq(&self, other: &ApplyAction<T>) -> bool;
     /// Cast to `Any` type.
@@ -98,15 +98,15 @@ macro_rules! impl_compare {
         }
 }
 
-/// Turn an edit script into a list of patches on the "from" and "to" ASTs.
+/// Turn an edit script into a list of patches on the "src" and "dst" ASTs.
 pub trait Patchify<T: Clone + fmt::Debug + ToString> {
     /// Turn object into a `Patch`. Non-terminal nodes are ignored.
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>);
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>);
     /// Turn object into a 'Patch'.
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>);
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>);
 }
 
 /// A list of actions to be applied.
@@ -123,31 +123,31 @@ pub struct EditScript<T: fmt::Debug + PartialEq> {
 /// It is only valid to delete leaf nodes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Delete {
-    node: NodeId<FromNodeId>
+    node: NodeId<SrcNodeId>
 }
 
 /// Insert a new node into an AST as the `position`th child of an existing node.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Insert {
-    /// New node in from-arena, must already exist before applying this trait.
-    node: NodeId<FromNodeId>,
+    /// New node in src-arena, must already exist before applying this trait.
+    node: NodeId<SrcNodeId>,
     nth_child: u16,
-    /// New parent in to-arena.
-    new_parent: Option<NodeId<FromNodeId>>
+    /// New parent in dst-arena.
+    new_parent: Option<NodeId<SrcNodeId>>
 }
 
 /// Move a node from one place to another within an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Move {
-    from_node: NodeId<FromNodeId>,
-    parent: NodeId<FromNodeId>,
+    src_node: NodeId<SrcNodeId>,
+    parent: NodeId<SrcNodeId>,
     pos: u16
 }
 
 /// Update the data inside an AST node.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Update<T: Clone + fmt::Debug> {
-    node: NodeId<FromNodeId>,
+    node: NodeId<SrcNodeId>,
     ty: T,
     label: String
 }
@@ -155,30 +155,30 @@ pub struct Update<T: Clone + fmt::Debug> {
 /// Copy a subtree from one place to another with an AST.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Copy {
-    from_node: NodeId<FromNodeId>,
-    parent: NodeId<FromNodeId>,
+    src_node: NodeId<SrcNodeId>,
+    parent: NodeId<SrcNodeId>,
     pos: u16
 }
 
-/// Glue a subtree from one place to another with an AST.
+/// Glue a subtree src one place to another with an AST.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Glue {
-    from_node: NodeId<FromNodeId>,
-    node: NodeId<FromNodeId>,
+    src_node: NodeId<SrcNodeId>,
+    node: NodeId<SrcNodeId>,
     pos: u16
 }
 
 impl Delete {
     /// Create a new `Delete` object.
-    pub fn new(node: NodeId<FromNodeId>) -> Delete {
+    pub fn new(node: NodeId<SrcNodeId>) -> Delete {
         Delete { node }
     }
 }
 
 impl Insert {
     /// Create a new `Insert` object.
-    pub fn new(node: NodeId<FromNodeId>,
-               new_parent: Option<NodeId<FromNodeId>>,
+    pub fn new(node: NodeId<SrcNodeId>,
+               new_parent: Option<NodeId<SrcNodeId>>,
                nth_child: u16)
                -> Insert {
         Insert { node,
@@ -189,8 +189,8 @@ impl Insert {
 
 impl Move {
     /// Create a new `Move` object.
-    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Move {
-        Move { from_node,
+    pub fn new(src_node: NodeId<SrcNodeId>, parent: NodeId<SrcNodeId>, pos: u16) -> Move {
+        Move { src_node,
                parent,
                pos }
     }
@@ -198,15 +198,15 @@ impl Move {
 
 impl<T: Clone + fmt::Debug> Update<T> {
     /// Create a new `Update` object.
-    pub fn new(node: NodeId<FromNodeId>, ty: T, label: String) -> Update<T> {
+    pub fn new(node: NodeId<SrcNodeId>, ty: T, label: String) -> Update<T> {
         Update { node, ty, label }
     }
 }
 
 impl Copy {
     /// Create a new `Copy` object.
-    pub fn new(from_node: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, pos: u16) -> Copy {
-        Copy { from_node,
+    pub fn new(src_node: NodeId<SrcNodeId>, parent: NodeId<SrcNodeId>, pos: u16) -> Copy {
+        Copy { src_node,
                parent,
                pos }
     }
@@ -214,8 +214,8 @@ impl Copy {
 
 impl Glue {
     /// Create a new `Glue` object.
-    pub fn new(from: NodeId<FromNodeId>, parent: NodeId<FromNodeId>, position: u16) -> Glue {
-        Glue { from_node: from,
+    pub fn new(src: NodeId<SrcNodeId>, parent: NodeId<SrcNodeId>, position: u16) -> Glue {
+        Glue { src_node: src,
                node: parent,
                pos: position }
     }
@@ -256,7 +256,7 @@ impl RenderJson for Move {
         let mut json = vec![];
         json.push(" ".repeat(indent) + "{");
         json.push(format!("{}\"action\": \"move\",", ind_s));
-        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.src_node.id()));
         json.push(format!("{}\"parent\": {},", &ind_s, self.parent));
         json.push(format!("{}\"at\": {}", &ind_s, self.pos));
         json.push(" ".repeat(indent) + "}");
@@ -283,7 +283,7 @@ impl RenderJson for Copy {
         let mut json = vec![];
         json.push(" ".repeat(indent) + "{");
         json.push(format!("{}\"action\": \"copy\",", ind_s));
-        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.src_node.id()));
         json.push(format!("{}\"parent\": {},", &ind_s, self.parent));
         json.push(format!("{}\"at\": {}", &ind_s, self.pos));
         json.push(" ".repeat(indent) + "}");
@@ -297,8 +297,8 @@ impl RenderJson for Glue {
         let mut json = vec![];
         json.push(" ".repeat(indent) + "{");
         json.push(format!("{}\"action\": \"glue\",", ind_s));
-        json.push(format!("{}\"tree\": {},", &ind_s, self.from_node.id()));
-        json.push(format!("{}\"from\": {},", &ind_s, self.node));
+        json.push(format!("{}\"tree\": {},", &ind_s, self.src_node.id()));
+        json.push(format!("{}\"src\": {},", &ind_s, self.node));
         json.push(format!("{}\"at\": {}", &ind_s, self.pos));
         json.push(" ".repeat(indent) + "}");
         json.join("\n")
@@ -306,192 +306,192 @@ impl RenderJson for Glue {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Delete {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, _: &mut Vec<Patch>) {
-        let node = &store.from_arena.borrow()[self.node];
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, _: &mut Vec<Patch>) {
+        let node = &store.src_arena.borrow()[self.node];
         if node.char_no.is_some() {
-            from.push(Patch::new(ActionType::DELETE,
-                                 node.char_no.unwrap(),
-                                 node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::DELETE,
+                                node.char_no.unwrap(),
+                                node.token_len.unwrap()));
         }
     }
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
+                           src: &mut Vec<Patch>,
                            _: &mut Vec<Patch>) {
-        let node = &store.from_arena.borrow()[self.node];
+        let node = &store.src_arena.borrow()[self.node];
         if node.char_no.is_some() {
-            from.push(Patch::new(ActionType::DELETE,
-                                 node.char_no.unwrap(),
-                                 node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::DELETE,
+                                node.char_no.unwrap(),
+                                node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for Insert {
-    fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let node = &store.from_arena.borrow()[self.node];
+    fn patchify(&self, store: &MappingStore<T>, _: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
+        let node = &store.src_arena.borrow()[self.node];
         if node.char_no.is_some() {
-            to.push(Patch::new(ActionType::INSERT,
-                               node.char_no.unwrap(),
-                               node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::INSERT,
+                                node.char_no.unwrap(),
+                                node.token_len.unwrap()));
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
                            _: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
-        let node = &store.from_arena.borrow()[self.node];
+                           dst: &mut Vec<Patch>) {
+        let node = &store.src_arena.borrow()[self.node];
         if node.char_no.is_some() {
-            to.push(Patch::new(ActionType::INSERT,
-                               node.char_no.unwrap(),
-                               node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::INSERT,
+                                node.char_no.unwrap(),
+                                node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Move {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::MOVE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::MOVE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::MOVE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::MOVE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::MOVE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::MOVE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::MOVE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::MOVE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Update<T> {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.node];
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::UPDATE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::UPDATE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::UPDATE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::UPDATE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.node];
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::UPDATE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::UPDATE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::UPDATE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::UPDATE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Copy {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::COPY,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::COPY,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::COPY,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::COPY,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::COPY,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::COPY,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::COPY,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::COPY,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString + 'static> Patchify<T> for Glue {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::GLUE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::GLUE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::GLUE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::GLUE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
-        let f_node = &store.from_arena.borrow()[self.from_node];
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>) {
+        let f_node = &store.src_arena.borrow()[self.src_node];
         if f_node.char_no.is_some() {
-            from.push(Patch::new(ActionType::GLUE,
-                                 f_node.char_no.unwrap(),
-                                 f_node.token_len.unwrap()));
+            src.push(Patch::new(ActionType::GLUE,
+                                f_node.char_no.unwrap(),
+                                f_node.token_len.unwrap()));
         }
-        let t_node = &store.to_arena.borrow()[store.get_to(self.from_node).unwrap()];
+        let t_node = &store.dst_arena.borrow()[store.get_dst(self.src_node).unwrap()];
         if t_node.char_no.is_some() {
-            to.push(Patch::new(ActionType::GLUE,
-                               t_node.char_no.unwrap(),
-                               t_node.token_len.unwrap()));
+            dst.push(Patch::new(ActionType::GLUE,
+                                t_node.char_no.unwrap(),
+                                t_node.token_len.unwrap()));
         }
     }
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Delete {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         debug_assert!(self.node.is_leaf(arena),
                       "Attempt to delete branch node {}",
                       self.node);
@@ -501,7 +501,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Delet
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Insert {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         match self.new_parent {
             Some(p) => self.node.make_nth_child_of(p, self.nth_child, arena),
             None => arena.new_root(self.node)
@@ -511,14 +511,14 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Inser
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Move {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
-        self.from_node.make_nth_child_of(self.parent, self.pos, arena)
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
+        self.src_node.make_nth_child_of(self.parent, self.pos, arena)
     }
     impl_compare!();
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Update<T> {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         if !arena.contains(self.node) {
             return Err(ArenaError::NodeIdNotFound);
         }
@@ -530,18 +530,18 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Copy {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
-        if !arena.contains(self.from_node) {
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
+        if !arena.contains(self.src_node) {
             return Err(ArenaError::NodeIdNotFound);
         }
-        self.from_node.copy_subtree(self.parent, self.pos, arena)
+        self.src_node.copy_subtree(self.parent, self.pos, arena)
     }
     impl_compare!();
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Glue {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
-        self.from_node.make_nth_child_of(self.node, self.pos, arena)
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
+        self.src_node.make_nth_child_of(self.node, self.pos, arena)
     }
     impl_compare!();
 }
@@ -601,18 +601,18 @@ impl<T: Clone + fmt::Debug + PartialEq> RenderJson for EditScript<T> {
 }
 
 impl<T: Clone + fmt::Debug + Eq + ToString> Patchify<T> for EditScript<T> {
-    fn patchify(&self, store: &MappingStore<T>, from: &mut Vec<Patch>, to: &mut Vec<Patch>) {
+    fn patchify(&self, store: &MappingStore<T>, src: &mut Vec<Patch>, dst: &mut Vec<Patch>) {
         for action in &self.actions {
-            action.patchify(store, from, to);
+            action.patchify(store, src, dst);
         }
     }
 
     fn patchify_chawathe98(&self,
                            store: &MappingStoreGraph<T>,
-                           from: &mut Vec<Patch>,
-                           to: &mut Vec<Patch>) {
+                           src: &mut Vec<Patch>,
+                           dst: &mut Vec<Patch>) {
         for action in &self.actions {
-            action.patchify_chawathe98(store, from, to);
+            action.patchify_chawathe98(store, src, dst);
         }
     }
 }
@@ -632,7 +632,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> PartialEq for 
 }
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for EditScript<T> {
-    fn apply(&mut self, arena: &mut Arena<T, FromNodeId>) -> ArenaResult {
+    fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         for boxed_action in &mut self.actions {
             boxed_action.apply(arena)?;
         }

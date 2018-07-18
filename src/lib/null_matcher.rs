@@ -44,7 +44,7 @@
 /// imported into the `main` module.
 use std::fmt::Debug;
 
-use ast::{Arena, FromNodeId, ToNodeId};
+use ast::{Arena, DstNodeId, SrcNodeId};
 use matchers::{MappingStore, MatchTrees};
 
 /// The Null matcher needs no configuration.
@@ -66,9 +66,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MatchTrees<T> for NullConfig {
 
     /// Perform no matching operations.
     fn match_trees(&mut self,
-                   base: Arena<T, FromNodeId>,
-                   diff: Arena<T, ToNodeId>)
+                   src: Arena<T, SrcNodeId>,
+                   dst: Arena<T, DstNodeId>)
                    -> MappingStore<T> {
-        MappingStore::new(base, diff)
+        MappingStore::new(src, dst)
     }
 }

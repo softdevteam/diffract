@@ -47,7 +47,7 @@ use dot::{escape_html, render, Edges, GraphWalk, Id, LabelText, Labeller, Nodes}
 use term;
 
 use action::{ActionType, EditScript, Patchify};
-use ast::{Arena, EdgeId, FromNodeId, NodeId, ToNodeId};
+use ast::{Arena, DstNodeId, EdgeId, NodeId, SrcNodeId};
 use chawathe98_matcher::{EdgeType, MappingStoreGraph};
 use matchers::{MappingStore, MappingType};
 use patch::{hunkify, Patch};
@@ -128,41 +128,41 @@ fn read_file(path: &str) -> Result<String, EmitterError> {
 /// However, `term` is cross-platform so this failure case should be rare.
 pub fn write_diff_to_stdout<T: Clone + Debug + Eq + ToString>(store: &MappingStore<T>,
                                                               script: &EditScript<T>,
-                                                              from_path: &str,
-                                                              to_path: &str)
+                                                              src_path: &str,
+                                                              dst_path: &str)
                                                               -> Result<(), EmitterError> {
     let colours = build_colour_map();
     // Turn edit script and mappings into hunks of related patches.
-    let mut from_patches: Vec<Patch> = vec![];
-    let mut to_patches: Vec<Patch> = vec![];
-    script.patchify(store, &mut from_patches, &mut to_patches);
+    let mut src_patches: Vec<Patch> = vec![];
+    let mut dst_patches: Vec<Patch> = vec![];
+    script.patchify(store, &mut src_patches, &mut dst_patches);
     // No patches in either AST, so input files must be identical.
-    if from_patches.is_empty() && to_patches.is_empty() {
+    if src_patches.is_empty() && dst_patches.is_empty() {
         return Ok(());
     }
-    let to_hunks = hunkify(to_patches);
-    let from_file = read_file(from_path)?;
-    let to_file = read_file(to_path)?;
-    let mut hunks: Vec<_> = to_hunks.keys().collect();
+    let dst_hunks = hunkify(dst_patches);
+    let src_file = read_file(src_path)?;
+    let dst_file = read_file(dst_path)?;
+    let mut hunks: Vec<_> = dst_hunks.keys().collect();
     hunks.sort();
-    // Process patches on the "from" AST. Only the MOVE and DELETE actions are
+    // Process patches on the "src" AST. Only the MOVE and DELETE actions are
     // useful here, so rather than creating a map of hunks in the file,  which
     // would be needed for a side-by-side diff, instead we create a map of the
     // patches that are useful for printing.
-    let mut from_actions: BTreeMap<usize, (usize, ActionType)> = BTreeMap::new();
-    for patch in &from_patches {
+    let mut src_actions: BTreeMap<usize, (usize, ActionType)> = BTreeMap::new();
+    for patch in &src_patches {
         if *patch.action() == ActionType::DELETE || *patch.action() == ActionType::MOVE {
-            from_actions.insert(patch.start(), (patch.end(), patch.action().clone()));
+            src_actions.insert(patch.start(), (patch.end(), patch.action().clone()));
         }
     }
-    debug!("{} hunks in to AST {} patches in from AST.",
+    debug!("{} hunks in dst AST {} patches in src AST.",
            hunks.len(),
-           from_patches.len());
+           src_patches.len());
     // Write out "header" with input file names, similar to git-diff.
     let mut stream = term::stdout().unwrap();
     stream.attr(term::Attr::Bold).unwrap();
     stream.fg(term::color::BRIGHT_MAGENTA).unwrap();
-    writeln!(stream, "--- a/{}\n+++ b/{}", from_path, to_path).unwrap();
+    writeln!(stream, "--- a/{}\n+++ b/{}", src_path, dst_path).unwrap();
     stream.reset().unwrap();
     // Iterate over each hunk and print file with context.
     let mut ch = 0;
@@ -170,70 +170,70 @@ pub fn write_diff_to_stdout<T: Clone + Debug + Eq + ToString>(store: &MappingSto
         if ch < start {
             stream.reset().unwrap();
             for i in ch..start {
-                // Look for deletions or moves from the "from" AST.
-                if from_actions.contains_key(&i) {
-                    let (f_end, ref f_ty) = from_actions[&i];
+                // Look for deletions or moves from the "src" AST.
+                if src_actions.contains_key(&i) {
+                    let (f_end, ref f_ty) = src_actions[&i];
                     stream.fg(colours[f_ty]).unwrap();
                     if *f_ty == ActionType::DELETE {
-                        write!(stream, "{}", &from_file[i..f_end]).unwrap();
+                        write!(stream, "{}", &src_file[i..f_end]).unwrap();
                     } else {
                         write!(stream, "^").unwrap();
                     }
                     stream.reset().unwrap();
                 }
-                // Next character from the "to" AST.
-                write!(stream, "{}", &to_file[i..i + 1]).unwrap();
+                // Next character from the "dst" AST.
+                write!(stream, "{}", &dst_file[i..i + 1]).unwrap();
             }
         }
         ch = start;
-        let hunk = &to_hunks[&(start, end)];
+        let hunk = &dst_hunks[&(start, end)];
         while ch < end {
-            // Look for deletions or moves from the "from" AST.
-            if from_actions.contains_key(&ch) {
-                let (f_end, ref f_ty) = from_actions[&ch];
+            // Look for deletions or moves from the "src" AST.
+            if src_actions.contains_key(&ch) {
+                let (f_end, ref f_ty) = src_actions[&ch];
                 stream.fg(colours[f_ty]).unwrap();
                 if *f_ty == ActionType::DELETE {
-                    write!(stream, "{}", &from_file[ch..f_end]).unwrap();
+                    write!(stream, "{}", &src_file[ch..f_end]).unwrap();
                 } else {
                     write!(stream, "^").unwrap();
                 }
                 stream.reset().unwrap();
             }
-            // Characters or actions from the "to" AST.
+            // Characters or actions from the "dst" AST.
             let action = hunk.get_action(ch);
             if action.is_none() {
-                write!(stream, "{}", &to_file[ch..ch + 1]).unwrap();
+                write!(stream, "{}", &dst_file[ch..ch + 1]).unwrap();
                 ch += 1;
             } else {
                 let (ty, len) = action.unwrap();
                 stream.fg(colours[&ty]).unwrap();
                 stream.attr(term::Attr::Bold).unwrap();
-                write!(stream, "{}", &to_file[ch..ch + len]).unwrap();
+                write!(stream, "{}", &dst_file[ch..ch + len]).unwrap();
                 stream.reset().unwrap();
                 ch += len;
             }
         }
     }
     // Print remainder of file, following the last hunk.
-    if !from_patches.is_empty() && ch < to_file.len() {
-        for i in ch..to_file.len() {
-            // Look for deletions or moves from the "from" AST.
-            if from_actions.contains_key(&i) {
-                let (f_end, ref f_ty) = from_actions[&i];
+    if !src_patches.is_empty() && ch < dst_file.len() {
+        for i in ch..dst_file.len() {
+            // Look for deletions or moves from the "src" AST.
+            if src_actions.contains_key(&i) {
+                let (f_end, ref f_ty) = src_actions[&i];
                 stream.fg(colours[f_ty]).unwrap();
                 if *f_ty == ActionType::DELETE {
-                    write!(stream, "{}", &from_file[i..f_end]).unwrap();
+                    write!(stream, "{}", &src_file[i..f_end]).unwrap();
                 } else {
                     write!(stream, "^").unwrap();
                 }
                 stream.reset().unwrap();
             }
-            write!(stream, "{}", &to_file[i..i + 1]).unwrap();
+            write!(stream, "{}", &dst_file[i..i + 1]).unwrap();
         }
     }
     // Ensure the next shell prompt starts on a new line, otherwise the diff is
     // especially difficult to read.
-    if to_file.len() > 1 && &to_file[to_file.len() - 2..to_file.len()] != "\n" {
+    if dst_file.len() > 1 && &dst_file[dst_file.len() - 2..dst_file.len()] != "\n" {
         writeln!(stream).unwrap();
     }
     stream.reset().unwrap();
@@ -314,56 +314,54 @@ impl RenderDotfile for MappingStore<String> {
                                String::from("\tratio=fill;\n\tfontsize=16;\n"),
                                String::from("\tnewrank=true;\n")];
         let mut line: String;
-        let mut from_node: NodeId<FromNodeId>;
-        let mut to_node: NodeId<ToNodeId>;
+        let mut src_node: NodeId<SrcNodeId>;
+        let mut dst_node: NodeId<DstNodeId>;
 
         let mut attrs: &str;
         // Node labels for both ASTs.
-        for id in 0..self.from_arena.borrow().size() {
-            from_node = NodeId::new(id);
-            if !self.contains_from(from_node) {
+        for id in 0..self.src_arena.borrow().size() {
+            src_node = NodeId::new(id);
+            if !self.contains_src(src_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.from_arena.borrow()[from_node].label.is_empty() {
+            if self.src_arena.borrow()[src_node].label.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}: {}\"{}];\n",
                                      id,
-                                     from_node.id(),
-                                     escape_string(self.from_arena.borrow()[from_node].ty
-                                                                                      .as_str()),
+                                     src_node.id(),
+                                     escape_string(self.src_arena.borrow()[src_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{}: {} {}\"{}];\n",
                                      id,
-                                     from_node.id(),
-                                     escape_string(self.from_arena.borrow()[from_node].ty
-                                                                                      .as_str()),
-                                     escape_string(self.from_arena.borrow()[from_node].label
-                                                                                      .as_str()),
+                                     src_node.id(),
+                                     escape_string(self.src_arena.borrow()[src_node].ty.as_str()),
+                                     escape_string(self.src_arena.borrow()[src_node].label
+                                                                                    .as_str()),
                                      attrs));
             }
         }
-        for id in 0..self.to_arena.borrow().size() {
-            to_node = NodeId::new(id);
-            if !self.contains_to(to_node) {
+        for id in 0..self.dst_arena.borrow().size() {
+            dst_node = NodeId::new(id);
+            if !self.contains_dst(dst_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.to_arena.borrow()[to_node].label.is_empty() {
+            if self.dst_arena.borrow()[dst_node].label.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{}: {}\"{}];\n",
                                      id,
-                                     to_node.id(),
-                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
+                                     dst_node.id(),
+                                     escape_string(self.dst_arena.borrow()[dst_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tTO{}[label=\"{}: {} {}\"{}];\n",
                                      id,
-                                     to_node.id(),
-                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
-                                     escape_string(self.to_arena.borrow()[to_node].label
-                                                                                  .as_str()),
+                                     dst_node.id(),
+                                     escape_string(self.dst_arena.borrow()[dst_node].ty.as_str()),
+                                     escape_string(self.dst_arena.borrow()[dst_node].label
+                                                                                    .as_str()),
                                      attrs));
             }
         }
@@ -371,7 +369,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.from_arena.borrow().get_edges() {
+        for (e0, e1) in self.src_arena.borrow().get_edges() {
             line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
@@ -382,7 +380,7 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.to_arena.borrow().get_edges() {
+        for (e0, e1) in self.dst_arena.borrow().get_edges() {
             line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
@@ -391,8 +389,8 @@ impl RenderDotfile for MappingStore<String> {
         digraph.push(String::from("\t}\n"));
         // Mappings between ASTs.
         let common = "dir=both, arrowsize=.75, arrowhead=odot, arrowtail=odot";
-        for (from, val) in self.from.borrow().iter() {
-            let &(to, ref ty) = val;
+        for (src, val) in self.src.borrow().iter() {
+            let &(dst, ref ty) = val;
             attrs = match *ty {
                 MappingType::ANCHOR => "[style=dashed, color=blue, ",
                 MappingType::CONTAINER => "[style=dashed, color=red, ",
@@ -400,8 +398,8 @@ impl RenderDotfile for MappingStore<String> {
                 MappingType::EDIT => "[style=dotted, color=indigo, "
             };
             line = format!("\t{{ rank=same FROM{} -> TO{}{}{}]; }}\n",
-                           from.id(),
-                           to.id(),
+                           src.id(),
+                           dst.id(),
                            attrs,
                            common);
             digraph.push(line);
@@ -421,52 +419,50 @@ impl RenderDotfile for MappingStoreGraph<String> {
                                String::from("\tratio=fill;\n\tfontsize=16;\n"),
                                String::from("\tnewrank=true;\n")];
         let mut line: String;
-        let mut from_node: NodeId<FromNodeId>;
-        let mut to_node: NodeId<ToNodeId>;
+        let mut src_node: NodeId<SrcNodeId>;
+        let mut dst_node: NodeId<DstNodeId>;
 
         let mut attrs: &str;
         // Node labels for both ASTs.
-        for id in 0..self.from_arena.borrow().size() {
-            from_node = NodeId::new(id);
-            if !self.contains_edge_from(from_node) {
+        for id in 0..self.src_arena.borrow().size() {
+            src_node = NodeId::new(id);
+            if !self.contains_edge_src(src_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.from_arena.borrow()[from_node].label.is_empty() {
+            if self.src_arena.borrow()[src_node].label.is_empty() {
                 digraph.push(format!("\tFROM{}[label=\"{}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena.borrow()[from_node].ty
-                                                                                      .as_str()),
+                                     escape_string(self.src_arena.borrow()[src_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tFROM{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     escape_string(self.from_arena.borrow()[from_node].ty
-                                                                                      .as_str()),
-                                     escape_string(self.from_arena.borrow()[from_node].label
-                                                                                      .as_str()),
+                                     escape_string(self.src_arena.borrow()[src_node].ty.as_str()),
+                                     escape_string(self.src_arena.borrow()[src_node].label
+                                                                                    .as_str()),
                                      attrs));
             }
         }
-        for id in 0..self.to_arena.borrow().size() {
-            to_node = NodeId::new(id);
-            if !self.contains_edge_to(to_node) {
+        for id in 0..self.dst_arena.borrow().size() {
+            dst_node = NodeId::new(id);
+            if !self.contains_edge_dst(dst_node) {
                 attrs = ", style=filled, fillcolor=lightgrey";
             } else {
                 attrs = "";
             }
-            if self.to_arena.borrow()[to_node].label.is_empty() {
+            if self.dst_arena.borrow()[dst_node].label.is_empty() {
                 digraph.push(format!("\tTO{}[label=\"{}\"{}];\n",
                                      id,
-                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
+                                     escape_string(self.dst_arena.borrow()[dst_node].ty.as_str()),
                                      attrs));
             } else {
                 digraph.push(format!("\tTO{}[label=\"{} {}\"{}];\n",
                                      id,
-                                     escape_string(self.to_arena.borrow()[to_node].ty.as_str()),
-                                     escape_string(self.to_arena.borrow()[to_node].label
-                                                                                  .as_str()),
+                                     escape_string(self.dst_arena.borrow()[dst_node].ty.as_str()),
+                                     escape_string(self.dst_arena.borrow()[dst_node].label
+                                                                                    .as_str()),
                                      attrs));
             }
         }
@@ -474,7 +470,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         digraph.push(String::from("\tsubgraph clusterFROM {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.from_arena.borrow().get_edges() {
+        for (e0, e1) in self.src_arena.borrow().get_edges() {
             line = format!("\t\tFROM{} -> FROM{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
@@ -485,7 +481,7 @@ impl RenderDotfile for MappingStoreGraph<String> {
         digraph.push(String::from("\tsubgraph clusterTO {\n"));
         digraph.push(String::from("\t\tcolor=black;\n"));
         digraph.push(String::from("\t\tstyle=dashed;\n"));
-        for (e0, e1) in self.to_arena.borrow().get_edges() {
+        for (e0, e1) in self.dst_arena.borrow().get_edges() {
             line = format!("\t\tTO{} -> TO{}[style=solid, arrowhead=vee, arrowsize=.75];\n",
                            e0.id(),
                            e1.id());
@@ -508,8 +504,8 @@ impl RenderDotfile for MappingStoreGraph<String> {
                 EdgeType::OK => "[style = dotted, color=brown, "
             };
             line = format!("\t FROM{} -> TO{}{}{}]; \n",
-                           edge.from_node.id(),
-                           edge.to_node.id(),
+                           edge.src_node.id(),
+                           edge.dst_node.id(),
                            attrs,
                            common);
             digraph.push(line);

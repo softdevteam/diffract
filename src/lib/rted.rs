@@ -40,7 +40,7 @@
 /// This matcher implements Pawlik and Augsten (2011).
 use std::fmt::Debug;
 
-use ast::{Arena, FromNodeId, ToNodeId};
+use ast::{Arena, DstNodeId, SrcNodeId};
 use info_tree::{InfoIdx, InfoTree};
 use label_maps::LabelMap;
 use matchers::{MappingStore, MatchTrees};
@@ -191,10 +191,10 @@ is efficient and worst-case optimal. For more information see Pawlik and Augsten
     }
 
     fn match_trees(&mut self,
-                   base: Arena<T, FromNodeId>,
-                   diff: Arena<T, ToNodeId>)
+                   src: Arena<T, SrcNodeId>,
+                   dst: Arena<T, DstNodeId>)
                    -> MappingStore<T> {
-        MappingStore::new(base, diff)
+        MappingStore::new(src, dst)
     }
 }
 

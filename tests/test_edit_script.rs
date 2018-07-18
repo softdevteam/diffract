@@ -51,38 +51,38 @@ use common::check_files;
 
 #[test]
 fn test_both_arenas_empty() {
-    let ast_from: Arena<String, _> = Arena::new();
-    let ast_to = Arena::new();
+    let ast_src: Arena<String, _> = Arena::new();
+    let ast_dst = Arena::new();
     let mut matcher_config = MyersConfig::new();
-    let store = matcher_config.match_trees(ast_from, ast_to);
-    assert!(store.from.borrow().is_empty());
-    assert!(store.to.borrow().is_empty());
+    let store = matcher_config.match_trees(ast_src, ast_dst);
+    assert!(store.src.borrow().is_empty());
+    assert!(store.dst.borrow().is_empty());
     Box::new(Chawathe96Config::new()).generate_script(&store)
                                      .ok();
 }
 
 #[test]
 #[should_panic]
-fn test_from_arena_empty() {
-    let ast_from = Arena::new();
-    let ast_to = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
+fn test_src_arena_empty() {
+    let ast_src = Arena::new();
+    let ast_dst = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
     let mut matcher_config = MyersConfig::new();
-    let store = matcher_config.match_trees(ast_from, ast_to);
-    assert!(store.from.borrow().is_empty());
-    assert!(store.to.borrow().is_empty());
+    let store = matcher_config.match_trees(ast_src, ast_dst);
+    assert!(store.src.borrow().is_empty());
+    assert!(store.dst.borrow().is_empty());
     Box::new(Chawathe96Config::new()).generate_script(&store)
                                      .ok();
 }
 
 #[test]
 #[should_panic]
-fn test_to_arena_empty() {
-    let ast_from = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
-    let ast_to = Arena::new();
+fn test_dst_arena_empty() {
+    let ast_src = parse_file("tests/empty.calc", &get_lexer("grammars/calc.l"), &get_parser("grammars/calc.y")).unwrap();
+    let ast_dst = Arena::new();
     let mut matcher_config = MyersConfig::new();
-    let store = matcher_config.match_trees(ast_from, ast_to);
-    assert!(store.from.borrow().is_empty());
-    assert!(store.to.borrow().is_empty());
+    let store = matcher_config.match_trees(ast_src, ast_dst);
+    assert!(store.src.borrow().is_empty());
+    assert!(store.dst.borrow().is_empty());
     Box::new(Chawathe96Config::new()).generate_script(&store)
                                      .ok();
 }
