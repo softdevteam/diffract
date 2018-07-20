@@ -36,6 +36,7 @@
 // SOFTWARE.
 
 #![warn(missing_docs)]
+#![allow(dead_code)]
 
 /// This matcher implements Pawlik and Augsten (2011).
 use std::fmt::Debug;
@@ -176,6 +177,32 @@ impl<'a> RTEDConfig<'a> {
                 }
             }
         }
+    }
+
+    fn set_delta(&mut self, a: usize, b: usize, value: f64, switched: bool) {
+        if switched {
+            self.delta[b][a] = value;
+        } else {
+            self.delta[a][b] = value;
+        }
+    }
+
+    fn set_delta_big(&mut self, a: usize, b: usize, value: u8, switched: bool) {
+        if switched {
+            self.delta_bit[b][a] = value;
+        } else {
+            self.delta_bit[a][b] = value;
+        }
+    }
+
+    fn set_custom_costs(&mut self, cost_del: f64, cost_ins: f64, cost_match: f64) {
+        self.cost_del = cost_del;
+        self.cost_ins = cost_ins;
+        self.cost_match = cost_match;
+    }
+
+    fn set_custom_strategy_vector(&mut self, strategy: Vec<Vec<usize>>) {
+        self.strategy = strategy;
     }
 }
 
