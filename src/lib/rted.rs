@@ -379,4 +379,13 @@ mod tests {
         let mut rted = RTEDConfig::new(&plus, &mult, 1.0, 1.0, 1.0);
         rted.non_normalised_tree_distance();
     }
+
+    // Place-holder test.
+    #[test]
+    fn test_compute_dist_using_strategy_array() {
+        let plus = create_plus_arena();
+        let mult = create_mult_arena();
+        let mut rted = RTEDConfig::new(&plus, &mult, 1.0, 1.0, 1.0);
+        assert_eq!(0.0, rted.compute_dist_using_strategy_array());
+    }
 }
