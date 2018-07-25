@@ -97,13 +97,14 @@ Code Differencing.";
         if store.src_arena.borrow().size() == 0 || store.dst_arena.borrow().size() == 0 {
             return store;
         }
-        get_gt_anchor_matches(&store, self);
-        get_gt_other_matches(&store, self);
+        get_gt_anchor_mappings(&store, self);
+        get_gt_container_mappings(&store, self);
         store
     }
 }
 
-fn get_gt_anchor_matches<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
+// Top-down algorithm to find isomorphic subtrees of decreasing height.
+fn get_gt_anchor_mappings<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
                                                                      config: &GumTreeConfig) {
     let mut src_q: HeightQueue<SrcNodeId> = HeightQueue::new();
     let mut dst_q: HeightQueue<DstNodeId> = HeightQueue::new();
@@ -145,7 +146,10 @@ fn get_gt_anchor_matches<T: Clone + Debug + Eq + ToString + 'static>(store: &Map
     }
 }
 
-fn get_gt_other_matches<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
+// Bottom-up matcher where two nodes match if their descendants include a large
+// number of common anchors. When two nodes match, we apply an optimal algorithm
+// to search for additional (recovery) mappings among their descendants.
+fn get_gt_container_mappings<T: Clone + Debug + Eq + ToString + 'static>(store: &MappingStore<T>,
                                                                     _config: &GumTreeConfig) {
     if store.src_arena.borrow().is_empty() || store.dst_arena.borrow().is_empty() {
         return;
