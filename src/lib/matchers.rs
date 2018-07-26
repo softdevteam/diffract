@@ -37,6 +37,7 @@
 
 #![warn(missing_docs)]
 
+/// Matchers create mappings between two abstract syntax trees.
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;

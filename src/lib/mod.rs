@@ -96,8 +96,11 @@ pub mod info_tree;
 /// Store AST labels as small, unsigned integers.
 pub mod label_maps;
 
-/// Matchers create mappings between abstract syntax trees.
+/// Matchers create mappings between two abstract syntax trees.
 pub mod matchers;
+
+/// A multi-mapping store holds non-unique mappings between two abstract syntax trees.
+pub mod multi_mappings;
 
 /// Longest common subsequence matching algorithm.
 ///
