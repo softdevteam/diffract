@@ -33,7 +33,7 @@ rust-crypto = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 term = "0.5"
-cfgrammar = { git = "https://github.com/softdevteam/cfgrammar" }
-lrlex = { git = "http://github.com/softdevteam/lrlex" }
-lrpar = { git = "http://github.com/softdevteam/lrpar" }
-lrtable = { git = "http://github.com/softdevteam/lrtable" }
+cfgrammar = { git = "https://github.com/softdevteam/grmtools" }
+lrlex = { git = "http://github.com/softdevteam/grmtools" }
+lrpar = { git = "http://github.com/softdevteam/grmtools" }
+lrtable = { git = "http://github.com/softdevteam/grmtools" }
