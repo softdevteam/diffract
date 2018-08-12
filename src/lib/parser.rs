@@ -42,7 +42,7 @@ use std::fs::{canonicalize, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use cfgrammar::yacc::{yacc_grm, YaccGrammar, YaccKind};
+use cfgrammar::yacc::{YaccGrammar, YaccKind};
 use cfgrammar::TIdx;
 use lrlex::{build_lex, Lexer};
 use lrpar::parser;
@@ -115,7 +115,8 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
     let grms = read_file(yacc_path)?;
 
     let mut lexerdef = build_lex::<u16>(&lexs).map_err(|_| ParseError::BrokenLexer)?;
-    let grm = yacc_grm(YaccKind::Eco, &grms).map_err(|_| ParseError::BrokenParser)?;
+    let grm = YaccGrammar::<u16>::new_with_storaget(YaccKind::Eco, &grms)
+                                 .map_err(|_| ParseError::BrokenParser)?;
     let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
@@ -131,7 +132,7 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
 
     // Return parse tree.
     let pt =
-        parser::parse::<u16>(&grm, &sgraph, &stable, &lexemes).map_err(|_| {
+        parser::parse(&grm, &sgraph, &stable, &lexemes).map_err(|_| {
                                                                             ParseError::SyntaxError
                                                                         })?;
     Ok(parse_into_ast::<T>(&pt, &lexer, &grm, input))
@@ -147,9 +148,9 @@ pub fn parse_file<T: PartialEq + Copy>(input_path: &str,
 }
 
 // Turn a grammar, parser and input string into an AST arena.
-fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16>,
+fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<u16, u16>,
                                        lexer: &Lexer<u16>,
-                                       grm: &YaccGrammar,
+                                       grm: &YaccGrammar<u16>,
                                        input: &str)
                                        -> Arena<String, T> {
     let mut arena = Arena::new();
