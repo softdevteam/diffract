@@ -282,7 +282,7 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
 }
 
 impl<T: fmt::Debug + Clone, U: PartialEq + Copy> fmt::Debug for Arena<T, U> {
-    /// Should have similar output to `lrpar::parser::Node<TokId>::pretty_print`.
+    /// Should have similar output to `lrpar::parser::Node<StorageT>::pretty_print`.
     ///
     /// Each line is prefixed with the id of the node represent on it,
     /// e.g. `005: "INT" 1`
