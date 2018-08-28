@@ -56,6 +56,7 @@ type StorageT = u16;
 
 quick_error! {
     /// Errors raised when parsing a source file.
+    #[allow(missing_docs)]
     #[derive(Debug)]
     pub enum ParseError {
         Io(path: String) {

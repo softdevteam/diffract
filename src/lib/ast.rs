@@ -47,6 +47,7 @@ use hqueue::HeightQueue;
 
 quick_error! {
     /// Errors raised by arenas.
+    #[allow(missing_docs)]
     #[derive(Debug, PartialEq)]
     pub enum ArenaError {
         EmptyArena {

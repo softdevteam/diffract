@@ -54,6 +54,7 @@ use patch::{hunkify, Patch};
 
 quick_error! {
     /// Errors produced in emitting new data.
+    #[allow(missing_docs)]
     #[derive(Debug)]
     pub enum EmitterError {
         CouldNotCreateFile(path: String) {
