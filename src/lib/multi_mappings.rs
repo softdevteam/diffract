@@ -127,12 +127,12 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MultiMappingStore<T> {
 
     /// Return a set of all mapped `src` nodes.
     pub fn get_srcs(&self) -> HashSet<NodeId<SrcNodeId>> {
-        self.src.borrow().keys().into_iter().cloned().collect()
+        self.src.borrow().keys().cloned().collect()
     }
 
     /// Return a set of all mapped `dst` nodes.
     pub fn get_dsts(&self) -> HashSet<NodeId<DstNodeId>> {
-        self.dst.borrow().keys().into_iter().cloned().collect()
+        self.dst.borrow().keys().cloned().collect()
     }
 
     /// `true` if `src` is mapped to exactly one `dst` node, and vice versa.
