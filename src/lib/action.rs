@@ -512,7 +512,8 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString> ApplyAction<T> for Inser
 
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Move {
     fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
-        self.src_node.make_nth_child_of(self.parent, self.pos, arena)
+        self.src_node
+            .make_nth_child_of(self.parent, self.pos, arena)
     }
     impl_compare!();
 }
@@ -520,7 +521,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Update<T> {
     fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         if !arena.contains(self.node) {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(self.node.id()));
         }
         arena[self.node].ty = self.ty.clone();
         arena[self.node].label = self.label.clone();
@@ -532,7 +533,7 @@ impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T>
 impl<T: Clone + fmt::Debug + Eq + PartialEq + ToString + 'static> ApplyAction<T> for Copy {
     fn apply(&mut self, arena: &mut Arena<T, SrcNodeId>) -> ArenaResult {
         if !arena.contains(self.src_node) {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(self.src_node.id()));
         }
         self.src_node.copy_subtree(self.parent, self.pos, arena)
     }

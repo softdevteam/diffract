@@ -227,7 +227,7 @@ fn test_lexical_err() {
     let filepath = "tests/calc_lexical_err.calc";
     let ast_result = parse_file::<SrcNodeId>(filepath, &get_lexer(filepath), &get_parser(filepath));
     match ast_result {
-        Err(ParseError::LexicalError) => assert!(true),
+        Err(ParseError::LexicalError(_)) => assert!(true),
         Err(e) => panic!("Expected LexicalError error, got: {:?}", e),
         Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }
@@ -238,7 +238,7 @@ fn test_syntax_err() {
     let filepath = "tests/calc_syntax_err.calc";
     let ast_result = parse_file::<SrcNodeId>(filepath, &get_lexer(filepath), &get_parser(filepath));
     match ast_result {
-        Err(ParseError::SyntaxError) => assert!(true),
+        Err(ParseError::SyntaxError(_)) => assert!(true),
         Err(e) => panic!("Expected SyntaxError error, got: {:?}", e),
         Ok(_) => panic!("Expected FileNotFound error, got an AST")
     }

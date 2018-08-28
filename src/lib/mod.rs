@@ -52,6 +52,8 @@ extern crate lrlex;
 extern crate lrpar;
 extern crate lrtable;
 extern crate multiset;
+#[macro_use]
+extern crate quick_error;
 extern crate term;
 extern crate test;
 

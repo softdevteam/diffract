@@ -158,38 +158,12 @@ fn exit_with_message(message: &str) -> ! {
     process::exit(1);
 }
 
-fn consume_emitter_err(res: emitters::EmitterResult, filepath: &str) {
-    if let Err(err) = res {
-        use emitters::EmitterError::*;
-        let action = match err {
-            CouldNotCreateFile => "create",
-            CouldNotWriteToFile => "write to",
-            CouldNotOpenFile => "open",
-            CouldNotReadFile => "read from"
-        };
-        exit_with_message(&format!("Could not {} file {}.", action, filepath));
-    }
-}
-
-fn consume_edit_script_err(error: &ast::ArenaError) -> ! {
-    use ast::ArenaError::*;
-    let s: String;
-    let message = match *error {
-        EmtpyArena => "Could not create edit script, AST was empty.",
-        NodeIdNotFound => "Could not create edit script, NodeId was not found.",
-        NodeHasTooFewChildren(n) => {
-            s = format!("Could not create edit script, NodeId had only {} children.",
-                        n);
-            &s
-        }
-        NodeHasTooManyChildren => "Could not create edit script, NodeId had more than one child.",
-        NodeIdsAreIdentical => "Could not create edit script, NodeIds were identical."
-    };
-    exit_with_message(message);
-}
-
 fn write_dotfile_to_disk<T: diffract::emitters::RenderDotfile>(filepath: &str, object: &T) {
-    consume_emitter_err(emitters::write_dotfile_to_disk(filepath, object), filepath);
+    emitters::write_dotfile_to_disk(filepath, object).map_err(|ref err| {
+                                                                  exit_with_message(&format!("{}",
+                                                                                             err))
+                                                              })
+                                                     .unwrap();
 }
 
 // Set any global constants requested by the user.
@@ -258,20 +232,8 @@ fn parse_file<T: Copy + PartialEq>(filename: &str,
                                    lexer_path: &PathBuf,
                                    yacc_path: &PathBuf)
                                    -> ast::Arena<String, T> {
-    let error_to_str = |err| {
-        use parser::ParseError::*;
-        match err {
-            FileNotFound(path) => format!("File {} not found.", path),
-            BrokenLexer => format!("Could not build lexer {:?}.", lexer_path),
-            BrokenParser => format!("Could not build parser {:?}.", yacc_path),
-            LexicalError => format!("Lexical error in {}.", filename),
-            SyntaxError => format!("Syntax error in {}.", filename),
-            _ => format!("Error parsing {}.", filename)
-        }
-    };
-    parser::parse_file::<T>(filename, lexer_path, yacc_path).map_err(error_to_str)
-                                                            .map_err(|ref msg| {
-                                                                         exit_with_message(msg)
+    parser::parse_file::<T>(filename, lexer_path, yacc_path).map_err(|ref err| {
+                                                                         exit_with_message(&format!("{}", err))
                                                                      })
                                                             .unwrap()
 }
@@ -486,10 +448,9 @@ fn main() {
         config
     }
 
-    let edit_script = match generator_config.generate_script(&store) {
-        Ok(script) => script,
-        Err(err) => consume_edit_script_err(&err)
-    };
+    let edit_script = generator_config.generate_script(&store)
+                                      .map_err(|ref err| exit_with_message(&format!("{}", err)))
+                                      .unwrap();
 
     if args.flag_store.is_some() {
         let edit_file = args.flag_store.unwrap();
@@ -501,20 +462,18 @@ fn main() {
     // Generate output.
     if args.flag_output.is_none() || args.flag_output == Some(Output::Terminal) {
         info!("Writing terminal output to STDOUT.");
-        consume_emitter_err(emitters::write_diff_to_stdout(&store,
-                                                           &edit_script,
-                                                           &args.arg_src_file,
-                                                           &args.arg_dst_file),
-                            &args.arg_src_file);
+        emitters::write_diff_to_stdout(&store,
+                                       &edit_script,
+                                       &args.arg_src_file,
+                                       &args.arg_dst_file).map_err(|ref err| { exit_with_message(&format!("{}", err)) }).unwrap();
     } else if args.flag_output == Some(Output::None) {
         info!("No output requested by the user.");
         return;
     } else if args.flag_output == Some(Output::JSON) {
         info!("Writing JSON output to STDOUT.");
-        consume_emitter_err(emitters::write_json_to_stream(Box::new(stdout()),
-                                                           &store,
-                                                           &edit_script),
-                            "STDOUT");
+        emitters::write_json_to_stream(Box::new(stdout()),
+                                       &store,
+                                       &edit_script).map_err(|ref err| { exit_with_message(&format!("{}", err)) }).unwrap();
     }
 
     debug!("Final 'src' AST:\n{:?}", store.src_arena.borrow());
