@@ -29,6 +29,7 @@ dot = "0.1"
 env_logger = "0.5"
 log = "0.4"
 multiset = { git = "https://github.com/jmitchell/multiset" }
+quick-error = "1.2"
 rust-crypto = "0.2"
 serde = "1.0"
 serde_derive = "1.0"

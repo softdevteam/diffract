@@ -54,21 +54,35 @@ use ast::{Arena, NodeId};
 /// symbols (in productions) and terminals.
 type StorageT = u16;
 
-/// Errors raised when parsing a source file.
-#[derive(Debug)]
-pub enum ParseError {
-    /// Io error returned from standard library routines.
-    Io(String),
-    /// File not found.
-    FileNotFound(String),
-    /// Lexer could not be built by `lrlex`.
-    BrokenLexer,
-    /// Parser could not be built by `lrpar`.
-    BrokenParser,
-    /// File contained lexical error and could not be lexed.
-    LexicalError,
-    /// File contained syntax error and could not be parsed.
-    SyntaxError
+quick_error! {
+    /// Errors raised when parsing a source file.
+    #[derive(Debug)]
+    pub enum ParseError {
+        Io(path: String) {
+            description("Could not create a new file.")
+            display(r#"File "{}" could not be created."#, path)
+        }
+        FileNotFound(path: String) {
+            description("Could not find file.")
+            display(r#"Could not find file: "{}"."#, path)
+        }
+        BrokenLexer {
+            description("Lexer could not be built by lrlex.")
+            display(r#"Lexer could not be built by lrlex."#)
+        }
+        BrokenParser {
+            description("Parser could not be built by lrpar.")
+            display(r#"Parser could not be built by lrpar."#)
+        }
+        LexicalError(path: String) {
+            description("File contained lexical error.")
+            display(r#"File "{}" contains a lexical error."#, path)
+        }
+        SyntaxError(path: String) {
+            description("File contains a syntax error.")
+            display(r#"File "{}" contains a syntax error."#, path)
+        }
+    }
 }
 
 /// Given a filename (with extension), return a suitable lex file.
@@ -108,6 +122,7 @@ fn read_file(path: &Path) -> Result<String, ParseError> {
 
 /// Parse a string, and return an `Arena` or `ParseError`.
 pub fn parse_string<T: PartialEq + Copy>(input: &str,
+                                         input_path: &str,
                                          lex_path: &Path,
                                          yacc_path: &Path)
                                          -> Result<Arena<String, T>, ParseError> {
@@ -132,12 +147,13 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
 
     // Lex input file.
     let lexer = lexerdef.lexer(input);
-    let lexemes = lexer.lexemes().map_err(|_| ParseError::LexicalError)?;
+    let lexemes = lexer.lexemes()
+                       .map_err(|_| ParseError::LexicalError(input_path.to_string()))?;
 
     // Return parse tree.
     let pt =
         parser::parse(&grm, &sgraph, &stable, &lexemes).map_err(|_| {
-                                                                            ParseError::SyntaxError
+                                                                            ParseError::SyntaxError(input_path.to_string())
                                                                         })?;
     Ok(parse_into_ast::<T>(&pt, &lexer, &grm, input))
 }
@@ -148,7 +164,7 @@ pub fn parse_file<T: PartialEq + Copy>(input_path: &str,
                                        yacc_path: &Path)
                                        -> Result<Arena<String, T>, ParseError> {
     let input = read_file(Path::new(input_path))?;
-    parse_string(&input, lex_path, yacc_path)
+    parse_string(&input, &input_path, lex_path, yacc_path)
 }
 
 // Turn a grammar, parser and input string into an AST arena.

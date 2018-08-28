@@ -45,19 +45,31 @@ use std::ops::{Index, IndexMut};
 use fingerprint::{HashType, CLOSE_SYMBOL, OPEN_SYMBOL, SEPARATE_SYMBOL};
 use hqueue::HeightQueue;
 
-/// Errors raised by arenas.
-#[derive(Debug, PartialEq)]
-pub enum ArenaError {
-    /// Arena is unexpectedly empty.
-    EmtpyArena,
-    /// Node ID could not be found in this arena.
-    NodeIdNotFound,
-    /// Node was expected to have more than `N` children.
-    NodeHasTooFewChildren(u16),
-    /// Two node ids were unexpectedly identical.
-    NodeIdsAreIdentical,
-    /// Node has too many children.
-    NodeHasTooManyChildren
+quick_error! {
+    /// Errors raised by arenas.
+    #[derive(Debug, PartialEq)]
+    pub enum ArenaError {
+        EmptyArena {
+            description("Arena is unexpectedly empty.")
+            display(r#"AST is empty."#)
+        }
+        NodeIdNotFound(id: usize) {
+            description("Node id not found in arena.")
+            display(r#"Node id "{}" not found."#, id)
+        }
+        NodeHasTooFewChildren(id: usize) {
+            description("Node id has too few children.")
+            display(r#"Node id "{}" has too few children."#, id)
+        }
+        NodeIdsAreIdentical(id: usize) {
+            description("Node ids are identical.")
+            display(r#"Node id "{}" is duplicated in an AST."#, id)
+        }
+        NodeHasTooManyChildren(id: usize) {
+            description("Node has too many children.")
+            display(r#"Node id "{}" has more children than expected."#, id)
+        }
+    }
 }
 
 /// Result type returned by AST operations.
@@ -203,10 +215,10 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
         assert!(self.root.is_some());
         let root = self.root.unwrap();
         if root.children(self).collect::<Vec<NodeId<U>>>().is_empty() {
-            return Err(ArenaError::NodeHasTooFewChildren(1));
+            return Err(ArenaError::NodeHasTooFewChildren(root.id()));
         }
         if root.children(self).collect::<Vec<NodeId<U>>>().len() > 1 {
-            return Err(ArenaError::NodeHasTooManyChildren);
+            return Err(ArenaError::NodeHasTooManyChildren(root.id()));
         }
         let new_root = self[root].first_child.unwrap();
         self[new_root].parent = None;
@@ -536,9 +548,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
         if self.is_leaf(arena) {
             return 1;
         }
-        self.children(arena).map(|child| child.height(arena))
+        self.children(arena)
+            .map(|child| child.height(arena))
             .max()
-            .unwrap() + 1
+            .unwrap()
+        + 1
     }
 
     /// Get the size of the subtree under this node.
@@ -578,7 +592,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
     /// still be able to reach the root (but not any of the other nodes).
     pub fn detach<T: Clone + PartialEq>(self, arena: &mut Arena<T, U>) -> ArenaResult {
         if !arena.contains(self) {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(self.index));
         }
         let (parent, previous_sibling, next_sibling) = {
             let node = &mut arena[self];
@@ -620,7 +634,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
                                                arena: &mut Arena<T, U>)
                                                -> ArenaResult {
         if self.index >= arena.size() || parent.index >= arena.size() {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(self.index));
         }
         self.detach(arena)?;
         arena[self].parent = Some(parent);
@@ -702,10 +716,10 @@ impl<U: PartialEq + Copy> NodeId<U> {
                                                    arena: &mut Arena<T, U>)
                                                    -> ArenaResult {
         if !arena.contains(self) {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(self.index));
         }
         if !arena.contains(parent) {
-            return Err(ArenaError::NodeIdNotFound);
+            return Err(ArenaError::NodeIdNotFound(parent.index));
         }
         if nth == 0 && arena[parent].first_child == None {
             // Make self the *first* child of parent.
@@ -717,7 +731,7 @@ impl<U: PartialEq + Copy> NodeId<U> {
             // Make self the *last* child of parent.
             return self.make_child_of(parent, arena);
         } else if n_children < nth {
-            return Err(ArenaError::NodeHasTooFewChildren(n_children));
+            return Err(ArenaError::NodeHasTooFewChildren(parent.index));
         }
         self.detach(arena)?; // Leave current children attached.
         arena[self].parent = Some(parent);
@@ -838,9 +852,7 @@ pub struct ReverseChildren<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
     arena: &'a Arena<T, U>,
     node: Option<NodeId<U>>
 }
-impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| {
-    node.previous_sibling
-});
+impl_node_iterator!(ReverseChildren, |node: &Node<T, U>| node.previous_sibling);
 
 /// A breadth-first iterator of references to the descendants of a given node.
 pub struct BreadthFirstTraversal<'a, T: Clone + 'a, U: PartialEq + Copy + 'a> {
@@ -1089,7 +1101,8 @@ mod tests {
         n2.make_child_of(new_root, &mut arena).unwrap();
         let res = arena.delete_root();
         assert!(res.is_err());
-        assert_eq!(res.err(), Some(ArenaError::NodeHasTooManyChildren));
+        assert_eq!(res.err(),
+                   Some(ArenaError::NodeHasTooManyChildren(new_root.id())));
     }
 
     #[test]
@@ -1107,7 +1120,7 @@ mod tests {
         assert!(root.detach(&mut arena).is_ok());
         let res = arena.delete_root();
         assert!(res.is_err());
-        assert_eq!(res.err(), Some(ArenaError::NodeHasTooFewChildren(1)));
+        assert_eq!(res.err(), Some(ArenaError::NodeHasTooFewChildren(2)));
     }
 
     #[test]
@@ -1483,8 +1496,8 @@ mod tests {
                                                               phantom: PhantomData },
                                                      NodeId { index: 1,
                                                               phantom: PhantomData }];
-        let root_child_ids =
-            root.reverse_children(&arena).collect::<Vec<NodeId<SrcNodeId>>>();
+        let root_child_ids = root.reverse_children(&arena)
+                                 .collect::<Vec<NodeId<SrcNodeId>>>();
         assert_eq!(expected1.len(), root_child_ids.len());
         for index in 0..expected1.len() {
             assert_eq!(expected1[index], root_child_ids[index]);
@@ -1494,8 +1507,8 @@ mod tests {
                                                               phantom: PhantomData },
                                                      NodeId { index: 3,
                                                               phantom: PhantomData }];
-        let n2_child_ids =
-            n2.reverse_children(&arena).collect::<Vec<NodeId<SrcNodeId>>>();
+        let n2_child_ids = n2.reverse_children(&arena)
+                             .collect::<Vec<NodeId<SrcNodeId>>>();
         assert_eq!(expected2.len(), n2_child_ids.len());
         for index in 0..expected2.len() {
             assert_eq!(expected2[index], n2_child_ids[index]);

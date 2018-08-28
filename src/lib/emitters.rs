@@ -52,16 +52,31 @@ use chawathe98_matcher::{EdgeType, MappingStoreGraph};
 use matchers::{MappingStore, MappingType};
 use patch::{hunkify, Patch};
 
-/// Errors produced in emitting new data.
-pub enum EmitterError {
-    /// Could not create a new file.
-    CouldNotCreateFile,
-    /// Could not write out to a file.
-    CouldNotWriteToFile,
-    /// Could not read from a file.
-    CouldNotReadFile,
-    /// Could not open an existing file.
-    CouldNotOpenFile
+quick_error! {
+    /// Errors produced in emitting new data.
+    #[derive(Debug)]
+    pub enum EmitterError {
+        CouldNotCreateFile(path: String) {
+            description("Could not create a new file.")
+            display(r#"File "{}" could not be created."#, path)
+        }
+        CouldNotWriteToFile(path: String) {
+            description("Could not write to file.")
+            display(r#"Could not write to file "{}"."#, path)
+        }
+        CouldNotWriteToStdout {
+            description("Could not write to STDOUT.")
+            display(r#"Could not write to STDOUT."#)
+        }
+        CouldNotReadFile(path: String) {
+            description("Could not read from file.")
+            display(r#"Could not read from file "{}"."#, path)
+        }
+        CouldNotOpenFile(path: String) {
+            description("Could not open file.")
+            display(r#"Could not open file "{}"."#, path)
+        }
+    }
 }
 
 /// Result returned by emitters.
@@ -87,15 +102,10 @@ pub fn write_json_to_stream<T: RenderJson, U: RenderJson>(mut stream: Box<Write>
                                                           store: &T,
                                                           script: &U)
                                                           -> EmitterResult {
-    stream
-        .write_all(
-            format!(
-                "{{\n{},\n{}\n}}\n",
-                store.render_json(4),
-                script.render_json(4)
-            ).as_bytes(),
-        )
-        .map_err(|_| EmitterError::CouldNotWriteToFile)
+    stream.write_all(format!("{{\n{},\n{}\n}}\n",
+                             store.render_json(4),
+                             script.render_json(4)).as_bytes())
+          .map_err(|_| EmitterError::CouldNotWriteToStdout)
 }
 
 // Map action types to terminal colours.
@@ -110,7 +120,7 @@ fn build_colour_map() -> HashMap<ActionType, term::color::Color> {
 
 // Read file and return its contents or `ParseError`.
 fn read_file(path: &str) -> Result<String, EmitterError> {
-    let mut f = File::open(path).map_err(|_| EmitterError::CouldNotOpenFile)?;
+    let mut f = File::open(path).map_err(|_| EmitterError::CouldNotOpenFile(path.to_string()))?;
     let mut s = String::new();
     f.read_to_string(&mut s).unwrap();
     Ok(s)
@@ -251,10 +261,11 @@ fn escape_string(label: &str) -> String {
 }
 
 /// Write out a graphviz file (in dot format) to `filepath`.
-pub fn write_dotfile_to_disk<T: RenderDotfile>(filepath: &str, graph: &T) -> EmitterResult {
-    let mut stream = File::create(&filepath).map_err(|_| EmitterError::CouldNotCreateFile)?;
+pub fn write_dotfile_to_disk<T: RenderDotfile>(path: &str, graph: &T) -> EmitterResult {
+    let mut stream =
+        File::create(&path).map_err(|_| EmitterError::CouldNotCreateFile(path.to_string()))?;
     graph.render_dotfile(&mut stream)
-         .map_err(|_| EmitterError::CouldNotWriteToFile)
+         .map_err(|_| EmitterError::CouldNotWriteToFile(path.to_string()))
 }
 
 impl<'a, T: PartialEq + Copy> Labeller<'a, NodeId<T>, EdgeId<T>> for Arena<String, T> {
