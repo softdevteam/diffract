@@ -782,6 +782,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
         node
     }
 
+    /// Return the Id of the parent node, if there is one.
+    pub fn parent<T: Clone>(self, arena: &Arena<T, U>) -> Option<NodeId<U>> {
+        arena[self].parent
+    }
+
     /// Return an iterator of references to this node’s children.
     pub fn children<T: Clone>(self, arena: &Arena<T, U>) -> Children<T, U> {
         Children { arena,
