@@ -518,6 +518,11 @@ impl<U: PartialEq + Copy> NodeId<U> {
         self.index
     }
 
+    /// Return the type of this Node Id.
+    pub fn ty<T: Clone>(self, arena: &Arena<T, U>) -> &T {
+        &arena[self].ty
+    }
+
     /// `true` if this node has no children.
     pub fn is_leaf<T: Clone>(self, arena: &Arena<T, U>) -> bool {
         arena[self].first_child.is_none()
