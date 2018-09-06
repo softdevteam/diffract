@@ -40,13 +40,12 @@
 /// A multi-mapping store holds non-unique mappings between two abstract syntax trees.
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Debug;
 
-use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
+use ast::{DstNodeId, NodeId, SrcNodeId};
 
 /// A store of mappings between nodes in different arenas.
 /// Direction is important.
-pub struct MultiMappingStore<T: Clone + Debug + ToString> {
+pub struct MultiMappingStore {
     /// Mappings from the source tree to the destination.
     ///
     /// Should contain the same information as `dst` map.
@@ -54,21 +53,14 @@ pub struct MultiMappingStore<T: Clone + Debug + ToString> {
     /// Mappings from the destination tree to the source.
     ///
     /// Should contain the same information as `src` map.
-    pub dst: RefCell<HashMap<NodeId<DstNodeId>, HashSet<NodeId<SrcNodeId>>>>,
-
-    /// Source arena (treat as mutable).
-    pub src_arena: RefCell<Arena<T, SrcNodeId>>,
-    /// Destination arena (treat as immutable).
-    pub dst_arena: RefCell<Arena<T, DstNodeId>>
+    pub dst: RefCell<HashMap<NodeId<DstNodeId>, HashSet<NodeId<SrcNodeId>>>>
 }
 
-impl<T: Clone + Debug + Eq + ToString + 'static> MultiMappingStore<T> {
+impl MultiMappingStore {
     /// Create a new mapping store.
-    pub fn new(src: Arena<T, SrcNodeId>, dst: Arena<T, DstNodeId>) -> MultiMappingStore<T> {
+    pub fn new() -> MultiMappingStore {
         MultiMappingStore { src: RefCell::new(HashMap::new()),
-                            dst: RefCell::new(HashMap::new()),
-                            src_arena: RefCell::new(src),
-                            dst_arena: RefCell::new(dst) }
+                            dst: RefCell::new(HashMap::new()) }
     }
 
     /// Push a new mapping into the store.
@@ -81,11 +73,6 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MultiMappingStore<T> {
             self.dst.borrow_mut().insert(dst, HashSet::new());
         }
         self.dst.borrow_mut().get_mut(&dst).unwrap().insert(src);
-        info!("Mapping: {:?} {:} -> {:?} {:}",
-              self.src_arena.borrow()[src].ty,
-              self.src_arena.borrow()[src].label,
-              self.dst_arena.borrow()[dst].ty,
-              self.dst_arena.borrow()[dst].label);
     }
 
     /// Remove mapping from store.
@@ -154,13 +141,10 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MultiMappingStore<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_common::{create_mult_arena, create_plus_arena};
 
     #[test]
     fn multi_map_get_src_get_dst() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         let mut get_src_expected: HashSet<NodeId<SrcNodeId>> = HashSet::new();
         let mut get_dst_expected: HashSet<NodeId<DstNodeId>> = HashSet::new();
         assert_eq!(None, store.get_dst(NodeId::new(0)));
@@ -193,9 +177,7 @@ mod tests {
 
     #[test]
     fn multi_get_srcs_get_dsts() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         let mut srcs_expected: HashSet<NodeId<SrcNodeId>> = HashSet::new();
         let mut dsts_expected: HashSet<NodeId<DstNodeId>> = HashSet::new();
         store.push(NodeId::new(0), NodeId::new(0));
@@ -222,9 +204,7 @@ mod tests {
 
     #[test]
     fn multi_map_remove() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         store.push(NodeId::new(0), NodeId::new(0));
         store.push(NodeId::new(0), NodeId::new(1));
         store.push(NodeId::new(0), NodeId::new(2));
@@ -248,9 +228,7 @@ mod tests {
 
     #[test]
     fn multi_map_contains() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         store.push(NodeId::new(0), NodeId::new(0));
         store.push(NodeId::new(0), NodeId::new(1));
         store.push(NodeId::new(0), NodeId::new(2));
@@ -267,9 +245,7 @@ mod tests {
 
     #[test]
     fn multi_map_contains_mapping() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         store.push(NodeId::new(0), NodeId::new(0));
         store.push(NodeId::new(0), NodeId::new(1));
         store.push(NodeId::new(0), NodeId::new(2));
@@ -289,9 +265,7 @@ mod tests {
 
     #[test]
     fn multi_map_is_src_unique() {
-        let mult = create_mult_arena();
-        let plus = create_plus_arena();
-        let store = MultiMappingStore::new(plus, Arena::<String, DstNodeId>::from(mult));
+        let store = MultiMappingStore::new();
         store.push(NodeId::new(0), NodeId::new(0));
         store.push(NodeId::new(0), NodeId::new(1));
         store.push(NodeId::new(0), NodeId::new(2));
