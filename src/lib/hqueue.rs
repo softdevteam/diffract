@@ -40,7 +40,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use ast::{Arena, NodeId};
+use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 
 /// A `PriorityNodeId` wraps the height of a node with its id.
 ///
@@ -194,12 +194,29 @@ impl<U: PartialEq + Copy> HeightQueue<U> {
     }
 }
 
+/// Given two height queues, pop from each until they match in maximum height.
+pub fn match_heights<T: PartialEq + Clone>(src_q: &mut HeightQueue<SrcNodeId>,
+                                           src: &Arena<T, SrcNodeId>,
+                                           dst_q: &mut HeightQueue<DstNodeId>,
+                                           dst: &Arena<T, DstNodeId>) {
+    while !src_q.is_empty()
+          && !dst_q.is_empty()
+          && src_q.peek_max().unwrap() != dst_q.peek_max().unwrap()
+    {
+        if src_q.peek_max().unwrap() > dst_q.peek_max().unwrap() {
+            src_q.pop_and_push_children(&src);
+        } else {
+            dst_q.pop_and_push_children(&dst);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ast::SrcNodeId;
     use test::Bencher;
-    use test_common::create_mult_arena;
+    use test_common::{create_mult_arena, create_plus_arena};
 
     // Assert that `queue` is in sorted order and has the same size `arena`.
     fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<SrcNodeId>,
@@ -342,6 +359,28 @@ mod tests {
         assert_eq!(expected, formatted);
         queue.push(NodeId::new(0), &arena); // Should have no effect.
         assert_eq!(expected, formatted);
+    }
+
+    #[test]
+    fn test_match_heights() {
+        let plus = create_plus_arena();
+        let mult = Arena::<String, DstNodeId>::from(create_mult_arena());
+        let mut plus_q: HeightQueue<SrcNodeId> = HeightQueue::new();
+        let mut mult_q: HeightQueue<DstNodeId> = HeightQueue::new();
+        assert!(plus_q.is_empty());
+        assert!(mult_q.is_empty());
+        for node in NodeId::new(0).breadth_first_traversal(&plus) {
+            plus_q.push(node, &plus);
+        }
+        for node in NodeId::new(0).breadth_first_traversal(&mult) {
+            mult_q.push(node, &mult);
+        }
+        assert_eq!(2, NodeId::new(0).height(&plus));
+        assert_eq!(3, NodeId::new(0).height(&mult));
+        match_heights(&mut plus_q, &plus, &mut mult_q, &mult);
+        assert_eq!(plus_q.peek_max().unwrap(), mult_q.peek_max().unwrap());
+        assert_eq!(2, plus_q.peek_max().unwrap());
+        assert_eq!(2, mult_q.peek_max().unwrap());
     }
 
     const BENCH_ITER: usize = 10000;
