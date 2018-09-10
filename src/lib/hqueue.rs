@@ -49,17 +49,17 @@ use ast::{Arena, NodeId};
 /// which will return `NodeId`s directly, rather than the `PriorityNodeId`
 /// wrapper.
 #[derive(Clone, Eq, PartialEq)]
-struct PriorityNodeId<T: PartialEq + Copy> {
-    index: NodeId<T>,
+struct PriorityNodeId<U: PartialEq + Copy> {
+    index: NodeId<U>,
     height: u32
 }
 
-impl<T: PartialEq + Copy> PriorityNodeId<T> {
-    fn new(index: NodeId<T>, height: u32) -> PriorityNodeId<T> {
+impl<U: PartialEq + Copy> PriorityNodeId<U> {
+    fn new(index: NodeId<U>, height: u32) -> PriorityNodeId<U> {
         PriorityNodeId { index, height }
     }
 
-    fn id(&self) -> NodeId<T> {
+    fn id(&self) -> NodeId<U> {
         self.index
     }
 
@@ -68,31 +68,31 @@ impl<T: PartialEq + Copy> PriorityNodeId<T> {
     }
 }
 
-impl<T: Eq + PartialEq + Copy> Ord for PriorityNodeId<T> {
-    fn cmp(&self, other: &PriorityNodeId<T>) -> Ordering {
+impl<U: Eq + PartialEq + Copy> Ord for PriorityNodeId<U> {
+    fn cmp(&self, other: &PriorityNodeId<U>) -> Ordering {
         self.height.cmp(&other.height)
     }
 }
 
-impl<T: Eq + PartialEq + Copy> PartialOrd for PriorityNodeId<T> {
-    fn partial_cmp(&self, other: &PriorityNodeId<T>) -> Option<Ordering> {
+impl<U: Eq + PartialEq + Copy> PartialOrd for PriorityNodeId<U> {
+    fn partial_cmp(&self, other: &PriorityNodeId<U>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 #[derive(Clone, Eq, PartialEq)]
-pub struct HeightQueue<T: PartialEq + Copy> {
-    queue: Vec<PriorityNodeId<T>> // Use Vec so we can call `sort()`.
+pub struct HeightQueue<U: PartialEq + Copy> {
+    queue: Vec<PriorityNodeId<U>> // Use Vec so we can call `sort()`.
 }
 
-impl<T: PartialEq + Copy> Default for HeightQueue<T> {
-    fn default() -> HeightQueue<T> {
+impl<U: PartialEq + Copy> Default for HeightQueue<U> {
+    fn default() -> HeightQueue<U> {
         HeightQueue { queue: vec![] }
     }
 }
 
-impl<T: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<T> {
+impl<U: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[ ")?;
         for item in &self.queue {
@@ -102,9 +102,9 @@ impl<T: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<T> {
     }
 }
 
-impl<T: PartialEq + Copy> HeightQueue<T> {
+impl<U: PartialEq + Copy> HeightQueue<U> {
     /// Create empty priority queue.
-    pub fn new() -> HeightQueue<T> {
+    pub fn new() -> HeightQueue<U> {
         Default::default()
     }
 
@@ -127,7 +127,7 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     }
 
     /// Remove information about the tallest node(s) and return their `NodeId`.
-    pub fn pop(&mut self) -> Vec<NodeId<T>> {
+    pub fn pop(&mut self) -> Vec<NodeId<U>> {
         let mut nodes = vec![];
         if self.is_empty() {
             return nodes;
@@ -142,7 +142,7 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     /// Push a new node into this priority queue, keeping the queue sorted.
     ///
     /// This method has no effect if the new node is already in the queue.
-    pub fn push<U: Clone>(&mut self, index: NodeId<T>, arena: &Arena<U, T>) {
+    pub fn push<T: Clone>(&mut self, index: NodeId<U>, arena: &Arena<T, U>) {
         let height = index.height(arena);
         let new_node = PriorityNodeId::new(index, height);
         if self.queue.contains(&new_node) {
@@ -166,8 +166,8 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     }
 
     /// Insert all the children of `parent` into this queue, keeping it sorted.
-    pub fn push_children<U: Clone>(&mut self, parent: NodeId<T>, arena: &Arena<U, T>) {
-        let children = parent.children(arena).collect::<Vec<NodeId<T>>>();
+    pub fn push_children<T: Clone>(&mut self, parent: NodeId<U>, arena: &Arena<T, U>) {
+        let children = parent.children(arena).collect::<Vec<NodeId<U>>>();
         for child in children {
             self.push(child, arena);
         }
