@@ -118,6 +118,11 @@ impl<U: PartialEq + Copy> HeightQueue<U> {
         self.queue.is_empty()
     }
 
+    /// Return the number of elements in this height queue.
+    pub fn size(&self) -> usize {
+        self.queue.len()
+    }
+
     /// Get the id of the `Node` with the greatest height in the current queue.
     pub fn peek_max(&self) -> Option<u32> {
         if self.queue.is_empty() {
@@ -171,6 +176,21 @@ impl<U: PartialEq + Copy> HeightQueue<U> {
         for child in children {
             self.push(child, arena);
         }
+    }
+
+    /// Pop the top of the list and push the children of all of the tallest
+    /// nodes back into the queue.
+    pub fn pop_and_push_children<T: Clone>(&mut self,
+                                           arena: &Arena<T, U>)
+                                           -> Option<Vec<NodeId<U>>> {
+        let tallest = self.pop();
+        if !tallest.is_empty() {
+            for node in &tallest {
+                self.push_children(*node, arena);
+            }
+            return Some(tallest);
+        }
+        None
     }
 }
 
@@ -259,6 +279,26 @@ mod tests {
         assert_eq!(expected1, queue.pop());
         let expected2 = vec![NodeId::new(1)]; // INT 1
         assert_eq!(expected2, queue.pop());
+    }
+
+    #[test]
+    fn pop_and_push_children() {
+        let arena = create_mult_arena();
+        let mut queue = HeightQueue::<SrcNodeId>::new();
+        assert!(queue.is_empty());
+        queue.push(NodeId::new(0), &arena); // Root node.
+        assert!(!queue.is_empty());
+        assert!(queue.peek_max().is_some());
+        assert_eq!(NodeId::new(0).height(&arena), queue.peek_max().unwrap());
+        let tallest_wrapped = queue.pop_and_push_children(&arena);
+        assert!(tallest_wrapped.is_some());
+        let tallest = tallest_wrapped.unwrap();
+        assert_eq!(1, tallest.len());
+        assert_eq!(NodeId::new(0), tallest[0]);
+        assert_eq!(NodeId::new(0).children(&arena)
+                                 .collect::<Vec<NodeId<SrcNodeId>>>()
+                                 .len(),
+                   queue.size());
     }
 
     #[test]
