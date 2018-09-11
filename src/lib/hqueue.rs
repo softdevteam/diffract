@@ -40,7 +40,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use ast::{Arena, NodeId};
+use ast::{Arena, DstNodeId, NodeId, SrcNodeId};
 
 /// A `PriorityNodeId` wraps the height of a node with its id.
 ///
@@ -49,17 +49,17 @@ use ast::{Arena, NodeId};
 /// which will return `NodeId`s directly, rather than the `PriorityNodeId`
 /// wrapper.
 #[derive(Clone, Eq, PartialEq)]
-struct PriorityNodeId<T: PartialEq + Copy> {
-    index: NodeId<T>,
+struct PriorityNodeId<U: PartialEq + Copy> {
+    index: NodeId<U>,
     height: u32
 }
 
-impl<T: PartialEq + Copy> PriorityNodeId<T> {
-    fn new(index: NodeId<T>, height: u32) -> PriorityNodeId<T> {
+impl<U: PartialEq + Copy> PriorityNodeId<U> {
+    fn new(index: NodeId<U>, height: u32) -> PriorityNodeId<U> {
         PriorityNodeId { index, height }
     }
 
-    fn id(&self) -> NodeId<T> {
+    fn id(&self) -> NodeId<U> {
         self.index
     }
 
@@ -68,31 +68,31 @@ impl<T: PartialEq + Copy> PriorityNodeId<T> {
     }
 }
 
-impl<T: Eq + PartialEq + Copy> Ord for PriorityNodeId<T> {
-    fn cmp(&self, other: &PriorityNodeId<T>) -> Ordering {
+impl<U: Eq + PartialEq + Copy> Ord for PriorityNodeId<U> {
+    fn cmp(&self, other: &PriorityNodeId<U>) -> Ordering {
         self.height.cmp(&other.height)
     }
 }
 
-impl<T: Eq + PartialEq + Copy> PartialOrd for PriorityNodeId<T> {
-    fn partial_cmp(&self, other: &PriorityNodeId<T>) -> Option<Ordering> {
+impl<U: Eq + PartialEq + Copy> PartialOrd for PriorityNodeId<U> {
+    fn partial_cmp(&self, other: &PriorityNodeId<U>) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 /// A queue of `NodeId`s sorted on the height of their respective nodes.
 #[derive(Clone, Eq, PartialEq)]
-pub struct HeightQueue<T: PartialEq + Copy> {
-    queue: Vec<PriorityNodeId<T>> // Use Vec so we can call `sort()`.
+pub struct HeightQueue<U: PartialEq + Copy> {
+    queue: Vec<PriorityNodeId<U>> // Use Vec so we can call `sort()`.
 }
 
-impl<T: PartialEq + Copy> Default for HeightQueue<T> {
-    fn default() -> HeightQueue<T> {
+impl<U: PartialEq + Copy> Default for HeightQueue<U> {
+    fn default() -> HeightQueue<U> {
         HeightQueue { queue: vec![] }
     }
 }
 
-impl<T: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<T> {
+impl<U: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<U> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[ ")?;
         for item in &self.queue {
@@ -102,9 +102,9 @@ impl<T: fmt::Debug + PartialEq + Copy> fmt::Debug for HeightQueue<T> {
     }
 }
 
-impl<T: PartialEq + Copy> HeightQueue<T> {
+impl<U: PartialEq + Copy> HeightQueue<U> {
     /// Create empty priority queue.
-    pub fn new() -> HeightQueue<T> {
+    pub fn new() -> HeightQueue<U> {
         Default::default()
     }
 
@@ -118,6 +118,11 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
         self.queue.is_empty()
     }
 
+    /// Return the number of elements in this height queue.
+    pub fn size(&self) -> usize {
+        self.queue.len()
+    }
+
     /// Get the id of the `Node` with the greatest height in the current queue.
     pub fn peek_max(&self) -> Option<u32> {
         if self.queue.is_empty() {
@@ -127,7 +132,7 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     }
 
     /// Remove information about the tallest node(s) and return their `NodeId`.
-    pub fn pop(&mut self) -> Vec<NodeId<T>> {
+    pub fn pop(&mut self) -> Vec<NodeId<U>> {
         let mut nodes = vec![];
         if self.is_empty() {
             return nodes;
@@ -142,7 +147,7 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     /// Push a new node into this priority queue, keeping the queue sorted.
     ///
     /// This method has no effect if the new node is already in the queue.
-    pub fn push<U: Clone>(&mut self, index: NodeId<T>, arena: &Arena<U, T>) {
+    pub fn push<T: Clone>(&mut self, index: NodeId<U>, arena: &Arena<T, U>) {
         let height = index.height(arena);
         let new_node = PriorityNodeId::new(index, height);
         if self.queue.contains(&new_node) {
@@ -166,10 +171,42 @@ impl<T: PartialEq + Copy> HeightQueue<T> {
     }
 
     /// Insert all the children of `parent` into this queue, keeping it sorted.
-    pub fn open<U: Clone>(&mut self, parent: NodeId<T>, arena: &Arena<U, T>) {
-        let children = parent.children(arena).collect::<Vec<NodeId<T>>>();
+    pub fn push_children<T: Clone>(&mut self, parent: NodeId<U>, arena: &Arena<T, U>) {
+        let children = parent.children(arena).collect::<Vec<NodeId<U>>>();
         for child in children {
             self.push(child, arena);
+        }
+    }
+
+    /// Pop the top of the list and push the children of all of the tallest
+    /// nodes back into the queue.
+    pub fn pop_and_push_children<T: Clone>(&mut self,
+                                           arena: &Arena<T, U>)
+                                           -> Option<Vec<NodeId<U>>> {
+        let tallest = self.pop();
+        if !tallest.is_empty() {
+            for node in &tallest {
+                self.push_children(*node, arena);
+            }
+            return Some(tallest);
+        }
+        None
+    }
+}
+
+/// Given two height queues, pop from each until they match in maximum height.
+pub fn match_heights<T: PartialEq + Clone>(src_q: &mut HeightQueue<SrcNodeId>,
+                                           src: &Arena<T, SrcNodeId>,
+                                           dst_q: &mut HeightQueue<DstNodeId>,
+                                           dst: &Arena<T, DstNodeId>) {
+    while !src_q.is_empty()
+          && !dst_q.is_empty()
+          && src_q.peek_max().unwrap() != dst_q.peek_max().unwrap()
+    {
+        if src_q.peek_max().unwrap() > dst_q.peek_max().unwrap() {
+            src_q.pop_and_push_children(&src);
+        } else {
+            dst_q.pop_and_push_children(&dst);
         }
     }
 }
@@ -179,7 +216,7 @@ mod tests {
     use super::*;
     use ast::SrcNodeId;
     use test::Bencher;
-    use test_common::create_mult_arena;
+    use test_common::{create_mult_arena, create_plus_arena};
 
     // Assert that `queue` is in sorted order and has the same size `arena`.
     fn assert_sorted<T: Clone + PartialEq>(queue: &HeightQueue<SrcNodeId>,
@@ -251,14 +288,34 @@ mod tests {
     }
 
     #[test]
-    fn open() {
+    fn push_children() {
         let arena = create_mult_arena();
         let mut queue = HeightQueue::<SrcNodeId>::new();
-        queue.open(NodeId::new(0), &arena);
+        queue.push_children(NodeId::new(0), &arena);
         let expected1 = vec![NodeId::new(2)]; // Expr *
         assert_eq!(expected1, queue.pop());
         let expected2 = vec![NodeId::new(1)]; // INT 1
         assert_eq!(expected2, queue.pop());
+    }
+
+    #[test]
+    fn pop_and_push_children() {
+        let arena = create_mult_arena();
+        let mut queue = HeightQueue::<SrcNodeId>::new();
+        assert!(queue.is_empty());
+        queue.push(NodeId::new(0), &arena); // Root node.
+        assert!(!queue.is_empty());
+        assert!(queue.peek_max().is_some());
+        assert_eq!(NodeId::new(0).height(&arena), queue.peek_max().unwrap());
+        let tallest_wrapped = queue.pop_and_push_children(&arena);
+        assert!(tallest_wrapped.is_some());
+        let tallest = tallest_wrapped.unwrap();
+        assert_eq!(1, tallest.len());
+        assert_eq!(NodeId::new(0), tallest[0]);
+        assert_eq!(NodeId::new(0).children(&arena)
+                                 .collect::<Vec<NodeId<SrcNodeId>>>()
+                                 .len(),
+                   queue.size());
     }
 
     #[test]
@@ -302,6 +359,28 @@ mod tests {
         assert_eq!(expected, formatted);
         queue.push(NodeId::new(0), &arena); // Should have no effect.
         assert_eq!(expected, formatted);
+    }
+
+    #[test]
+    fn test_match_heights() {
+        let plus = create_plus_arena();
+        let mult = Arena::<String, DstNodeId>::from(create_mult_arena());
+        let mut plus_q: HeightQueue<SrcNodeId> = HeightQueue::new();
+        let mut mult_q: HeightQueue<DstNodeId> = HeightQueue::new();
+        assert!(plus_q.is_empty());
+        assert!(mult_q.is_empty());
+        for node in NodeId::new(0).breadth_first_traversal(&plus) {
+            plus_q.push(node, &plus);
+        }
+        for node in NodeId::new(0).breadth_first_traversal(&mult) {
+            mult_q.push(node, &mult);
+        }
+        assert_eq!(2, NodeId::new(0).height(&plus));
+        assert_eq!(3, NodeId::new(0).height(&mult));
+        match_heights(&mut plus_q, &plus, &mut mult_q, &mult);
+        assert_eq!(plus_q.peek_max().unwrap(), mult_q.peek_max().unwrap());
+        assert_eq!(2, plus_q.peek_max().unwrap());
+        assert_eq!(2, mult_q.peek_max().unwrap());
     }
 
     const BENCH_ITER: usize = 10000;
