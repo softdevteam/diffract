@@ -37,12 +37,13 @@
 
 #![feature(test)]
 #![feature(try_from)]
-#![cfg_attr(feature = "cargo-clippy", allow(cyclomatic_complexity))]
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(new_without_default_derive))]
-#![cfg_attr(feature = "cargo-clippy", allow(range_plus_one))]
-#![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
-#![cfg_attr(feature = "cargo-clippy", allow(type_complexity))]
+#![feature(tool_lints)]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::range_plus_one))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::too_many_arguments))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::type_complexity))]
 
 extern crate cfgrammar;
 extern crate crypto;
