@@ -441,10 +441,10 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
 
             // Cost of forced move calculate
             // Get all the children of m.
-            let m_children =
-                m.children(&self.src_arena.borrow()).collect::<Vec<NodeId<SrcNodeId>>>();
-            let n_children =
-                n.children(&self.dst_arena.borrow()).collect::<Vec<NodeId<DstNodeId>>>();
+            let m_children = m.children(&self.src_arena.borrow())
+                              .collect::<Vec<NodeId<SrcNodeId>>>();
+            let n_children = n.children(&self.dst_arena.borrow())
+                              .collect::<Vec<NodeId<DstNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_forced_move_m_children_n = 0;
@@ -497,10 +497,10 @@ impl<T: Clone + Debug + Eq + 'static> MappingStoreGraph<T> {
 
             // Cost of forced move calculate
             // Get all the children of m.
-            let m_children =
-                m.children(&self.src_arena.borrow()).collect::<Vec<NodeId<SrcNodeId>>>();
-            let n_children =
-                n.children(&self.dst_arena.borrow()).collect::<Vec<NodeId<DstNodeId>>>();
+            let m_children = m.children(&self.src_arena.borrow())
+                              .collect::<Vec<NodeId<SrcNodeId>>>();
+            let n_children = n.children(&self.dst_arena.borrow())
+                              .collect::<Vec<NodeId<DstNodeId>>>();
 
             // Get sum of forced move m' (Children of m) to n
             let mut sum_cost_conditional_move_m_children_n = 0;
@@ -995,7 +995,7 @@ fn add_edges_where_parents_are_insert(new_matcher_pruning: &mut MappingStoreGrap
     filter_move_only_leaves.retain(|&x| !hash_edges.contains(&(x.0, x.1)));
     // Only get edges where parents are insert or ok edges
     filter_move_only_leaves.retain(|&x| {
-        (new_matcher_pruning.dst_arena.borrow()[x.1].parent()
+                               (new_matcher_pruning.dst_arena.borrow()[x.1].parent()
                                                     .is_some()
          && hash_insert_edges.contains(&new_matcher_pruning.dst_arena.borrow()[x.1].parent()
                                                                                    .unwrap()))
@@ -1007,7 +1007,7 @@ fn add_edges_where_parents_are_insert(new_matcher_pruning: &mut MappingStoreGrap
                                                                                    .unwrap(),
                                       new_matcher_pruning.dst_arena.borrow()[x.1].parent()
                                                                                    .unwrap())))
-    });
+                           });
     filter_move_only_leaves.retain(|&x| {
                                        !helper.0.contains_key(&x.1) && !helper.1.contains_key(&x.0)
                                    });
@@ -1336,10 +1336,10 @@ fn check_dst_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingStor
             if edge_traverse.edge_type == EdgeType::GLUE
                || edge_traverse.edge_type == EdgeType::COPY
             {
-                let children_copy_glue = edge_traverse.dst_node
-                                                      .descendants(&new_matcher_pruning.dst_arena
-                                                                                       .borrow())
-                                                      .collect::<Vec<NodeId<DstNodeId>>>();
+                let children_copy_glue =
+                    edge_traverse.dst_node
+                                 .descendants(&new_matcher_pruning.dst_arena.borrow())
+                                 .collect::<Vec<NodeId<DstNodeId>>>();
                 for children in children_copy_glue {
                     get_descendants_copy_glue.insert(children);
                 }
@@ -1392,10 +1392,10 @@ fn check_src_arena_mapping_which_are_empty(new_matcher_pruning: &mut MappingStor
             if edge_traverse.edge_type == EdgeType::GLUE
                || edge_traverse.edge_type == EdgeType::COPY
             {
-                let children_copy_glue = edge_traverse.src_node
-                                                      .descendants(&new_matcher_pruning.src_arena
-                                                                                       .borrow())
-                                                      .collect::<Vec<NodeId<SrcNodeId>>>();
+                let children_copy_glue =
+                    edge_traverse.src_node
+                                 .descendants(&new_matcher_pruning.src_arena.borrow())
+                                 .collect::<Vec<NodeId<SrcNodeId>>>();
                 for children in children_copy_glue {
                     get_descendants_copy_glue.insert(children);
                 }
@@ -1778,7 +1778,8 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                         // Then OK should be good to go
                         if (src_pre[src_node_id].is_root(&store.src_arena.borrow())
                             && dst_pre[dst_node_id].is_root(&store.dst_arena.borrow()))
-                           || (parent_src_node.is_some() && parent_dst_node.is_some()
+                           || (parent_src_node.is_some()
+                               && parent_dst_node.is_some()
                                && has_same_type_and_label(parent_src_node.unwrap(),
                                                           &store.src_arena.borrow(),
                                                           parent_dst_node.unwrap(),
@@ -2086,10 +2087,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
                                                        .unwrap_or_else(|| &1);
 
             let lower_bound_e1 = *all_lower_bound_edges.get(&(m, n)).unwrap_or_else(|| &1);
-            let descendants_m_delete =
-                m.descendants(&input.src_arena.borrow()).collect::<Vec<NodeId<SrcNodeId>>>();
-            let descendants_n_insert =
-                n.descendants(&input.dst_arena.borrow()).collect::<Vec<NodeId<DstNodeId>>>();
+            let descendants_m_delete = m.descendants(&input.src_arena.borrow())
+                                        .collect::<Vec<NodeId<SrcNodeId>>>();
+            let descendants_n_insert = n.descendants(&input.dst_arena.borrow())
+                                        .collect::<Vec<NodeId<DstNodeId>>>();
 
             if (lower_bound_e1 >= upper_bound_e2 + upper_bound_e3 + 2 * ct)
                || (lower_bound_e1
@@ -2109,12 +2110,10 @@ impl<T: Clone + Debug + Eq + 'static> MatchingTreesScriptor<T> for Config2 {
             if e1_update.edge_type == EdgeType::UPDATE {
                 let m = e1_update.src_node
                                  .descendants(&input.src_arena.borrow())
-                                 .collect::<Vec<NodeId<SrcNodeId>>>()
-                                 .len();
+                                 .count();
                 let n = e1_update.dst_node
                                  .descendants(&input.dst_arena.borrow())
-                                 .collect::<Vec<NodeId<DstNodeId>>>()
-                                 .len();
+                                 .count();
                 // if the number of descendants are the same then ok to update
                 // Otherwise you may need to insert nodes and delete etc so
                 // update won't make any sense.

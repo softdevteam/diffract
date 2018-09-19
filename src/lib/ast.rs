@@ -215,10 +215,10 @@ impl<T: Clone + PartialEq, U: PartialEq + Copy> Arena<T, U> {
     pub fn delete_root(&mut self) -> ArenaResult {
         assert!(self.root.is_some());
         let root = self.root.unwrap();
-        if root.children(self).collect::<Vec<NodeId<U>>>().is_empty() {
+        if root.children(self).next().is_none() {
             return Err(ArenaError::NodeHasTooFewChildren(root.id()));
         }
-        if root.children(self).collect::<Vec<NodeId<U>>>().len() > 1 {
+        if root.children(self).count() > 1 {
             return Err(ArenaError::NodeHasTooManyChildren(root.id()));
         }
         let new_root = self[root].first_child.unwrap();
