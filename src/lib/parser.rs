@@ -140,7 +140,7 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
     let (sgraph, stable) = from_yacc(&grm, Minimiser::Pager).map_err(|_| ParseError::BrokenParser)?;
 
     // Sync up the IDs of terminals in the lexer and parser.
-    let rule_ids = grm.terms_map()
+    let rule_ids = grm.tokens_map()
                       .iter()
                       .map(|(&n, &i)| (n, StorageT::try_from(usize::from(i)).unwrap()))
                       .collect();
@@ -185,7 +185,7 @@ fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<StorageT>,
         match *e {
             parser::Node::Term { lexeme } => {
                 let token_id = lexeme.tok_id();
-                let term_name = grm.term_name(TIdx(token_id)).unwrap();
+                let term_name = grm.token_name(TIdx(token_id)).unwrap();
                 let lexeme_string = &input[lexeme.start()..lexeme.start() + lexeme.len()];
                 let (line_no, col_no) = lexer.line_and_col(&lexeme).unwrap();
                 child_node = arena.new_node(term_name.to_string(),
@@ -201,10 +201,10 @@ fn parse_into_ast<T: PartialEq + Copy>(pt: &parser::Node<StorageT>,
                     }
                 };
             }
-            parser::Node::Nonterm { nonterm_idx,
+            parser::Node::Nonterm { ridx,
                                     ref nodes } => {
                 // A non-terminal has no label of its own, but has a node type.
-                child_node = arena.new_node(grm.nonterm_name(nonterm_idx).to_string(),
+                child_node = arena.new_node(grm.rule_name(ridx).to_string(),
                                             "".to_string(),
                                             None,
                                             None,
