@@ -48,11 +48,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Dice measure of similarity between subtrees.
     pub fn dice_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
         let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
-                       .collect::<Vec<NodeId<SrcNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
-                       .collect::<Vec<NodeId<DstNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let dice = 2.0 * f64::from(self.num_common_descendants(src, dst)) / (n_src + n_dst);
         debug_assert!(dice >= 0. && dice <= 1.);
         dice
@@ -61,11 +59,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Jaccard measure of similarity between subtrees.
     pub fn jaccard_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
         let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
-                       .collect::<Vec<NodeId<SrcNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
-                       .collect::<Vec<NodeId<DstNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let common = f64::from(self.num_common_descendants(src, dst));
         let jaccard = common / (n_src + n_dst - common);
         debug_assert!(jaccard >= 0. && jaccard <= 1.);
@@ -75,11 +71,9 @@ impl<T: Clone + Debug + Eq + ToString + 'static> MappingStore<T> {
     /// Measure of similarity between subtrees Described in Chawathe et al. (1996).
     pub fn chawathe_sim(&self, src: NodeId<SrcNodeId>, dst: NodeId<DstNodeId>) -> f64 {
         let n_src = src.breadth_first_traversal(&self.src_arena.borrow())
-                       .collect::<Vec<NodeId<SrcNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let n_dst = dst.breadth_first_traversal(&self.dst_arena.borrow())
-                       .collect::<Vec<NodeId<DstNodeId>>>()
-                       .len() as f64;
+                       .count() as f64;
         let common = f64::from(self.num_common_descendants(src, dst));
         let chawathe = common / n_src.max(n_dst);
         debug_assert!(chawathe >= 0. && chawathe <= 1.);
