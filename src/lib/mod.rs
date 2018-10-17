@@ -37,7 +37,6 @@
 
 #![feature(test)]
 #![feature(try_from)]
-#![feature(tool_lints)]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default_derive))]
