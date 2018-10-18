@@ -44,8 +44,8 @@ use std::path::{Path, PathBuf};
 
 use cfgrammar::yacc::{YaccGrammar, YaccKind};
 use cfgrammar::TIdx;
-use lrlex::{build_lex, Lexer};
-use lrpar::parser;
+use lrlex::build_lex;
+use lrpar::{self, Lexer, parser, RTParserBuilder};
 use lrtable::{from_yacc, Minimiser};
 
 use ast::{Arena, NodeId};
@@ -147,15 +147,21 @@ pub fn parse_string<T: PartialEq + Copy>(input: &str,
     lexerdef.set_rule_ids(&rule_ids);
 
     // Lex input file.
-    let lexer = lexerdef.lexer(input);
-    let lexemes = lexer.lexemes()
-                       .map_err(|_| ParseError::LexicalError(input_path.to_string()))?;
+    let mut lexer = lexerdef.lexer(&input);
 
     // Return parse tree.
-    let pt =
-        parser::parse(&grm, &sgraph, &stable, &lexemes).map_err(|_| {
-                                                                            ParseError::SyntaxError(input_path.to_string())
-                                                                        })?;
+    let pt = RTParserBuilder::new(&grm, &sgraph, &stable)
+        .parse(&mut lexer)
+        .map_err(|e| {
+            match e {
+                lrpar::LexParseError::LexError(_) => {
+                    return ParseError::LexicalError(input_path.to_string());
+                }
+                lrpar::LexParseError::ParseError(_, _) => {
+                    return ParseError::SyntaxError(input_path.to_string());
+                }
+            }
+        })?;
     Ok(parse_into_ast::<T>(&pt, &lexer, &grm, input))
 }
 
